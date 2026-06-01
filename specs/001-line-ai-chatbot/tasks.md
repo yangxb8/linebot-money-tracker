@@ -8,9 +8,9 @@
 
 **Purpose**: Project initialization, dependency configuration, and test scaffolding
 
-- [ ] T001 [P] Add Gemini API integration dependency to `requirements.txt`
-- [ ] T002 [P] Create `tests/` directory and base test file at `tests/test_line_webhook.py`
-- [ ] T003 [P] Add environment variable validation for `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `GEMINI_API_KEY`, and `GEMINI_API_URL` in `main.py`
+- [x] T001 [P] Add Gemini API integration dependency to `requirements.txt`
+- [x] T002 [P] Create `tests/` directory and base test file at `tests/test_line_webhook.py`
+- [x] T003 [P] Add environment variable validation for `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `GEMINI_API_KEY`, and `GEMINI_API_URL` in `main.py`
 
 ---
 
@@ -18,11 +18,11 @@
 
 **Purpose**: Build the core service components required before user stories can be implemented
 
-- [ ] T004 [P] Create `services/gemini_client.py` for Gemini request/response handling
-- [ ] T005 [P] Create `services/line_event.py` to parse LINE webhook events and map text messages
-- [ ] T006 [P] Add structured logging setup in `main.py` for webhook processing and AI service calls
-- [ ] T007 Implement Gemini API error, timeout, and fallback handling in `services/gemini_client.py`
-- [ ] T008 Add LINE webhook signature validation and unsupported-event fallback behavior in `main.py`
+- [x] T004 [P] Create `services/gemini_client.py` for Gemini request/response handling
+- [x] T005 [P] Create `services/line_event.py` to parse LINE webhook events and map text messages
+- [x] T006 [P] Add structured logging setup in `main.py` for webhook processing and AI service calls
+- [x] T007 Implement Gemini API error, timeout, and fallback handling in `services/gemini_client.py`
+- [x] T008 Add LINE webhook signature validation and unsupported-event fallback behavior in `main.py`
 
 ---
 
@@ -32,9 +32,9 @@
 
 **Independent Test**: A valid LINE text webhook returns a Gemini-generated reply.
 
-- [ ] T009 [P] [US1] Implement Gemini request creation in `services/gemini_client.py`
-- [ ] T010 [US1] Implement LINE text message forwarding and reply flow in `main.py`
-- [ ] T011 [P] [US1] Add an end-to-end webhook test for a valid LINE text event in `tests/test_line_webhook.py`
+- [x] T009 [P] [US1] Implement Gemini request creation in `services/gemini_client.py`
+- [x] T010 [US1] Implement LINE text message forwarding and reply flow in `main.py`
+- [x] T011 [P] [US1] Add an end-to-end webhook test for a valid LINE text event in `tests/test_line_webhook.py`
 
 ---
 
@@ -44,9 +44,9 @@
 
 **Independent Test**: An unsupported or empty event returns a clear fallback message.
 
-- [ ] T012 [US2] Add validation for empty or non-text LINE events in `main.py`
-- [ ] T013 [US2] Add user-friendly fallback messaging for Gemini failures in `services/gemini_client.py`
-- [ ] T014 [P] [US2] Add tests for unsupported LINE events and Gemini failure fallback in `tests/test_line_webhook.py`
+- [x] T012 [US2] Add validation for empty or non-text LINE events in `main.py`
+- [x] T013 [US2] Add user-friendly fallback messaging for Gemini failures in `services/gemini_client.py`
+- [x] T014 [P] [US2] Add tests for unsupported LINE events and Gemini failure fallback in `tests/test_line_webhook.py`
 
 ---
 
@@ -56,9 +56,9 @@
 
 **Independent Test**: Logs contain webhook event metadata and Gemini response status.
 
-- [ ] T015 [US3] Add request and response logging for LINE events in `main.py`
-- [ ] T016 [US3] Add Gemini API call logging and status tracing in `services/gemini_client.py`
-- [ ] T017 [P] [US3] Add log assertions or trace validation to `tests/test_line_webhook.py`
+- [x] T015 [US3] Add request and response logging for LINE events in `main.py`
+- [x] T016 [US3] Add Gemini API call logging and status tracing in `services/gemini_client.py`
+- [x] T017 [P] [US3] Add log assertions or trace validation to `tests/test_line_webhook.py`
 
 ---
 
@@ -66,9 +66,9 @@
 
 **Purpose**: Document deployment and ensure the sample bot is cloud-ready.
 
-- [ ] T018 [P] Document required environment variables and deployment steps in `README.md`
-- [ ] T019 [P] Add cloud deployment guidance for LINE webhook hosting in `README.md`
-- [ ] T020 [P] Review new code and tests for style, readability, and adherence to the project constitution
+- [x] T018 [P] Document required environment variables and deployment steps in `README.md`
+- [x] T019 [P] Add cloud deployment guidance for LINE webhook hosting in `README.md`
+- [x] T020 [P] Review new code and tests for style, readability, and adherence to the project constitution
 
 ---
 
