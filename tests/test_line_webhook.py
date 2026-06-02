@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, Mock, patch
 os.environ.setdefault('LINE_CHANNEL_SECRET', 'test_secret')
 os.environ.setdefault('LINE_CHANNEL_ACCESS_TOKEN', 'test_token')
 os.environ.setdefault('GEMINI_API_KEY', 'test_gemini_key')
-os.environ.setdefault('GEMINI_API_URL', 'https://example.com/gemini')
 
 from main import handle_callback
 

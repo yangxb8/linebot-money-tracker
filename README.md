@@ -15,7 +15,6 @@ Set the following environment variables before running the app:
 - `LINE_CHANNEL_SECRET`
 - `LINE_CHANNEL_ACCESS_TOKEN`
 - `GEMINI_API_KEY`
-- `GEMINI_API_URL`
 
 ## Local Development
 
@@ -54,7 +53,7 @@ gcloud run deploy linebot-money-tracker \
   --platform managed \
   --region us-central1 \
   --allow-unauthenticated \
-  --set-env-vars LINE_CHANNEL_SECRET=$LINE_CHANNEL_SECRET,LINE_CHANNEL_ACCESS_TOKEN=$LINE_CHANNEL_ACCESS_TOKEN,GEMINI_API_KEY=$GEMINI_API_KEY,GEMINI_API_URL=$GEMINI_API_URL
+  --set-env-vars LINE_CHANNEL_SECRET=$LINE_CHANNEL_SECRET,LINE_CHANNEL_ACCESS_TOKEN=$LINE_CHANNEL_ACCESS_TOKEN,GEMINI_API_KEY=$GEMINI_API_KEY
 ```
 
 Then configure the LINE webhook URL to `https://<your-service-url>/callback`.

@@ -45,7 +45,6 @@ logger = logging.getLogger(__name__)
 channel_secret = os.getenv('LINE_CHANNEL_SECRET', None)
 channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN', None)
 gemini_api_key = os.getenv('GEMINI_API_KEY', None)
-gemini_api_url = os.getenv('GEMINI_API_URL', None)
 
 missing_env = []
 if channel_secret is None:
@@ -54,8 +53,6 @@ if channel_access_token is None:
     missing_env.append('LINE_CHANNEL_ACCESS_TOKEN')
 if gemini_api_key is None:
     missing_env.append('GEMINI_API_KEY')
-if gemini_api_url is None:
-    missing_env.append('GEMINI_API_URL')
 
 if missing_env:
     print('Missing required environment variables:', ', '.join(missing_env))
@@ -68,7 +65,7 @@ configuration = Configuration(
 async_api_client = None
 line_bot_api = None
 parser = WebhookParser(channel_secret)
-gemini_client = GeminiClient(api_key=gemini_api_key, api_url=gemini_api_url)
+gemini_client = GeminiClient(api_key=gemini_api_key)
 
 
 @asynccontextmanager

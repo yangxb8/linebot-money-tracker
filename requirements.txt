@@ -1,6 +1,7 @@
 line-bot-sdk
 fastapi
 httpx
+google-genai
 uvicorn[standard]
 pytest
 pytest-asyncio
