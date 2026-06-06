@@ -1,9 +1,10 @@
 {
-  "ai": "copilot",
+  "ai": "cursor-agent",
+  "ai_skills": true,
   "branch_numbering": "sequential",
-  "context_file": ".github/copilot-instructions.md",
+  "context_file": ".cursor/rules/specify-rules.mdc",
   "here": true,
-  "integration": "copilot",
+  "integration": "cursor-agent",
   "script": "ps",
   "speckit_version": "0.8.18"
 }
