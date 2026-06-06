@@ -4,11 +4,14 @@
 import argparse
 import asyncio
 import logging
+import os
 import sys
+import uuid
 from pathlib import Path
 
 from services.env_loader import load_env, require_env_vars
 from services.gemini_client import GeminiClient
+from services.message_context import MessageContext
 from services.message_handler import process_image_message, process_text_message
 
 logger = logging.getLogger(__name__)
@@ -53,11 +56,15 @@ def _read_image(path_str: str) -> bytes:
 
 
 async def _run(args: argparse.Namespace) -> str:
-    gemini = GeminiClient(api_key=__import__('os').getenv('GEMINI_API_KEY'))
+    gemini = GeminiClient(api_key=os.getenv('GEMINI_API_KEY'))
+    context = MessageContext(
+        line_user_id=os.getenv('LOCAL_LINE_USER_ID', 'local-dev-user'),
+        source_message_id=str(uuid.uuid4()),
+    )
     if args.text is not None:
-        return await process_text_message(args.text, gemini)
+        return await process_text_message(args.text, gemini, context)
     image_bytes = _read_image(args.image)
-    return await process_image_message(image_bytes, gemini)
+    return await process_image_message(image_bytes, gemini, context=context)
 
 
 def main() -> int:

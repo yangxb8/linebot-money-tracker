@@ -2,6 +2,7 @@ import os
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from services.categorize import CategoryResult
 from services.gemini_client import GeminiClient
 from services.message_handler import (
     CANNED_UNSUPPORTED_REPLY,
@@ -20,12 +21,18 @@ class TestFormatExpenseItems(unittest.TestCase):
 
 
 class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
+    def _patch_categorize(self):
+        return patch(
+            'services.message_handler.classify_expense',
+            AsyncMock(return_value=CategoryResult(guessed='unknown', alternatives=())),
+        )
+
     async def test_process_text_expense_with_parser(self):
         gemini = MagicMock(spec=GeminiClient)
-        with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
+        with self._patch_categorize(), patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
-        ):
+        ), patch('services.message_handler.insert_expenses'):
             reply = await process_text_message('Lunch 120 THB', gemini)
         self.assertIn('Detected expense(s):', reply)
         gemini.generate_reply.assert_not_called()
@@ -53,12 +60,12 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
 
     async def test_process_image_receipt(self):
         gemini = MagicMock(spec=GeminiClient)
-        with patch('services.message_handler.is_expense_intent_image', AsyncMock(return_value=True)), patch(
+        with self._patch_categorize(), patch('services.message_handler.is_expense_intent_image', AsyncMock(return_value=True)), patch(
             'services.message_handler.extract_text_from_image_bytes', return_value=['Coffee 450 JPY']
         ), patch(
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Coffee', 'amount': 450.0, 'currency': 'JPY'}],
-        ):
+        ), patch('services.message_handler.insert_expenses'):
             reply = await process_image_message(b'fake-image', gemini)
         self.assertIn('Detected expense(s):', reply)
 
@@ -73,23 +80,25 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
 
     async def test_process_image_ocr_ai_assist_fallback(self):
         gemini = MagicMock(spec=GeminiClient)
-        with patch('services.message_handler.is_expense_intent_image', AsyncMock(return_value=True)), patch(
+        with self._patch_categorize(), patch('services.message_handler.is_expense_intent_image', AsyncMock(return_value=True)), patch(
             'services.message_handler.extract_text_from_image_bytes', return_value=['receipt noise']
         ), patch('services.message_handler.parse_text_for_expenses', return_value=[]), patch(
             'services.message_handler.assist_parse_ocr',
             AsyncMock(return_value=[{'description': 'Item', 'amount': 10.0, 'currency': 'USD'}]),
-        ), patch('services.message_handler.assist_parse_image', AsyncMock(return_value=[])) as image_mock:
+        ), patch('services.message_handler.assist_parse_image', AsyncMock(return_value=[])) as image_mock, patch(
+            'services.message_handler.insert_expenses',
+        ):
             reply = await process_image_message(b'receipt', gemini)
         image_mock.assert_not_awaited()
         self.assertIn('Detected expense(s):', reply)
 
     async def test_process_image_llm_fallback_when_ocr_fails(self):
         gemini = MagicMock(spec=GeminiClient)
-        with patch('services.message_handler.is_expense_intent_image', AsyncMock(return_value=True)), patch(
+        with self._patch_categorize(), patch('services.message_handler.is_expense_intent_image', AsyncMock(return_value=True)), patch(
             'services.message_handler.extract_text_from_image_bytes', return_value=[]
         ), patch('services.message_handler.assist_parse_image', AsyncMock(
             return_value=[{'description': 'Coffee', 'amount': 450.0, 'currency': 'JPY'}]
-        )) as image_mock:
+        )) as image_mock, patch('services.message_handler.insert_expenses'):
             reply = await process_image_message(b'receipt', gemini)
         image_mock.assert_awaited_once()
         self.assertIn('Detected expense(s):', reply)

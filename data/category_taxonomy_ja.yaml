@@ -1,0 +1,170 @@
+# Japanese household expense taxonomy (max depth 3). IDs are uuid5(namespace, code) in app/migration.
+version: 1
+nodes:
+  - code: food
+    name_ja: 食費
+    level: 1
+    sort_order: 1
+    children:
+      - code: food.grocery
+        name_ja: 食料品
+        level: 2
+        sort_order: 1
+      - code: food.dining
+        name_ja: 外食
+        level: 2
+        sort_order: 2
+        children:
+          - code: food.dining.cafe
+            name_ja: カフェ
+            level: 3
+            sort_order: 1
+          - code: food.dining.restaurant
+            name_ja: レストラン
+            level: 3
+            sort_order: 2
+          - code: food.dining.fastfood
+            name_ja: ファストフード
+            level: 3
+            sort_order: 3
+      - code: food.lunch
+        name_ja: 昼食・給食
+        level: 2
+        sort_order: 3
+  - code: housing
+    name_ja: 住居
+    level: 1
+    sort_order: 2
+    children:
+      - code: housing.rent
+        name_ja: 家賃
+        level: 2
+        sort_order: 1
+      - code: housing.mortgage
+        name_ja: 住宅ローン
+        level: 2
+        sort_order: 2
+  - code: utilities
+    name_ja: 光熱・通信
+    level: 1
+    sort_order: 3
+    children:
+      - code: utilities.electric
+        name_ja: 電気
+        level: 2
+        sort_order: 1
+      - code: utilities.gas
+        name_ja: ガス
+        level: 2
+        sort_order: 2
+      - code: utilities.water
+        name_ja: 水道
+        level: 2
+        sort_order: 3
+      - code: utilities.telecom
+        name_ja: 通信費
+        level: 2
+        sort_order: 4
+  - code: transport
+    name_ja: 交通
+    level: 1
+    sort_order: 4
+    children:
+      - code: transport.transit
+        name_ja: 公共交通
+        level: 2
+        sort_order: 1
+      - code: transport.fuel
+        name_ja: ガソリン
+        level: 2
+        sort_order: 2
+      - code: transport.car
+        name_ja: 自動車
+        level: 2
+        sort_order: 3
+  - code: healthcare
+    name_ja: 医療・健康
+    level: 1
+    sort_order: 5
+    children:
+      - code: healthcare.medical
+        name_ja: 医療費
+        level: 2
+        sort_order: 1
+      - code: healthcare.pharmacy
+        name_ja: 薬局
+        level: 2
+        sort_order: 2
+  - code: education
+    name_ja: 教育・子ども
+    level: 1
+    sort_order: 6
+    children:
+      - code: education.tuition
+        name_ja: 学費
+        level: 2
+        sort_order: 1
+      - code: education.lessons
+        name_ja: 習い事
+        level: 2
+        sort_order: 2
+  - code: clothing
+    name_ja: 被服・美容
+    level: 1
+    sort_order: 7
+    children:
+      - code: clothing.apparel
+        name_ja: 衣類
+        level: 2
+        sort_order: 1
+      - code: clothing.beauty
+        name_ja: 美容
+        level: 2
+        sort_order: 2
+  - code: leisure
+    name_ja: 娯楽・交際
+    level: 1
+    sort_order: 8
+    children:
+      - code: leisure.entertainment
+        name_ja: 娯楽
+        level: 2
+        sort_order: 1
+      - code: leisure.social
+        name_ja: 交際費
+        level: 2
+        sort_order: 2
+      - code: leisure.travel
+        name_ja: 旅行
+        level: 2
+        sort_order: 3
+  - code: personal
+    name_ja: 嗜好品
+    level: 1
+    sort_order: 9
+    children:
+      - code: personal.tobacco_alcohol
+        name_ja: タバコ・お酒
+        level: 2
+        sort_order: 1
+      - code: personal.hobby
+        name_ja: 趣味
+        level: 2
+        sort_order: 2
+  - code: finance
+    name_ja: 金融・保険
+    level: 1
+    sort_order: 10
+    children:
+      - code: finance.fees
+        name_ja: 手数料
+        level: 2
+        sort_order: 1
+      - code: finance.insurance
+        name_ja: 保険
+        level: 2
+        sort_order: 2
+  - code: unknown
+    name_ja: 不明
+    level: 1
+    sort_order: 99

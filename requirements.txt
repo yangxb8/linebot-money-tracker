@@ -9,3 +9,6 @@ Pillow
 jsonschema
 google-cloud-documentai
 python-dotenv
+supabase
+PyYAML
+tzdata

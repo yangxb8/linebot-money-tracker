@@ -31,7 +31,13 @@ Copy [`.env.example`](.env.example) to `.env`.
 | Profile | Required variables |
 | ------- | ------------------ |
 | **Console** (`local_run.py`) | `GEMINI_API_KEY` |
+| **Console + persistence** | `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
 | **Webhook / Cloud Run** | `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `GEMINI_API_KEY` |
+| **Webhook + persistence** | Above plus `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
+
+Optional persistence: `LOCAL_LINE_USER_ID` (console mode user id, default `local-dev-user`)
+
+See [Supabase expense storage quickstart](specs/004-supabase-expense-storage/quickstart.md) for migration and verification steps.
 
 Optional OCR: `TESSERACT_LANG`, `DOCUMENT_AI_PROJECT_ID`, `DOCUMENT_AI_PROCESSOR_ID`, `DOCUMENT_AI_LOCATION`
 

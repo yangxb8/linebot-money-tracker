@@ -21,7 +21,13 @@ from linebot.v3.webhooks import MessageEvent
 
 from services.env_loader import load_env, require_env_vars
 from services.gemini_client import GeminiClient
-from services.line_event import extract_image_message_id, extract_text_message
+from services.line_event import (
+    extract_image_message_id,
+    extract_line_user_id,
+    extract_source_message_id,
+    extract_text_message,
+)
+from services.message_context import MessageContext
 from services.message_handler import (
     CANNED_UNSUPPORTED_REPLY,
     process_image_message,
@@ -52,12 +58,25 @@ gemini_client = None
 configuration = None
 
 
+def _validate_supabase_env() -> list[str]:
+    url = os.getenv('SUPABASE_URL')
+    key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+    if url or key:
+        if not (url and key):
+            return ['SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must both be set when either is present']
+    return []
+
+
 def _init_webhook_state() -> list[str]:
     global configuration, parser, gemini_client
 
     missing = require_env_vars(WEBHOOK_REQUIRED_VARS)
     if missing:
         return missing
+
+    supabase_missing = _validate_supabase_env()
+    if supabase_missing:
+        return supabase_missing
 
     channel_secret = os.getenv('LINE_CHANNEL_SECRET')
     channel_access_token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
@@ -130,9 +149,17 @@ async def handle_callback(request: Request):
 
         user_text = extract_text_message(event)
         image_message_id = extract_image_message_id(event)
+        line_user_id = extract_line_user_id(event)
+        source_message_id = extract_source_message_id(event)
+        message_context = None
+        if line_user_id and source_message_id:
+            message_context = MessageContext(
+                line_user_id=line_user_id,
+                source_message_id=source_message_id,
+            )
 
         if user_text:
-            reply_text = await process_text_message(user_text, gemini_client)
+            reply_text = await process_text_message(user_text, gemini_client, message_context)
             await line_bot_api.reply_message(
                 ReplyMessageRequest(
                     reply_token=event.reply_token,
@@ -144,7 +171,7 @@ async def handle_callback(request: Request):
         if image_message_id:
             try:
                 image_bytes = await _fetch_image_bytes(image_message_id)
-                reply_text = await process_image_message(image_bytes, gemini_client)
+                reply_text = await process_image_message(image_bytes, gemini_client, context=message_context)
             except Exception:
                 logger.exception('Image fetch failed')
                 from services.message_handler import ERROR_REPLY_TEXT
