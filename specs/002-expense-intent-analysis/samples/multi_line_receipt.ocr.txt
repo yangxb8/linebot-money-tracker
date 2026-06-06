@@ -1,0 +1,11 @@
+FRESH MART
+123 Main St
+--------------------------------
+Milk 2L              3.49
+Bread Whole Wheat    2.99
+Eggs 12pk            4.29
+Bananas 1kg          1.89
+--------------------------------
+SUBTOTAL            12.66
+TAX                  1.01
+TOTAL               13.67 USD

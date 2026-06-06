@@ -1,0 +1,7 @@
+COFFEE CORNER
+Order #4821
+Latte                $5.25
+Muffin               $3.50
+Tip                  $1.00
+-------------------------
+TOTAL                $9.75

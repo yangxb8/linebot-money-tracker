@@ -21,7 +21,7 @@ A. Pure AI image-to-structured extraction
 
 B. OCR-first + deterministic parsing (recommended primary path)
 
-- Run OCR locally (pytesseract) or a cloud OCR (Google Vision) to get raw text lines.
+- Run OCR locally (pytesseract) or a cloud OCR (Google Document AI) to get raw text lines.
 - Apply deterministic heuristics and regexes to detect amounts, currencies, and probable item lines.
 - If parsing succeeds with high confidence, return parsed results without any AI call.
 - Pros: low cost, deterministic, fast. Works for most printed receipts.
@@ -34,10 +34,10 @@ C. OCR-first + AI-assisted disambiguation (recommended hybrid)
 - Pros: much lower AI cost than A; better robustness than B alone.
 - Cons: still incurs AI cost for edge cases.
 
-D. Cloud Vision + lightweight parsing
+D. Document AI + lightweight parsing
 
-- Use Google Vision OCR (higher accuracy) as the canonical OCR source, then apply deterministic parsing or hybrid AI assist when needed.
-- Tradeoff: Cloud Vision costs vs. local OCR accuracy; may still be cheaper than full LLM vision calls for each image.
+- Use Google Document AI OCR (higher accuracy) as the cloud fallback OCR source, then apply deterministic parsing or hybrid AI assist when needed.
+- Tradeoff: Document AI costs vs. local OCR accuracy; may still be cheaper than full LLM vision calls for each image.
 
 3. Cost-reduction tactics (practical)
 
@@ -55,7 +55,7 @@ Phase 0 (research & prototype)
 
 - Implement `services/ocr.py` that exposes `extract_text_from_image(image_bytes) -> List[str]` with two backends:
   - Local: `pytesseract` via `Pillow` image processing
-  - Cloud: optional Google Vision client (config-driven)
+  - Cloud: optional Google Document AI client (config-driven)
 - Implement `services/receipt_parser.py` that applies deterministic parsing:
   - Normalize OCR lines (trim, unify separators)
   - Regex search for currency symbols and numbers (handle common formats: 1,234.56; 1.234,56; 1234)
@@ -97,7 +97,7 @@ Phase 1 (integration & tests)
 Appendix: Libraries & tools to consider
 
 - `pytesseract` + `Pillow` (local OCR)
-- `google-cloud-vision` (cloud OCR)
+- `google-cloud-documentai` (cloud OCR fallback)
 - `regex` / `decimal` for robust number parsing
 - `jsonschema` for validating AI outputs
 

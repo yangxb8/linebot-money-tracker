@@ -7,12 +7,21 @@ os.environ.setdefault('LINE_CHANNEL_SECRET', 'test_secret')
 os.environ.setdefault('LINE_CHANNEL_ACCESS_TOKEN', 'test_token')
 os.environ.setdefault('GEMINI_API_KEY', 'test_gemini_key')
 
-from main import handle_callback
+import main
+from main import handle_callback, WEBHOOK_REQUIRED_VARS
+from services.message_context import BotReply
+from services.message_handler import CANNED_UNSUPPORTED_REPLY, ERROR_REPLY_TEXT
 
 
 class DummyTextMessage:
     def __init__(self, text):
         self.text = text
+
+
+class DummyImageMessage:
+    def __init__(self, message_id):
+        self.type = 'image'
+        self.id = message_id
 
 
 class DummyMessageEvent:
@@ -31,6 +40,11 @@ class DummyRequest:
 
 
 class TestLineWebhook(unittest.IsolatedAsyncioTestCase):
+    def test_module_initializes_with_webhook_env(self):
+        self.assertIsNotNone(main.parser)
+        self.assertIsNotNone(main.gemini_client)
+        self.assertEqual(len(WEBHOOK_REQUIRED_VARS), 3)
+
     async def test_handle_callback_replies_for_text_message(self):
         request = DummyRequest('{"events": []}')
         event = DummyMessageEvent(DummyTextMessage('Hello bot'))
@@ -38,7 +52,9 @@ class TestLineWebhook(unittest.IsolatedAsyncioTestCase):
         parse_mock = Mock(return_value=[event])
         reply_mock = AsyncMock()
 
-        with patch('main.parser.parse', parse_mock), patch('main.gemini_client.generate_reply', AsyncMock(return_value='Hello from Gemini')), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
+        with patch('main.parser.parse', parse_mock), patch(
+            'main.process_text_message', AsyncMock(return_value=BotReply(text=CANNED_UNSUPPORTED_REPLY))
+        ), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
             response = await handle_callback(request)
 
         reply_mock.assert_awaited_once()
@@ -60,34 +76,94 @@ class TestLineWebhook(unittest.IsolatedAsyncioTestCase):
         reply_mock.assert_awaited_once()
         self.assertEqual(response, 'OK')
 
-    async def test_handle_callback_logs_gemini_reply_generation(self):
+    async def test_handle_callback_processes_text_via_handler(self):
         request = DummyRequest('{"events": []}')
-        event = DummyMessageEvent(DummyTextMessage('Hello bot'))
+        event = DummyMessageEvent(DummyTextMessage('Lunch 120 THB at cafe'))
 
         parse_mock = Mock(return_value=[event])
         reply_mock = AsyncMock()
 
-        with patch('main.parser.parse', parse_mock), patch('main.gemini_client.generate_reply', AsyncMock(return_value='Hello from Gemini')), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.logger.info') as logger_info, patch('main.MessageEvent', DummyMessageEvent):
+        with patch('main.parser.parse', parse_mock), patch(
+            'main.process_text_message', AsyncMock(return_value=BotReply(text='Hello from handler'))
+        ), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
             response = await handle_callback(request)
 
-        logger_info.assert_any_call('Gemini reply generated successfully')
         reply_mock.assert_awaited_once()
+        message_text = reply_mock.call_args[0][0].messages[0].text
+        self.assertEqual(message_text, 'Hello from handler')
         self.assertEqual(response, 'OK')
 
-    async def test_handle_callback_returns_error_message_when_gemini_fails(self):
+    async def test_handle_callback_returns_error_message_from_handler(self):
+        request = DummyRequest('{"events": []}')
+        event = DummyMessageEvent(DummyTextMessage('Lunch 120 THB at cafe'))
+
+        parse_mock = Mock(return_value=[event])
+        reply_mock = AsyncMock()
+
+        with patch('main.parser.parse', parse_mock), patch(
+            'main.process_text_message', AsyncMock(return_value=BotReply(text=ERROR_REPLY_TEXT))
+        ), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
+            response = await handle_callback(request)
+
+        message_text = reply_mock.call_args[0][0].messages[0].text
+        self.assertIn('Sorry, I couldn\'t generate a response right now', message_text)
+        self.assertEqual(response, 'OK')
+
+    async def test_handle_callback_rejects_non_expense_text(self):
         request = DummyRequest('{"events": []}')
         event = DummyMessageEvent(DummyTextMessage('Hello bot'))
 
         parse_mock = Mock(return_value=[event])
         reply_mock = AsyncMock()
 
-        with patch('main.parser.parse', parse_mock), patch('main.gemini_client.generate_reply', AsyncMock(side_effect=RuntimeError('Gemini unavailable'))), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
+        with patch('main.parser.parse', parse_mock), patch(
+            'main.process_text_message', AsyncMock(return_value=BotReply(text=CANNED_UNSUPPORTED_REPLY))
+        ), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
             response = await handle_callback(request)
 
         reply_mock.assert_awaited_once()
-        call_args = reply_mock.call_args[0]
-        message_text = call_args[0].messages[0].text
-        self.assertIn('Sorry, I couldn\'t generate a response right now', message_text)
+        message_text = reply_mock.call_args[0][0].messages[0].text
+        self.assertIn('only accept expense submissions', message_text)
+        self.assertEqual(response, 'OK')
+
+    async def test_handle_callback_processes_image_message(self):
+        request = DummyRequest('{"events": []}')
+        event = DummyMessageEvent(DummyImageMessage('image-id'))
+
+        parse_mock = Mock(return_value=[event])
+        reply_mock = AsyncMock()
+        blob_instance = Mock()
+        blob_instance.get_message_content.return_value = b'fake-image-bytes'
+
+        with patch('main.parser.parse', parse_mock), patch('main.AsyncMessagingApiBlob', Mock(return_value=blob_instance)        ), patch('main.process_image_message', AsyncMock(
+            return_value=BotReply(text='Detected expense(s):\n- Lunch: 120.0 THB')
+        )), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
+            main.async_api_client = Mock()
+            response = await handle_callback(request)
+
+        reply_mock.assert_awaited_once()
+        message_text = reply_mock.call_args[0][0].messages[0].text
+        self.assertIn('Detected expense(s):', message_text)
+        self.assertEqual(response, 'OK')
+
+    async def test_handle_callback_rejects_non_receipt_image(self):
+        request = DummyRequest('{"events": []}')
+        event = DummyMessageEvent(DummyImageMessage('image-id'))
+
+        parse_mock = Mock(return_value=[event])
+        reply_mock = AsyncMock()
+        blob_instance = Mock()
+        blob_instance.get_message_content.return_value = b'cat-photo-bytes'
+
+        with patch('main.parser.parse', parse_mock), patch('main.AsyncMessagingApiBlob', Mock(return_value=blob_instance)), patch(
+            'main.process_image_message', AsyncMock(return_value=BotReply(text=CANNED_UNSUPPORTED_REPLY))
+        ), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
+            main.async_api_client = Mock()
+            response = await handle_callback(request)
+
+        reply_mock.assert_awaited_once()
+        message_text = reply_mock.call_args[0][0].messages[0].text
+        self.assertIn('only accept expense submissions', message_text)
         self.assertEqual(response, 'OK')
 
 
