@@ -6,9 +6,9 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+from services.message_context import BotReply
+
 os.environ['GEMINI_API_KEY'] = 'test_gemini_key'
-
-
 class TestLocalRun(unittest.TestCase):
     def test_missing_gemini_key_exits(self):
         env = {'GEMINI_API_KEY': ''}
@@ -28,7 +28,8 @@ class TestLocalRun(unittest.TestCase):
 
     def test_text_prints_reply_to_stdout(self):
         with patch.object(sys, 'argv', ['local_run.py', '--text', 'Lunch 1200 yen']), patch(
-            'local_run.process_text_message', AsyncMock(return_value='Detected expense(s):\n- Lunch: 1200.0 yen')
+            'local_run.process_text_message',
+            AsyncMock(return_value=BotReply(text='Detected expense(s):\n- Lunch: 1200.0 yen')),
         ):
             import local_run
             buf = io.StringIO()
@@ -49,7 +50,8 @@ class TestLocalRun(unittest.TestCase):
             self.skipTest('sample file not available')
 
         with patch.object(sys, 'argv', ['local_run.py', '--image', str(sample)]), patch(
-            'local_run.process_image_message', AsyncMock(return_value='Detected expense(s):\n- total: 600.0 JPY')
+            'local_run.process_image_message',
+            AsyncMock(return_value=BotReply(text='Detected expense(s):\n- total: 600.0 JPY')),
         ):
             import local_run
             buf = io.StringIO()

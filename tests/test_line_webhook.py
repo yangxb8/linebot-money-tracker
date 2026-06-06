@@ -9,6 +9,7 @@ os.environ.setdefault('GEMINI_API_KEY', 'test_gemini_key')
 
 import main
 from main import handle_callback, WEBHOOK_REQUIRED_VARS
+from services.message_context import BotReply
 from services.message_handler import CANNED_UNSUPPORTED_REPLY, ERROR_REPLY_TEXT
 
 
@@ -52,7 +53,7 @@ class TestLineWebhook(unittest.IsolatedAsyncioTestCase):
         reply_mock = AsyncMock()
 
         with patch('main.parser.parse', parse_mock), patch(
-            'main.process_text_message', AsyncMock(return_value=CANNED_UNSUPPORTED_REPLY)
+            'main.process_text_message', AsyncMock(return_value=BotReply(text=CANNED_UNSUPPORTED_REPLY))
         ), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
             response = await handle_callback(request)
 
@@ -83,7 +84,7 @@ class TestLineWebhook(unittest.IsolatedAsyncioTestCase):
         reply_mock = AsyncMock()
 
         with patch('main.parser.parse', parse_mock), patch(
-            'main.process_text_message', AsyncMock(return_value='Hello from handler')
+            'main.process_text_message', AsyncMock(return_value=BotReply(text='Hello from handler'))
         ), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
             response = await handle_callback(request)
 
@@ -100,7 +101,7 @@ class TestLineWebhook(unittest.IsolatedAsyncioTestCase):
         reply_mock = AsyncMock()
 
         with patch('main.parser.parse', parse_mock), patch(
-            'main.process_text_message', AsyncMock(return_value=ERROR_REPLY_TEXT)
+            'main.process_text_message', AsyncMock(return_value=BotReply(text=ERROR_REPLY_TEXT))
         ), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
             response = await handle_callback(request)
 
@@ -116,7 +117,7 @@ class TestLineWebhook(unittest.IsolatedAsyncioTestCase):
         reply_mock = AsyncMock()
 
         with patch('main.parser.parse', parse_mock), patch(
-            'main.process_text_message', AsyncMock(return_value=CANNED_UNSUPPORTED_REPLY)
+            'main.process_text_message', AsyncMock(return_value=BotReply(text=CANNED_UNSUPPORTED_REPLY))
         ), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
             response = await handle_callback(request)
 
@@ -134,10 +135,9 @@ class TestLineWebhook(unittest.IsolatedAsyncioTestCase):
         blob_instance = Mock()
         blob_instance.get_message_content.return_value = b'fake-image-bytes'
 
-        with patch('main.parser.parse', parse_mock), patch('main.AsyncMessagingApiBlob', Mock(return_value=blob_instance)), patch(
-            'main.process_image_message',
-            AsyncMock(return_value='Detected expense(s):\n- Lunch: 120.0 THB'),
-        ), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
+        with patch('main.parser.parse', parse_mock), patch('main.AsyncMessagingApiBlob', Mock(return_value=blob_instance)        ), patch('main.process_image_message', AsyncMock(
+            return_value=BotReply(text='Detected expense(s):\n- Lunch: 120.0 THB')
+        )), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
             main.async_api_client = Mock()
             response = await handle_callback(request)
 
@@ -156,7 +156,7 @@ class TestLineWebhook(unittest.IsolatedAsyncioTestCase):
         blob_instance.get_message_content.return_value = b'cat-photo-bytes'
 
         with patch('main.parser.parse', parse_mock), patch('main.AsyncMessagingApiBlob', Mock(return_value=blob_instance)), patch(
-            'main.process_image_message', AsyncMock(return_value=CANNED_UNSUPPORTED_REPLY)
+            'main.process_image_message', AsyncMock(return_value=BotReply(text=CANNED_UNSUPPORTED_REPLY))
         ), patch('main.line_bot_api', Mock(reply_message=reply_mock)), patch('main.MessageEvent', DummyMessageEvent):
             main.async_api_client = Mock()
             response = await handle_callback(request)

@@ -29,8 +29,8 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
         ) as insert_mock:
             reply = await process_text_message('Lunch 120 THB', gemini, context)
         insert_mock.assert_called_once()
-        self.assertIn('Detected expense(s):', reply)
-        self.assertIn('Category (guess):', reply)
+        self.assertIn('Detected expense(s):', reply.text)
+        self.assertIn('Category (guess):', reply.text)
 
     async def test_skips_persist_without_context(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -43,7 +43,7 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
         ), patch('services.message_handler.insert_expenses') as insert_mock:
             reply = await process_text_message('Lunch 120 THB', gemini)
         insert_mock.assert_not_called()
-        self.assertIn('Detected expense(s):', reply)
+        self.assertIn('Detected expense(s):', reply.text)
 
     async def test_storage_error_still_returns_reply(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -59,7 +59,7 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
             return_value=PersistResult(inserted=0, skipped=0, error='db error'),
         ):
             reply = await process_text_message('Lunch 120 THB', gemini, context)
-        self.assertIn('Detected expense(s):', reply)
+        self.assertIn('Detected expense(s):', reply.text)
 
 
 class TestEnrichedReplyFormat(unittest.TestCase):
@@ -78,7 +78,7 @@ class TestEnrichedReplyFormat(unittest.TestCase):
         self.assertIn('Category (guess): 食費 > 食料品', text)
         self.assertIn('1) 食費 > 外食', text)
         self.assertIn('2) 不明', text)
-        self.assertIn('saved in a future update', text)
+        self.assertIn('Reply to this message', text)
 
     def test_no_budget_impact_text(self):
         text = format_expense_items(

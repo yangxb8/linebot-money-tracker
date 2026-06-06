@@ -40,6 +40,21 @@ def extract_source_message_id(event) -> Optional[str]:
     return message_id.strip() or None
 
 
+def extract_quoted_message_id(event) -> Optional[str]:
+    """Return quoted bot message ID when user replies to a specific message."""
+    message = getattr(event, 'message', None)
+    if message is None:
+        return None
+
+    quoted_id = getattr(message, 'quoted_message_id', None)
+    if quoted_id is None:
+        quoted_id = getattr(message, 'quotedMessageId', None)
+    if not isinstance(quoted_id, str):
+        return None
+
+    return quoted_id.strip() or None
+
+
 def extract_image_message_id(event) -> Optional[str]:
     """Return the image message ID for supported LINE image events."""
     message = getattr(event, "message", None)

@@ -1,16 +1,34 @@
 import logging
+from decimal import Decimal
 from typing import List, Dict, Any, Optional
 
 from services.ai_assist import assist_parse_image, assist_parse_ocr
 from services.categorize import classify_expense
 from services.category_taxonomy import format_category_path, resolve_code
-from services.expense_repository import build_insert_row, insert_expenses
+from services.confirmation_repository import (
+    get_confirmation_by_bot_message_id,
+    try_mark_reply_processed,
+    write_audit,
+)
+from services.expense_repository import (
+    build_insert_row,
+    fetch_expense_ids_for_message,
+    insert_expenses,
+)
 from services.gemini_client import GeminiClient
 from services.intent import is_expense_intent_image, is_expense_intent_text
 from services.log_utils import describe_bytes
-from services.message_context import MessageContext
+from services.message_context import (
+    BotReply,
+    ConfirmationItemSnapshot,
+    ConfirmationSavePayload,
+    MessageContext,
+    ReplyContext,
+)
 from services.ocr import extract_text_from_image_bytes, _guess_mime_type
 from services.receipt_parser import parse_text_for_expenses
+from services.reply_edit import apply_edit_intent, parse_edit_intent
+from services.reply_summary import detect_reply_language, format_duplicate_reply, format_unknown_confirmation
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +41,7 @@ ERROR_REPLY_TEXT = (
     "Please try again in a moment."
 )
 CATEGORY_CONFIRMATION_FOOTER = (
-    "Reply with 1–3 if you'd like a different category (saved in a future update)."
+    "Reply to this message to change category (1–3), edit fields, delete, or restore."
 )
 
 
@@ -54,11 +72,53 @@ def format_expense_items(items: Optional[List[Dict[str, Any]]]) -> Optional[str]
     return "Detected expense(s):\n" + "\n".join(lines)
 
 
+def _build_confirmation_payload(
+    items: List[Dict[str, Any]],
+    line_user_id: str,
+    confirmation_text: str,
+    context: MessageContext,
+) -> Optional[ConfirmationSavePayload]:
+    id_rows = fetch_expense_ids_for_message(context.line_user_id, context.source_message_id)
+    if not id_rows:
+        return None
+
+    id_by_index = {int(row['line_item_index']): str(row['id']) for row in id_rows}
+    snapshots: List[ConfirmationItemSnapshot] = []
+
+    for index, item in enumerate(items):
+        expense_id = id_by_index.get(index)
+        if not expense_id:
+            continue
+        guess_code = item.get('category_guess_code') or 'unknown'
+        alt_codes = tuple(item.get('category_alternative_codes') or ())
+        amount_raw = item.get('amount', 0)
+        snapshots.append(
+            ConfirmationItemSnapshot(
+                line_item_index=index,
+                expense_id=expense_id,
+                description=str(item.get('description', 'Expense')),
+                amount=Decimal(str(amount_raw)).quantize(Decimal('0.01')),
+                currency=str(item.get('currency', 'JPY')).strip().upper()[:3],
+                category_guess_code=guess_code,
+                category_alternatives=alt_codes,
+            )
+        )
+
+    if not snapshots:
+        return None
+
+    return ConfirmationSavePayload(
+        line_user_id=line_user_id,
+        confirmation_text=confirmation_text,
+        items=tuple(snapshots),
+    )
+
+
 async def _enrich_and_persist_items(
     items: List[Dict[str, Any]],
     gemini: GeminiClient,
     context: Optional[MessageContext],
-) -> List[Dict[str, Any]]:
+) -> tuple[List[Dict[str, Any]], Optional[ConfirmationSavePayload]]:
     enriched: List[Dict[str, Any]] = []
     insert_rows = []
 
@@ -69,7 +129,9 @@ async def _enrich_and_persist_items(
 
         enriched_item = dict(item)
         enriched_item['category_guess_path'] = format_category_path(guess_node)
+        enriched_item['category_guess_code'] = guess_node.code
         enriched_item['category_alternative_paths'] = alt_paths
+        enriched_item['category_alternative_codes'] = list(cat_result.alternatives)
         enriched.append(enriched_item)
 
         if context is not None:
@@ -82,6 +144,7 @@ async def _enrich_and_persist_items(
                 )
             )
 
+    confirmation_payload: Optional[ConfirmationSavePayload] = None
     if context is not None and insert_rows:
         result = insert_expenses(insert_rows)
         if result.error:
@@ -92,22 +155,80 @@ async def _enrich_and_persist_items(
                 result.inserted,
                 result.skipped,
             )
+            reply_text_preview = format_expense_items(enriched)
+            if reply_text_preview:
+                confirmation_payload = _build_confirmation_payload(
+                    enriched,
+                    context.line_user_id,
+                    reply_text_preview,
+                    context,
+                )
 
-    return enriched
+    return enriched, confirmation_payload
+
+
+def _text_reply(text: str, confirmation: Optional[ConfirmationSavePayload] = None) -> BotReply:
+    return BotReply(text=text, confirmation=confirmation)
+
+
+async def process_reply_edit(
+    text: str,
+    reply_context: ReplyContext,
+    gemini: GeminiClient,
+) -> str:
+    language = detect_reply_language(text)
+
+    if not try_mark_reply_processed(reply_context.line_user_id, reply_context.user_reply_message_id):
+        return format_duplicate_reply(language)
+
+    confirmation = get_confirmation_by_bot_message_id(
+        reply_context.quoted_bot_message_id,
+        reply_context.line_user_id,
+    )
+    if confirmation is None:
+        return format_unknown_confirmation(language)
+
+    try:
+        intent = await parse_edit_intent(
+            text,
+            list(confirmation.items_snapshot),
+            confirmation.pending_action,
+            gemini,
+        )
+        result = await apply_edit_intent(intent, confirmation, text, gemini)
+        write_audit(
+            confirmation.id,
+            reply_context.line_user_id,
+            reply_context.user_reply_message_id,
+            text,
+            result.intent_json,
+            result.status,
+            result.summary,
+        )
+        return result.summary
+    except Exception:
+        logger.exception('process_reply_edit failed')
+        from services.reply_summary import EditSummaryInput, format_edit_result
+
+        return format_edit_result(
+            language,
+            EditSummaryInput(status='error', action='update', error_message=None),
+        )
 
 
 async def process_text_message(
     text: str,
     gemini: GeminiClient,
     context: Optional[MessageContext] = None,
-) -> str:
+) -> BotReply:
     logger.info('Processing text message len=%d', len(text or ''))
     try:
         if await is_expense_intent_text(text, gemini):
             items = parse_text_for_expenses(text)
+            confirmation_payload = None
             if items:
                 logger.info('Text pipeline: deterministic parser returned %d item(s)', len(items))
-                items = await _enrich_and_persist_items(items, gemini, context)
+                items, confirmation_payload = await _enrich_and_persist_items(items, gemini, context)
                 reply_text = format_expense_items(items)
             else:
                 logger.info('Text pipeline: no parsed items; calling Gemini for free-form reply')
@@ -115,13 +236,13 @@ async def process_text_message(
                 logger.info('Text pipeline: Gemini reply generated (len=%d)', len(reply_text or ''))
             if not reply_text:
                 logger.warning('Text pipeline: empty reply after processing')
-                return ERROR_REPLY_TEXT
-            return reply_text
+                return _text_reply(ERROR_REPLY_TEXT)
+            return _text_reply(reply_text, confirmation_payload)
         logger.info('Text pipeline: message rejected as non-expense intent')
-        return CANNED_UNSUPPORTED_REPLY
+        return _text_reply(CANNED_UNSUPPORTED_REPLY)
     except Exception:
         logger.exception('Text message processing failed')
-        return ERROR_REPLY_TEXT
+        return _text_reply(ERROR_REPLY_TEXT)
 
 
 async def _extract_expense_items_from_image(
@@ -170,7 +291,7 @@ async def process_image_message(
     gemini: GeminiClient,
     mime_type: Optional[str] = None,
     context: Optional[MessageContext] = None,
-) -> str:
+) -> BotReply:
     resolved_mime = mime_type or _guess_mime_type(image_bytes)
     logger.info(
         'Processing image message: image=%s mime=%s (provided=%s)',
@@ -181,7 +302,7 @@ async def process_image_message(
     try:
         if not await is_expense_intent_image(image_bytes, gemini, resolved_mime):
             logger.info('Image pipeline: rejected as non-expense intent')
-            return CANNED_UNSUPPORTED_REPLY
+            return _text_reply(CANNED_UNSUPPORTED_REPLY)
 
         items = await _extract_expense_items_from_image(image_bytes, gemini, resolved_mime)
         if not items:
@@ -191,21 +312,21 @@ async def process_image_message(
                 describe_bytes(image_bytes),
                 resolved_mime,
             )
-            return ERROR_REPLY_TEXT
+            return _text_reply(ERROR_REPLY_TEXT)
 
-        items = await _enrich_and_persist_items(items, gemini, context)
+        items, confirmation_payload = await _enrich_and_persist_items(items, gemini, context)
         reply_text = format_expense_items(items)
         if not reply_text:
             logger.warning('Image pipeline: format_expense_items returned empty for %d item(s)', len(items))
-            return ERROR_REPLY_TEXT
+            return _text_reply(ERROR_REPLY_TEXT)
 
         logger.info('Image pipeline: success with %d item(s)', len(items))
-        return reply_text
+        return _text_reply(reply_text, confirmation_payload)
     except Exception:
         logger.exception(
             'Image processing failed: image=%s mime=%s',
             describe_bytes(image_bytes),
             resolved_mime,
         )
-        return ERROR_REPLY_TEXT
+        return _text_reply(ERROR_REPLY_TEXT)
 

@@ -5,12 +5,15 @@ alwaysApply: true
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan at
-`specs/004-supabase-expense-storage/plan.md` and the developer quickstart at
-`specs/004-supabase-expense-storage/quickstart.md`.
+`specs/005-expense-reply-edits/plan.md` and the developer quickstart at
+`specs/005-expense-reply-edits/quickstart.md`.
 
 Primary local dev workflow: `python local_run.py --text "..."` or
 `python local_run.py --image path/to/receipt.jpg` (requires GEMINI_API_KEY only;
 add SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY to persist expenses).
+
+Reply-edit testing: log an expense, note `bot_message_id`, then
+`python local_run.py --reply-to <bot_message_id> --text "3800円"`.
 
 Supabase project: `https://nyuenufldaqsjybjhawl.supabase.co`
 <!-- SPECKIT END -->

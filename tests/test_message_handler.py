@@ -34,14 +34,14 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
         ), patch('services.message_handler.insert_expenses'):
             reply = await process_text_message('Lunch 120 THB', gemini)
-        self.assertIn('Detected expense(s):', reply)
+        self.assertIn('Detected expense(s):', reply.text)
         gemini.generate_reply.assert_not_called()
 
     async def test_process_text_non_expense(self):
         gemini = MagicMock(spec=GeminiClient)
         with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=False)):
             reply = await process_text_message('Hello bot', gemini)
-        self.assertEqual(reply, CANNED_UNSUPPORTED_REPLY)
+        self.assertEqual(reply.text, CANNED_UNSUPPORTED_REPLY)
 
     async def test_process_text_gemini_fallback(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -50,13 +50,13 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             'services.message_handler.parse_text_for_expenses', return_value=[]
         ):
             reply = await process_text_message('Lunch at cafe', gemini)
-        self.assertEqual(reply, 'Gemini parsed reply')
+        self.assertEqual(reply.text, 'Gemini parsed reply')
 
     async def test_process_text_error(self):
         gemini = MagicMock(spec=GeminiClient)
         with patch('services.message_handler.is_expense_intent_text', AsyncMock(side_effect=RuntimeError('fail'))):
             reply = await process_text_message('Lunch 120', gemini)
-        self.assertEqual(reply, ERROR_REPLY_TEXT)
+        self.assertEqual(reply.text, ERROR_REPLY_TEXT)
 
     async def test_process_image_receipt(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -67,7 +67,7 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             return_value=[{'description': 'Coffee', 'amount': 450.0, 'currency': 'JPY'}],
         ), patch('services.message_handler.insert_expenses'):
             reply = await process_image_message(b'fake-image', gemini)
-        self.assertIn('Detected expense(s):', reply)
+        self.assertIn('Detected expense(s):', reply.text)
 
     async def test_process_image_non_receipt(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -76,7 +76,7 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
         ) as ocr_mock:
             reply = await process_image_message(b'cat-photo', gemini)
         ocr_mock.assert_not_called()
-        self.assertEqual(reply, CANNED_UNSUPPORTED_REPLY)
+        self.assertEqual(reply.text, CANNED_UNSUPPORTED_REPLY)
 
     async def test_process_image_ocr_ai_assist_fallback(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -90,7 +90,7 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
         ):
             reply = await process_image_message(b'receipt', gemini)
         image_mock.assert_not_awaited()
-        self.assertIn('Detected expense(s):', reply)
+        self.assertIn('Detected expense(s):', reply.text)
 
     async def test_process_image_llm_fallback_when_ocr_fails(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -101,14 +101,14 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
         )) as image_mock, patch('services.message_handler.insert_expenses'):
             reply = await process_image_message(b'receipt', gemini)
         image_mock.assert_awaited_once()
-        self.assertIn('Detected expense(s):', reply)
-        self.assertIn('Coffee', reply)
+        self.assertIn('Detected expense(s):', reply.text)
+        self.assertIn('Coffee', reply.text)
 
     async def test_process_image_error(self):
         gemini = MagicMock(spec=GeminiClient)
         with patch('services.message_handler.is_expense_intent_image', AsyncMock(side_effect=RuntimeError('fail'))):
             reply = await process_image_message(b'bad', gemini)
-        self.assertEqual(reply, ERROR_REPLY_TEXT)
+        self.assertEqual(reply.text, ERROR_REPLY_TEXT)
 
 
 if __name__ == '__main__':

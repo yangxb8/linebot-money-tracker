@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from services.line_event import extract_text_message
+from services.line_event import extract_quoted_message_id, extract_text_message
 
 
 class TestLineEventExtraction(unittest.TestCase):
@@ -39,6 +39,28 @@ class TestLineEventExtraction(unittest.TestCase):
 
         event = DummyMessageEvent(DummyTextMessage('   '))
         self.assertIsNone(extract_text_message(event))
+
+    def test_extract_quoted_message_id(self):
+        class DummyMessage:
+            def __init__(self):
+                self.quoted_message_id = 'bot-msg-123'
+
+        class DummyEvent:
+            def __init__(self):
+                self.message = DummyMessage()
+
+        self.assertEqual(extract_quoted_message_id(DummyEvent()), 'bot-msg-123')
+
+    def test_extract_quoted_message_id_camel_case(self):
+        class DummyMessage:
+            def __init__(self):
+                self.quotedMessageId = 'bot-msg-456'
+
+        class DummyEvent:
+            def __init__(self):
+                self.message = DummyMessage()
+
+        self.assertEqual(extract_quoted_message_id(DummyEvent()), 'bot-msg-456')
 
 
 if __name__ == '__main__':

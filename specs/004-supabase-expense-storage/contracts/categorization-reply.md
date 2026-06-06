@@ -29,7 +29,7 @@ Detected expense(s):
   1) {alt path 1}
   2) {alt path 2}
   3) {alt path 3}
-  Reply with 1–3 if you'd like a different category (saved in a future update).
+  Reply to this message to change category (1–3), edit fields, delete, or restore.
 ```
 
 **Rules**:
@@ -38,13 +38,12 @@ Detected expense(s):
 - Omit alternatives section lines when fewer than 1 alternative returned
 - **MUST NOT** include budget impact text (FR-010)
 
-## User correction flow (v1)
+## User correction flow
 
-When user replies with `1`, `2`, or `3` (future: category correction handler):
-- Bot acknowledges selection in chat
-- **MUST NOT** UPDATE `expenses` row (out of scope)
-
-Category correction persistence deferred to follow-on spec.
+When user **replies to the confirmation message** with `1`, `2`, or `3`, or natural-language edits:
+- Handled by feature **005-expense-reply-edits** — see [005 quickstart](../../005-expense-reply-edits/quickstart.md)
+- Category picks and field updates persist to `expenses` via repository mutators
+- Soft-delete / restore supported with action summaries
 
 ## Multi-item receipts
 

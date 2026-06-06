@@ -9,10 +9,11 @@ import sys
 import uuid
 from pathlib import Path
 
+from services.confirmation_repository import save_confirmation
 from services.env_loader import load_env, require_env_vars
 from services.gemini_client import GeminiClient
-from services.message_context import MessageContext
-from services.message_handler import process_image_message, process_text_message
+from services.message_context import MessageContext, ReplyContext
+from services.message_handler import process_image_message, process_reply_edit, process_text_message
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,10 @@ def _build_parser() -> argparse.ArgumentParser:
     group.add_argument('--text', help='Expense message text to process')
     group.add_argument('--image', help='Path to a receipt image file')
     parser.add_argument(
+        '--reply-to',
+        help='Bot confirmation message ID to simulate reply-to-message flow',
+    )
+    parser.add_argument(
         '--debug',
         action='store_true',
         help='Enable debug-level logging (or set LOG_LEVEL=DEBUG)',
@@ -55,16 +60,42 @@ def _read_image(path_str: str) -> bytes:
         raise OSError(f'Unable to read image file: {path}') from exc
 
 
-async def _run(args: argparse.Namespace) -> str:
+async def _run(args: argparse.Namespace) -> tuple[str, str | None]:
     gemini = GeminiClient(api_key=os.getenv('GEMINI_API_KEY'))
+    line_user_id = os.getenv('LOCAL_LINE_USER_ID', 'local-dev-user')
+
+    if args.reply_to:
+        if not args.text:
+            raise ValueError('--reply-to requires --text')
+        reply_context = ReplyContext(
+            line_user_id=line_user_id,
+            user_reply_message_id=str(uuid.uuid4()),
+            quoted_bot_message_id=args.reply_to,
+        )
+        reply = await process_reply_edit(args.text, reply_context, gemini)
+        return reply, None
+
     context = MessageContext(
-        line_user_id=os.getenv('LOCAL_LINE_USER_ID', 'local-dev-user'),
+        line_user_id=line_user_id,
         source_message_id=str(uuid.uuid4()),
     )
     if args.text is not None:
-        return await process_text_message(args.text, gemini, context)
-    image_bytes = _read_image(args.image)
-    return await process_image_message(image_bytes, gemini, context=context)
+        bot_reply = await process_text_message(args.text, gemini, context)
+    else:
+        image_bytes = _read_image(args.image)
+        bot_reply = await process_image_message(image_bytes, gemini, context=context)
+
+    bot_message_id = None
+    if bot_reply.confirmation:
+        bot_message_id = f'console-{uuid.uuid4()}'
+        save_confirmation(
+            bot_message_id=bot_message_id,
+            line_user_id=line_user_id,
+            confirmation_text=bot_reply.confirmation.confirmation_text,
+            items=list(bot_reply.confirmation.items),
+        )
+
+    return bot_reply.text, bot_message_id
 
 
 def main() -> int:
@@ -80,11 +111,14 @@ def main() -> int:
     _configure_logging(debug=args.debug)
 
     try:
-        reply = asyncio.run(_run(args))
+        reply, bot_message_id = asyncio.run(_run(args))
     except FileNotFoundError as exc:
         print(str(exc), file=sys.stderr)
         return 1
     except OSError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 1
     except Exception:
@@ -92,6 +126,8 @@ def main() -> int:
         return 1
 
     print(reply)
+    if bot_message_id:
+        print(f'[confirmation] bot_message_id={bot_message_id} (use with --reply-to)')
     return 0
 
 

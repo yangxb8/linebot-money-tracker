@@ -39,6 +39,20 @@ Optional persistence: `LOCAL_LINE_USER_ID` (console mode user id, default `local
 
 See [Supabase expense storage quickstart](specs/004-supabase-expense-storage/quickstart.md) for migration and verification steps.
 
+## Expense reply edits
+
+After logging an expense, reply to the bot confirmation message to change category (1–3), edit amount/description/date, soft-delete, or restore. Console testing:
+
+```bash
+python local_run.py --text "スーパー 3500円"
+# Note the bot_message_id printed after log
+python local_run.py --reply-to console-<uuid> --text "3800円に修正"
+```
+
+Full guide: [specs/005-expense-reply-edits/quickstart.md](specs/005-expense-reply-edits/quickstart.md)
+
+Apply migration `supabase/migrations/20260606130000_expense_reply_edits.sql` before using reply edits.
+
 Optional OCR: `TESSERACT_LANG`, `DOCUMENT_AI_PROJECT_ID`, `DOCUMENT_AI_PROCESSOR_ID`, `DOCUMENT_AI_LOCATION`
 
 See [environment variables contract](specs/003-local-dev-setup/contracts/environment-variables.md).

@@ -1,2 +1,2 @@
-- Base on user's reply to message, update expense in DB (amount, catagory, cancel etc)
 - Create monthly budgets by analyzing user expense after accumulating data for at least one month. Propose to user and refine base on feedback.
+- Better expense logic. In receipt we might see discount, points etc, but what we need to care is final cash out (including tax)
