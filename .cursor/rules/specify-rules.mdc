@@ -4,5 +4,10 @@ alwaysApply: true
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+shell commands, and other important information, read the current plan at
+`specs/003-local-dev-setup/plan.md` and the developer quickstart at
+`specs/003-local-dev-setup/quickstart.md`.
+
+Primary local dev workflow: `python local_run.py --text "..."` or
+`python local_run.py --image path/to/receipt.jpg` (requires GEMINI_API_KEY only).
 <!-- SPECKIT END -->

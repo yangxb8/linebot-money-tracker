@@ -1,6 +1,11 @@
+import logging
 import re
 from decimal import Decimal, InvalidOperation
 from typing import List, Dict, Any, Optional, Tuple
+
+from services.log_utils import truncate
+
+logger = logging.getLogger(__name__)
 
 # Full-width digits and common Japanese receipt symbols → half-width.
 _FULLWIDTH_TRANS = str.maketrans(
@@ -93,14 +98,28 @@ def parse_text_for_expenses(text: str) -> List[Dict[str, Any]]:
     (e.g. 'コーヒー 450円', '合計 ¥1,280', full-width digits).
     """
     if not text or not isinstance(text, str):
+        logger.info('Receipt parser: skipped (empty or invalid input)')
         return []
 
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     if not lines:
+        logger.info('Receipt parser: no non-empty lines in input (text_len=%d)', len(text))
         return []
+
+    logger.info('Receipt parser: scanning %d line(s), text_len=%d', len(lines), len(text))
+    logger.debug('Receipt parser input sample: %s', truncate('\n'.join(lines[:10]), 800))
 
     items: List[Dict[str, Any]] = []
     for line in lines:
         items.extend(_parse_line(line))
+
+    if items:
+        logger.info(
+            'Receipt parser: matched %d item(s): %s',
+            len(items),
+            ', '.join(f'{it["description"]}={it["amount"]} {it["currency"]}' for it in items[:5]),
+        )
+    else:
+        logger.info('Receipt parser: no expense items matched from %d line(s)', len(lines))
 
     return items

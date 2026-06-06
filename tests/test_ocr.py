@@ -24,9 +24,10 @@ class TestOcr(unittest.TestCase):
         self.assertEqual(lines, ['TOTAL 45.00 USD'])
 
     @patch('services.ocr._ocr_with_document_ai', side_effect=RuntimeError('Document AI requires DOCUMENT_AI_PROJECT_ID'))
-    def test_document_ai_requires_processor_config(self, _document_ai_mock):
-        with self.assertRaises(RuntimeError):
-            extract_text_from_image_bytes(b'fake-image', prefer='documentai')
+    @patch('services.ocr._ocr_with_pytesseract', side_effect=RuntimeError('no local OCR'))
+    def test_auto_returns_empty_when_all_backends_fail(self, _pytesseract_mock, _document_ai_mock):
+        lines = extract_text_from_image_bytes(b'fake-image', prefer='auto')
+        self.assertEqual(lines, [])
 
     @patch.dict('os.environ', {'TESSERACT_LANG': 'jpn+eng'})
     @patch('services.ocr.pytesseract')
