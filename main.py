@@ -6,7 +6,7 @@
 #
 #       https://www.apache.org/licenses/LICENSE-2.0
 #
-#  Unless required by applicable law or agreed to in writing, software
+#  Unless required by applicable law or agreed to in writing, softwae
 #  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 #  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #  License for the specific language governing permissions and limitations
@@ -27,11 +27,17 @@ from linebot.v3.messaging import (
     ReplyMessageRequest,
     TextMessage,
 )
+from linebot.v3.messaging.api.async_messaging_api_blob import AsyncMessagingApiBlob
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.webhooks import MessageEvent, TextMessageContent
+from linebot.v3.webhooks import MessageEvent
 
+from services.ai_assist import assist_parse_ocr
 from services.gemini_client import GeminiClient
-from services.line_event import extract_text_message
+from services.line_event import extract_image_message_id, extract_text_message
+from services.ocr import extract_text_from_image_bytes, _guess_mime_type
+from services.receipt_parser import parse_text_for_expenses
+from services.intent import is_expense_intent_image, is_expense_intent_text
+
 
 
 logging.basicConfig(
@@ -81,14 +87,44 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-FALLBACK_TEXT = (
-    "I can only respond to text messages for now. "
-    "Please send a text message and I will reply using Gemini."
+CANNED_UNSUPPORTED_REPLY = (
+    "Sorry—I only accept expense submissions right now. Please send a receipt image or a text message like: 'Lunch 120 THB at Cafe'"
 )
 ERROR_REPLY_TEXT = (
     "Sorry, I couldn't generate a response right now. "
     "Please try again in a moment."
 )
+
+
+def _format_expense_items(items):
+    if not items:
+        return None
+
+    lines = []
+    for it in items:
+        description = str(it.get('description', 'Expense')).strip()
+        amount = it.get('amount', '')
+        currency = it.get('currency', '')
+        amount_text = str(amount)
+        currency_text = f" {currency}" if currency else ''
+        lines.append(f"- {description}: {amount_text}{currency_text}")
+
+    return "Detected expense(s):\n" + "\n".join(lines)
+
+
+async def _fetch_image_bytes(message_id: str) -> bytes:
+    if async_api_client is None:
+        raise RuntimeError('Async LINE API client is not initialized')
+
+    blob_api = AsyncMessagingApiBlob(async_api_client)
+
+    def fetch():
+        return blob_api.get_message_content(message_id)
+
+    result = await __import__('asyncio').to_thread(fetch)
+    if isinstance(result, (bytes, bytearray)):
+        return bytes(result)
+    raise RuntimeError('Unable to fetch image bytes from LINE message content')
 
 
 @app.post("/callback")
@@ -112,30 +148,68 @@ async def handle_callback(request: Request):
             continue
 
         user_text = extract_text_message(event)
-        if not user_text:
-            logger.info('Unsupported or empty message event received')
+        image_message_id = extract_image_message_id(event)
+
+        if user_text:
+            logger.info('Processing text message from LINE event')
+            logger.debug('User text: %s', user_text)
+            try:
+                if await is_expense_intent_text(user_text, gemini_client):
+                    items = parse_text_for_expenses(user_text)
+                    if items:
+                        reply_text = _format_expense_items(items)
+                    else:
+                        reply_text = await gemini_client.generate_reply(user_text)
+                        logger.info('Gemini reply generated successfully')
+                else:
+                    reply_text = CANNED_UNSUPPORTED_REPLY
+            except Exception:
+                logger.exception('Processing failed')
+                reply_text = ERROR_REPLY_TEXT
+
             await line_bot_api.reply_message(
                 ReplyMessageRequest(
                     reply_token=event.reply_token,
-                    messages=[TextMessage(text=FALLBACK_TEXT)]
+                    messages=[TextMessage(text=reply_text)]
                 )
             )
             continue
 
-        logger.info('Processing text message from LINE event')
-        logger.debug('User text: %s', user_text)
+        if image_message_id:
+            logger.info('Processing image message from LINE event')
+            try:
+                image_bytes = await _fetch_image_bytes(image_message_id)
+                mime_type = _guess_mime_type(image_bytes)
+                if not await is_expense_intent_image(image_bytes, gemini_client, mime_type):
+                    reply_text = CANNED_UNSUPPORTED_REPLY
+                else:
+                    ocr_lines = extract_text_from_image_bytes(image_bytes)
+                    ocr_text = "\n".join(ocr_lines)
+                    items = parse_text_for_expenses(ocr_text)
+                    if not items:
+                        items = await assist_parse_ocr(ocr_text, gemini_client)
+                    if items:
+                        reply_text = _format_expense_items(items)
+                    else:
+                        reply_text = ERROR_REPLY_TEXT
+                    logger.info('Image expense extraction completed')
+            except Exception:
+                logger.exception('Image processing failed')
+                reply_text = ERROR_REPLY_TEXT
 
-        try:
-            reply_text = await gemini_client.generate_reply(user_text)
-            logger.info('Gemini reply generated successfully')
-        except Exception:
-            logger.exception('Gemini generation failed')
-            reply_text = ERROR_REPLY_TEXT
+            await line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text=reply_text)]
+                )
+            )
+            continue
 
+        logger.info('Unsupported or empty message event received')
         await line_bot_api.reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text)]
+                messages=[TextMessage(text=CANNED_UNSUPPORTED_REPLY)]
             )
         )
 

@@ -50,6 +50,23 @@ class TestGeminiClient(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(RuntimeError):
                 await client.generate_reply('Hello world')
 
+    async def test_generate_reply_with_image_returns_text(self):
+        fake_response = MagicMock()
+        fake_response.text = '{"is_expense": true}'
+
+        client = GeminiClient(api_key='test_key')
+        with patch.object(
+            client.client.models,
+            'generate_content',
+            return_value=fake_response
+        ):
+            result = await client.generate_reply_with_image(
+                'Classify this image',
+                b'fake-image',
+                'image/jpeg',
+            )
+            self.assertEqual(result, '{"is_expense": true}')
+
 
 if __name__ == '__main__':
     unittest.main()
