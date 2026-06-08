@@ -82,6 +82,18 @@ _AFFIRMATIVE_RE = re.compile(
     r'^(yes|y|ok|confirm|はい|了解|確認|是|好|可以)$',
     re.IGNORECASE,
 )
+_CANCEL_PENDING_RE = re.compile(
+    r'^(?:no|n|cancel|nevermind|stop|いいえ|キャンセル|不要|算了|不用)$',
+    re.IGNORECASE,
+)
+_DELETE_PHRASE_RE = re.compile(
+    r'^(?:'
+    r'cancel(?:\s+this)?|delete(?:\s+this)?|remove(?:\s+this)?|wrong(?:\s+receipt)?|'
+    r'キャンセル|削除(?:して)?|取り消し|取消|間違い|'
+    r'删除(?:这个)?|删掉|移除'
+    r')\s*[.!。！]*$',
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -94,6 +106,35 @@ class EditApplyResult:
 
 def is_affirmative(text: str) -> bool:
     return bool(_AFFIRMATIVE_RE.match((text or '').strip()))
+
+
+def is_cancel_pending(text: str) -> bool:
+    return bool(_CANCEL_PENDING_RE.match((text or '').strip()))
+
+
+def _delete_phrase_intent(
+    user_text: str,
+    items_snapshot: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    if not _DELETE_PHRASE_RE.match((user_text or '').strip()):
+        return None
+
+    if len(items_snapshot) == 1:
+        return {
+            'action': 'soft_delete',
+            'target': {'mode': 'single', 'line_item_index': items_snapshot[0].get('line_item_index', 0)},
+            'updates': {},
+            'clarification_needed': False,
+            'clarification_message': None,
+        }
+
+    return {
+        'action': 'soft_delete',
+        'target': {'mode': 'unspecified'},
+        'updates': {},
+        'clarification_needed': False,
+        'clarification_message': None,
+    }
 
 
 def _parse_json_object(response: str) -> Any:
@@ -225,13 +266,29 @@ async def parse_edit_intent(
             'clarification_message': None,
         }
 
+    if pending_action == 'delete_all' and is_cancel_pending(user_text):
+        return {
+            'action': 'cancel_pending',
+            'target': {'mode': 'unspecified'},
+            'updates': {},
+            'clarification_needed': False,
+            'clarification_message': None,
+        }
+
     bare = _bare_number_intent(user_text, items_snapshot)
     if bare is not None:
         return bare
 
+    delete_intent = _delete_phrase_intent(user_text, items_snapshot)
+    if delete_intent is not None:
+        return delete_intent
+
     prompt = (
         'Parse the user reply to an expense confirmation into EditIntent JSON.\n'
         'Supported languages: Japanese, English, Chinese.\n'
+        'Examples: "cancel"/"delete"/"キャンセル"/"删除" → soft_delete; '
+        '"delete all" → soft_delete_all; "restore"/"undo" → restore; '
+        '"restore all" → restore_all.\n'
         f'pending_action: {pending_action!r}\n'
         f'items_snapshot: {json.dumps(items_snapshot, ensure_ascii=False)}\n'
         f'user_reply: {user_text!r}\n'
@@ -330,6 +387,16 @@ async def apply_edit_intent(
     if action == 'soft_delete_all':
         set_pending_action(confirmation.id, 'delete_all')
         summary = format_edit_result(language, EditSummaryInput(status='applied', action='soft_delete_all_pending'))
+        return EditApplyResult(status='applied', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+
+    if action == 'cancel_pending' and confirmation.pending_action == 'delete_all':
+        set_pending_action(confirmation.id, None)
+        if language == 'zh':
+            summary = '已取消批量删除。'
+        elif language == 'en':
+            summary = 'Bulk delete cancelled.'
+        else:
+            summary = '一括削除をキャンセルしました。'
         return EditApplyResult(status='applied', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
 
     if action == 'confirm_pending' and confirmation.pending_action == 'delete_all':

@@ -8,7 +8,10 @@ from services.gemini_client import GeminiClient
 from services.message_handler import format_expense_items
 from services.reply_edit import (
     _bare_number_intent,
+    _delete_phrase_intent,
+    apply_edit_intent,
     is_affirmative,
+    is_cancel_pending,
     resolve_category_pick,
     validate_edit_intent,
 )
@@ -58,6 +61,33 @@ class TestReplyEditIntent(unittest.TestCase):
         self.assertTrue(is_affirmative('YES'))
         self.assertTrue(is_affirmative('はい'))
         self.assertFalse(is_affirmative('maybe'))
+
+    def test_is_cancel_pending(self):
+        self.assertTrue(is_cancel_pending('cancel'))
+        self.assertTrue(is_cancel_pending('いいえ'))
+        self.assertFalse(is_cancel_pending('delete'))
+
+    def test_delete_phrase_single_item(self):
+        items = [{'line_item_index': 0, 'expense_id': 'e1', 'description': 'Coffee'}]
+        for phrase in ('cancel', 'delete', 'キャンセル', '删除'):
+            with self.subTest(phrase=phrase):
+                intent = _delete_phrase_intent(phrase, items)
+                self.assertIsNotNone(intent)
+                self.assertEqual(intent['action'], 'soft_delete')
+                self.assertEqual(intent['target']['mode'], 'single')
+
+    def test_delete_phrase_multi_item_unspecified(self):
+        items = [
+            {'line_item_index': 0, 'expense_id': 'e1'},
+            {'line_item_index': 1, 'expense_id': 'e2'},
+        ]
+        intent = _delete_phrase_intent('cancel', items)
+        self.assertEqual(intent['action'], 'soft_delete')
+        self.assertEqual(intent['target']['mode'], 'unspecified')
+
+    def test_delete_phrase_non_delete(self):
+        items = [{'line_item_index': 0, 'expense_id': 'e1'}]
+        self.assertIsNone(_delete_phrase_intent('3800円', items))
 
 
 class TestReplySummary(unittest.TestCase):
@@ -145,12 +175,56 @@ class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
             'target': {'mode': 'single', 'line_item_index': 0},
             'updates': {'category_alternative_number': 1},
         }
-        from services.reply_edit import apply_edit_intent
-
         gemini = MagicMock(spec=GeminiClient)
         result = await apply_edit_intent(intent, confirmation, '1', gemini)
         self.assertEqual(result.status, 'applied')
         update_fields.assert_called_once()
+
+    @patch('services.reply_edit.update_items_snapshot')
+    @patch('services.reply_edit.get_expenses_by_ids')
+    @patch('services.reply_edit.soft_delete_expenses')
+    async def test_apply_cancel_soft_deletes_single_item(self, soft_delete, get_by_ids, _update_snap):
+        soft_delete.return_value = __import__(
+            'services.expense_repository', fromlist=['MutationResult']
+        ).MutationResult(success=True, affected=1)
+        expense_row = ExpenseRow(
+            id='e1',
+            line_user_id='u1',
+            description='Coffee',
+            amount=Decimal('450'),
+            currency='JPY',
+            expense_date=__import__('datetime').date.today(),
+            category_node_id='old',
+            assigned_level=1,
+            category_l1_id='old',
+            category_l2_id=None,
+            category_l3_id=None,
+        )
+        get_by_ids.return_value = [expense_row]
+        confirmation = ConfirmationRecord(
+            id='c1',
+            bot_message_id='bot-1',
+            line_user_id='u1',
+            confirmation_text='text',
+            items_snapshot=(
+                {
+                    'line_item_index': 0,
+                    'expense_id': 'e1',
+                    'description': 'Coffee',
+                    'amount': 450,
+                    'currency': 'JPY',
+                    'category_guess_code': 'food.dining.cafe',
+                    'category_alternatives': ['food.grocery', 'unknown'],
+                },
+            ),
+            pending_action=None,
+        )
+        intent = _delete_phrase_intent('cancel', list(confirmation.items_snapshot))
+        gemini = MagicMock(spec=GeminiClient)
+        result = await apply_edit_intent(intent, confirmation, 'cancel', gemini)
+        self.assertEqual(result.status, 'applied')
+        self.assertIn('Soft-deleted', result.summary)
+        soft_delete.assert_called_once_with(['e1'])
 
 
 if __name__ == '__main__':
