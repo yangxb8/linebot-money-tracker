@@ -24,7 +24,9 @@ class TestAiAssist(unittest.TestCase):
 class TestAiAssistAsync(unittest.IsolatedAsyncioTestCase):
     async def test_assist_parse_ocr_validates_response(self):
         gemini = AsyncMock()
-        gemini.generate_reply.return_value = '[{"description":"Coffee","amount":4.5,"currency":"USD"}]'
+        gemini.generate_json_reply = AsyncMock(
+            return_value='[{"description":"Coffee","amount":4.5,"currency":"USD"}]'
+        )
 
         items = await assist_parse_ocr('Coffee 4.50 USD', gemini)
         self.assertEqual(len(items), 1)
@@ -32,21 +34,23 @@ class TestAiAssistAsync(unittest.IsolatedAsyncioTestCase):
 
     async def test_assist_parse_ocr_rejects_invalid_schema(self):
         gemini = AsyncMock()
-        gemini.generate_reply.return_value = '[{"description":"Coffee","amount":"four"}]'
+        gemini.generate_json_reply = AsyncMock(
+            return_value='[{"description":"Coffee","amount":"four"}]'
+        )
 
         items = await assist_parse_ocr('Coffee four dollars', gemini)
         self.assertEqual(items, [])
 
     async def test_assist_parse_image_validates_response(self):
         gemini = AsyncMock()
-        gemini.generate_reply_with_image = AsyncMock(
+        gemini.generate_json_reply_with_image = AsyncMock(
             return_value='[{"description":"Coffee","amount":450,"currency":"JPY"}]'
         )
 
         items = await assist_parse_image(b'fake-image', gemini, 'image/jpeg')
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]['currency'], 'JPY')
-        gemini.generate_reply_with_image.assert_awaited_once()
+        gemini.generate_json_reply_with_image.assert_awaited_once()
 
 
 if __name__ == '__main__':

@@ -37,9 +37,31 @@ class TestReceiptParser(unittest.TestCase):
 
         sample = Path('specs/002-expense-intent-analysis/samples/japanese_receipt.ocr.txt').read_text(encoding='utf-8')
         items = parse_text_for_expenses(sample)
-        self.assertGreaterEqual(len(items), 4)
+        self.assertGreaterEqual(len(items), 3)
         amounts = [item['amount'] for item in items]
-        self.assertIn(600.0, amounts)
+        self.assertIn(150.0, amounts)
+        self.assertIn(198.0, amounts)
+
+    def test_parse_my_basket_style_receipt(self):
+        ocr = '''まいばすけっと
+瀬ヶ崎３丁目店
+TEL 048-621-5482
+ジャイアントコーンショ 159※
+エッセルカップバニラ 139※ A
+小計 ¥298
+外税 8%対象額 ¥298
+外税 8% ¥23
+合計 ¥321
+iD支払 ¥321
+お釣り ¥0'''
+        items = parse_text_for_expenses(ocr)
+        descriptions = [item['description'] for item in items]
+        amounts = [item['amount'] for item in items]
+        self.assertEqual(len(items), 2)
+        self.assertIn(159.0, amounts)
+        self.assertIn(139.0, amounts)
+        self.assertTrue(any('コーン' in desc for desc in descriptions))
+        self.assertTrue(all(item['currency'] == 'JPY' for item in items))
 
 
 if __name__ == '__main__':

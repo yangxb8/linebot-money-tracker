@@ -122,11 +122,12 @@ async def _fetch_image_bytes(message_id: str) -> bytes:
         raise RuntimeError('Async LINE API client is not initialized')
 
     blob_api = AsyncMessagingApiBlob(async_api_client)
+    result = blob_api.get_message_content(message_id)
+    if __import__('inspect').isawaitable(result):
+        result = await result
+    elif not isinstance(result, (bytes, bytearray)):
+        result = await __import__('asyncio').to_thread(blob_api.get_message_content, message_id)
 
-    def fetch():
-        return blob_api.get_message_content(message_id)
-
-    result = await __import__('asyncio').to_thread(fetch)
     if isinstance(result, (bytes, bytearray)):
         return bytes(result)
     raise RuntimeError('Unable to fetch image bytes from LINE message content')

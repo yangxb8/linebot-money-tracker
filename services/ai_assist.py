@@ -84,7 +84,7 @@ async def assist_parse_ocr(ocr_text: str, gemini: GeminiClient) -> List[Dict[str
         'Return ONLY the JSON array, no other text. OCR_TEXT:\n' + ocr_text
     )
 
-    response = await gemini.generate_reply(prompt)
+    response = await gemini.generate_json_reply(prompt)
     try:
         parsed = _parse_json_array(response, source=source)
         return validate_expense_items(parsed, source=source)
@@ -121,7 +121,7 @@ async def assist_parse_image(
         'Return ONLY the JSON array, no other text.'
     )
 
-    response = await gemini.generate_reply_with_image(prompt, image_bytes, mime_type)
+    response = await gemini.generate_json_reply_with_image(prompt, image_bytes, mime_type)
     try:
         parsed = _parse_json_array(response, source=source)
         return validate_expense_items(parsed, source=source)

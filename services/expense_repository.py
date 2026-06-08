@@ -99,7 +99,7 @@ def build_insert_row(
     node = resolve_code(category_code)
     amount_raw = item.get('amount', 0)
     amount = Decimal(str(amount_raw)).quantize(Decimal('0.01'))
-    currency = str(item.get('currency', 'JPY')).strip().upper()[:3]
+    currency = str(item.get('currency') or 'JPY').strip().upper()[:3] or 'JPY'
     description = str(item.get('description', 'Expense')).strip() or 'Expense'
 
     tenant = context.tenant

@@ -133,6 +133,38 @@ class GeminiClient:
             config=config,
         )
 
+    async def generate_json_reply_with_image(
+        self,
+        prompt: str,
+        image_bytes: bytes,
+        mime_type: str = "image/jpeg",
+    ) -> str:
+        if not prompt or not prompt.strip():
+            raise ValueError("Prompt cannot be empty.")
+        if not image_bytes:
+            raise ValueError("Image bytes cannot be empty.")
+
+        context = f' image={describe_bytes(image_bytes)} mime={mime_type}'
+        logger.info(
+            'Gemini multimodal JSON request: model=%s image=%s mime=%s prompt_len=%d max_retries=%d',
+            GEMINI_MODEL,
+            describe_bytes(image_bytes),
+            mime_type,
+            len(prompt),
+            GEMINI_MAX_RETRIES,
+        )
+        logger.debug('Gemini multimodal JSON prompt: %s', truncate(prompt, 1000))
+        config = types.GenerateContentConfig(response_mime_type='application/json')
+        return await self._generate_content_with_retry(
+            label='multimodal-json',
+            contents=[
+                types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                prompt.strip(),
+            ],
+            context=context,
+            config=config,
+        )
+
     async def generate_reply_with_image(
         self,
         prompt: str,
