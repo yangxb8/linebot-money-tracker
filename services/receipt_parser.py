@@ -19,13 +19,27 @@ _AMOUNT_CURRENCY_REGEX = re.compile(
 )
 _YEN_SUFFIX_REGEX = re.compile(r'(?P<amount>[\d,]+)\s*円')
 _YEN_PREFIX_REGEX = re.compile(r'[¥￥]\s*(?P<amount>[\d,]+)')
-_YEN_TAX_MARKER_REGEX = re.compile(r'(?P<amount>[\d,]+)\s*※\s*[A-Za-z]?')
-_TRAILING_AMOUNT_REGEX = re.compile(
-    r'(?P<amount>[\d,]+(?:\.\d{1,2})?)\s*(?:※\s*[A-Za-z]?|円|[A-Za-z]{3})?\s*$',
+_YEN_TAX_MARKER_REGEX = re.compile(r'※\s*\\?\s*(?P<amount>[\d,]+)\s*[A-Za-z]?')
+_YEN_TAX_MARKER_TRAILING_REGEX = re.compile(
+    r'(?P<amount>[\d,]+(?:\.\d{1,2})?)\s*※\s*\\?\s*[A-Za-z]?\s*$',
 )
+_TRAILING_AMOUNT_REGEX = re.compile(
+    r'(?P<amount>[\d,]+(?:\.\d{1,2})?)\s*(?:※\s*\\?\s*[A-Za-z]?|円|[A-Za-z]{3})?\s*$',
+)
+_JAN_PRODUCT_CODE_RE = re.compile(r'P\d{13}')
+_SHELF_PREFIX_RE = re.compile(r'内\d+\s+\d{4}\s*')
+_REGISTER_NOISE_RE = re.compile(
+    r'999999精算機|精算機|GGL|\*#%|\*%%|["\']999999',
+    re.I,
+)
+_DESC_NOISE_RE = re.compile(
+    r'P\d{13}|内\d+\s+\d{4}\s*|999999精算機|精算機|GGL|\*#%|\*%%|["\']',
+    re.I,
+)
+_TRAILING_BARE_PRICE_RE = re.compile(r'(?P<amount>[\d,]{3,5})(?:\.\d{1,2})?\s*$')
 
 _RECEIPT_SUMMARY_REGEX = re.compile(
-    r'(小計|合計|外税|内税|消費税|税額|対象額|お釣り|釣り|預り|値引|割引|ポイント|'
+    r'(小計|合計|外税|内税|消費税|税額|対象額|お釣り|釣り|預り|値引|割引|ポイント|買上点数|'
     r'subtotal|total|tax|change|balance\s+due)',
     re.I,
 )
@@ -40,7 +54,9 @@ _DATETIME_LINE_REGEX = re.compile(
 _JAPANESE_CHAR_REGEX = re.compile(r'[\u3040-\u30ff\u4e00-\u9fff]')
 _PRICE_AT_END_RE = re.compile(
     r'[¥￥]\s*[\d,]+(?:\.\d{1,2})?\s*$|'
-    r'[\d,]+(?:\.\d{1,2})?\s*(?:円|※\s*[A-Za-z]?)\s*$',
+    r'[\d,]+(?:\.\d{1,2})?\s*(?:円|※\s*\\?\s*[A-Za-z]?)\s*$|'
+    r'※\s*\\?\s*[\d,]+\s*$|'
+    r':\s*[\d,]+(?:\.\d{1,2})?\s*$',
 )
 
 
@@ -70,10 +86,27 @@ def _is_receipt_metadata_line(line: str) -> bool:
     return bool(_RECEIPT_METADATA_REGEX.search(line))
 
 
+def clean_receipt_description(text: str) -> str:
+    """Strip JAN codes, shelf prefixes, and register OCR noise for display/LLM."""
+    cleaned = _normalize_text(text)
+    cleaned = _DESC_NOISE_RE.sub(' ', cleaned)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip(' -@:，、.')
+    cleaned = re.sub(r'^(?:\d{4,}\s+)+', '', cleaned).strip(' -@:，、.')
+    return cleaned or 'Expense'
+
+
+def _fix_ocr_price_amount(amount: Decimal) -> Decimal:
+    """Recover shelf prices when OCR misreads ¥249 as 4249."""
+    if amount >= 4000 and amount < 10000:
+        candidate = amount % 1000
+        if Decimal('50') <= candidate <= Decimal('2000'):
+            return candidate
+    return amount
+
+
 def _build_item(line: str, amount: Decimal, currency: str, pattern: re.Pattern) -> Dict[str, Any]:
     desc = pattern.sub('', line).strip(' -@:，、')
-    if not desc:
-        desc = 'Expense'
+    desc = clean_receipt_description(desc)
 
     normalized_currency = currency.upper() if currency else ''
     if not normalized_currency and _looks_japanese(line):
@@ -108,7 +141,16 @@ def _match_amount(line: str) -> Optional[Tuple[Decimal, str, re.Pattern]]:
     yen_marker = _YEN_TAX_MARKER_REGEX.search(normalized)
     if yen_marker:
         try:
-            return _normalize_amount(yen_marker.group('amount')), 'JPY', _YEN_TAX_MARKER_REGEX
+            amount = _fix_ocr_price_amount(_normalize_amount(yen_marker.group('amount')))
+            return amount, 'JPY', _YEN_TAX_MARKER_REGEX
+        except Exception:
+            pass
+
+    tax_trailing = _YEN_TAX_MARKER_TRAILING_REGEX.search(normalized)
+    if tax_trailing:
+        try:
+            amount = _fix_ocr_price_amount(_normalize_amount(tax_trailing.group('amount')))
+            return amount, 'JPY', _YEN_TAX_MARKER_TRAILING_REGEX
         except Exception:
             pass
 
@@ -116,11 +158,20 @@ def _match_amount(line: str) -> Optional[Tuple[Decimal, str, re.Pattern]]:
     if trailing:
         amount_raw = trailing.group('amount')
         try:
-            amount = _normalize_amount(amount_raw)
+            amount = _fix_ocr_price_amount(_normalize_amount(amount_raw))
         except Exception:
             return None
         currency = 'JPY' if _looks_japanese(normalized) else ''
         return amount, currency, _TRAILING_AMOUNT_REGEX
+
+    bare_trailing = _TRAILING_BARE_PRICE_RE.search(normalized)
+    if bare_trailing and _looks_japanese(normalized) and _JAN_PRODUCT_CODE_RE.search(normalized):
+        try:
+            amount = _fix_ocr_price_amount(_normalize_amount(bare_trailing.group('amount')))
+            if Decimal('50') <= amount <= Decimal('50000'):
+                return amount, 'JPY', _TRAILING_BARE_PRICE_RE
+        except Exception:
+            pass
 
     western = _AMOUNT_CURRENCY_REGEX.search(normalized)
     if western:
@@ -159,6 +210,34 @@ def _line_has_trailing_price(line: str) -> bool:
     return bool(_PRICE_AT_END_RE.search(_normalize_text(line)))
 
 
+def _is_register_noise_line(line: str) -> bool:
+    normalized = _normalize_text(line)
+    if not _REGISTER_NOISE_RE.search(normalized):
+        return False
+    return not _line_has_trailing_price(normalized)
+
+
+def split_compound_receipt_line(line: str) -> List[str]:
+    """Split Vision OCR lines that concatenate multiple JAN-coded products."""
+    normalized = _normalize_text(line).strip()
+    if not normalized:
+        return []
+
+    codes = _JAN_PRODUCT_CODE_RE.findall(normalized)
+    if len(codes) < 2:
+        return [normalized]
+
+    segments: List[str] = []
+    for match in _JAN_PRODUCT_CODE_RE.finditer(normalized):
+        start = match.start()
+        next_match = _JAN_PRODUCT_CODE_RE.search(normalized, match.end())
+        end = next_match.start() if next_match else len(normalized)
+        segment = normalized[start:end].strip()
+        if segment:
+            segments.append(segment)
+    return segments or [normalized]
+
+
 def preprocess_wrapped_receipt_lines(lines: List[str]) -> List[str]:
     """Join product name lines with the following price line (common on JP receipts)."""
     merged: List[str] = []
@@ -167,6 +246,8 @@ def preprocess_wrapped_receipt_lines(lines: List[str]) -> List[str]:
     for raw_line in lines:
         line = raw_line.strip()
         if not line:
+            continue
+        if _is_register_noise_line(line):
             continue
         if _is_receipt_metadata_line(line) or _DATETIME_LINE_REGEX.search(line):
             if pending:
@@ -238,7 +319,8 @@ def parse_text_for_expenses(text: str) -> List[Dict[str, Any]]:
 
     items: List[Dict[str, Any]] = []
     for line in lines:
-        items.extend(_parse_line(line))
+        for segment in split_compound_receipt_line(line):
+            items.extend(_parse_line(segment))
 
     items = _finalize_receipt_items(items, text)
 

@@ -11,6 +11,7 @@ from services.reply_edit import (
     _amount_correction_intent,
     _bare_number_intent,
     _delete_phrase_intent,
+    _item_prefixed_intent,
     apply_edit_intent,
     is_affirmative,
     is_cancel_pending,
@@ -63,6 +64,35 @@ class TestReplyEditIntent(unittest.TestCase):
         ]
         intent = _bare_number_intent('2', items)
         self.assertEqual(intent['action'], 'clarify')
+
+    def test_item_prefixed_amount_update(self):
+        items = [
+            {'line_item_index': 0, 'expense_id': 'e1'},
+            {'line_item_index': 1, 'expense_id': 'e2'},
+        ]
+        intent = _item_prefixed_intent('2 3800円', items)
+        self.assertIsNotNone(intent)
+        self.assertEqual(intent['action'], 'update')
+        self.assertEqual(intent['target']['line_item_index'], 1)
+        self.assertEqual(intent['updates']['amount'], 3800.0)
+
+    def test_item_prefixed_category_pick(self):
+        items = [
+            {'line_item_index': 0, 'category_alternatives': ['a']},
+            {'line_item_index': 1, 'category_alternatives': ['b', 'c']},
+        ]
+        intent = _item_prefixed_intent('2 1', items)
+        self.assertEqual(intent['target']['line_item_index'], 1)
+        self.assertEqual(intent['updates']['category_alternative_number'], 1)
+
+    def test_item_prefixed_delete(self):
+        items = [
+            {'line_item_index': 0, 'expense_id': 'e1'},
+            {'line_item_index': 1, 'expense_id': 'e2'},
+        ]
+        intent = _item_prefixed_intent('2 取消', items)
+        self.assertEqual(intent['action'], 'soft_delete')
+        self.assertEqual(intent['target']['line_item_index'], 1)
 
     def test_resolve_category_pick_single(self):
         items = [

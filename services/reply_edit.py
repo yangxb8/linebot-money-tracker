@@ -117,7 +117,9 @@ Return ONLY a JSON object with:
 Rules:
 - Japanese, English, and Chinese are supported.
 - If items_snapshot has exactly ONE item, default target to that item (mode=single, line_item_index from snapshot).
+- Multi-item confirmations show numbered items 1..N. Prefix edits with item number: "2 3800円", "2 取消", "2 1" (item 2, category alt 1).
 - Amount corrections: "打错了，1700", "actually 3800", "应该是1700円", "3800円に修正" → action=update with updates.amount (number, not string).
+- "2 3800" / "第2 3800円" on multi-item → update that item's amount.
 - "打错了"/"打错了，NNN" means wrong amount typed — UPDATE amount, NOT delete.
 - Bare 1/2/3 on single item → category_alternative_number update.
 - "cancel"/"delete"/"キャンセル"/"删除"/"取消" alone → soft_delete (single item) or soft_delete_all (multi-item).
@@ -292,6 +294,64 @@ def _amount_correction_intent(
     }
 
 
+def _item_prefixed_intent(
+    user_text: str,
+    items_snapshot: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    if len(items_snapshot) <= 1:
+        return None
+
+    stripped = user_text.strip()
+    match = re.match(r'^(?:第|#)?(\d+)\s*[.:：、,]\s*(.+)$', stripped)
+    if not match:
+        match = re.match(r'^(?:第|#)?(\d+)\s+(.+)$', stripped)
+    if not match:
+        return None
+
+    item_num = int(match.group(1))
+    rest = match.group(2).strip()
+    if item_num < 1 or item_num > len(items_snapshot):
+        return None
+
+    line_index = items_snapshot[item_num - 1].get('line_item_index', item_num - 1)
+    target = {'mode': 'single', 'line_item_index': line_index}
+
+    if rest in ('1', '2', '3'):
+        return {
+            'action': 'update',
+            'target': target,
+            'updates': {'category_alternative_number': int(rest)},
+            'clarification_needed': False,
+            'clarification_message': None,
+        }
+
+    if _DELETE_PHRASE_RE.match(rest):
+        return {
+            'action': 'soft_delete',
+            'target': target,
+            'updates': {},
+            'clarification_needed': False,
+            'clarification_message': None,
+        }
+
+    matched = _match_amount(_normalize_text(rest))
+    if matched is not None:
+        amount, currency, _ = matched
+        if amount > 0:
+            updates: Dict[str, Any] = {'amount': float(amount)}
+            if currency:
+                updates['currency'] = currency.upper()
+            return {
+                'action': 'update',
+                'target': target,
+                'updates': updates,
+                'clarification_needed': False,
+                'clarification_message': None,
+            }
+
+    return None
+
+
 def _bare_number_intent(user_text: str, items_snapshot: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     stripped = user_text.strip()
     if stripped not in ('1', '2', '3'):
@@ -412,6 +472,10 @@ async def parse_edit_intent(
             'clarification_message': None,
         }
 
+    bare = _item_prefixed_intent(user_text, items_snapshot)
+    if bare is not None:
+        return bare
+
     bare = _bare_number_intent(user_text, items_snapshot)
     if bare is not None:
         return bare
@@ -453,9 +517,9 @@ async def parse_edit_intent(
 def _clarify_message(language: str, reason: str) -> str:
     messages = {
         'multi_item_number': {
-            'zh': '有多笔支出。请先说明要改哪一笔（例如「咖啡：2」），再选择编号。',
-            'en': 'Multiple items on this confirmation. Identify the item first (e.g. "coffee: 2") before picking a number.',
-            'ja': '複数の支出があります。番号を選ぶ前に、対象の項目を指定してください（例：「コーヒー：2」）。',
+            'zh': '有多笔支出。请用「项目编号 + 修改」回复，例如「2 3800円」或「2 1」选类别。',
+            'en': 'Multiple items on this confirmation. Reply with item number + edit, e.g. "2 3800" or "2 1" for category.',
+            'ja': '複数の支出があります。「2 3800円」「2 1（カテゴリ）」のように番号付きで返信してください。',
         },
         'invalid_alternative': {
             'zh': '无效的类别编号。请选择 1–3。',
