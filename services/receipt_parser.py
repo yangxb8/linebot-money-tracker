@@ -19,6 +19,25 @@ _AMOUNT_CURRENCY_REGEX = re.compile(
 )
 _YEN_SUFFIX_REGEX = re.compile(r'(?P<amount>[\d,]+)\s*円')
 _YEN_PREFIX_REGEX = re.compile(r'[¥￥]\s*(?P<amount>[\d,]+)')
+_YEN_TAX_MARKER_REGEX = re.compile(r'(?P<amount>[\d,]+)\s*※')
+_TRAILING_AMOUNT_REGEX = re.compile(
+    r'(?P<amount>[\d,]+(?:\.\d{1,2})?)\s*(?:※|円|[A-Za-z]{3})?\s*$',
+)
+
+_RECEIPT_SUMMARY_REGEX = re.compile(
+    r'(小計|合計|外税|内税|消費税|税額|対象額|お釣り|釣り|預り|値引|割引|ポイント|'
+    r'subtotal|total|tax|change|balance\s+due)',
+    re.I,
+)
+_RECEIPT_METADATA_REGEX = re.compile(
+    r'(TEL|FAX|登録番号|レジ|責[:：]|会員|伝票|承認|COPY|複製|領収|お客様控え|'
+    r'クレジット|売上票|register|receipt\s+no|支払|お買上|payment)',
+    re.I,
+)
+_DATETIME_LINE_REGEX = re.compile(
+    r'\d{4}[/\-年]\s*\d{1,2}[/\-月]\s*\d{1,2}',
+)
+_JAPANESE_CHAR_REGEX = re.compile(r'[\u3040-\u30ff\u4e00-\u9fff]')
 
 
 def _normalize_text(text: str) -> str:
@@ -35,15 +54,31 @@ def _normalize_amount(raw: str) -> Decimal:
         return Decimal(s2)
 
 
+def _looks_japanese(text: str) -> bool:
+    return bool(_JAPANESE_CHAR_REGEX.search(text))
+
+
+def _is_receipt_summary_line(line: str) -> bool:
+    return bool(_RECEIPT_SUMMARY_REGEX.search(line))
+
+
+def _is_receipt_metadata_line(line: str) -> bool:
+    return bool(_RECEIPT_METADATA_REGEX.search(line))
+
+
 def _build_item(line: str, amount: Decimal, currency: str, pattern: re.Pattern) -> Dict[str, Any]:
     desc = pattern.sub('', line).strip(' -@:，、')
     if not desc:
         desc = 'Expense'
 
+    normalized_currency = currency.upper() if currency else ''
+    if not normalized_currency and _looks_japanese(line):
+        normalized_currency = 'JPY'
+
     return {
         'description': desc,
         'amount': float(amount),
-        'currency': currency.upper() if currency else '',
+        'currency': normalized_currency,
         'raw_line': line,
         'confidence': 0.8,
     }
@@ -66,6 +101,23 @@ def _match_amount(line: str) -> Optional[Tuple[Decimal, str, re.Pattern]]:
         except Exception:
             pass
 
+    yen_marker = _YEN_TAX_MARKER_REGEX.search(normalized)
+    if yen_marker:
+        try:
+            return _normalize_amount(yen_marker.group('amount')), 'JPY', _YEN_TAX_MARKER_REGEX
+        except Exception:
+            pass
+
+    trailing = _TRAILING_AMOUNT_REGEX.search(normalized)
+    if trailing:
+        amount_raw = trailing.group('amount')
+        try:
+            amount = _normalize_amount(amount_raw)
+        except Exception:
+            return None
+        currency = 'JPY' if _looks_japanese(normalized) else ''
+        return amount, currency, _TRAILING_AMOUNT_REGEX
+
     western = _AMOUNT_CURRENCY_REGEX.search(normalized)
     if western:
         amount_raw = western.group('amount')
@@ -76,6 +128,11 @@ def _match_amount(line: str) -> Optional[Tuple[Decimal, str, re.Pattern]]:
             return None
         if currency in ('¥', '￥'):
             currency = 'JPY'
+        # Bare numbers mid-line (e.g. 瀬ヶ崎3丁目) are not expense amounts.
+        if not currency and western.end() != len(normalized):
+            return None
+        if not currency and _looks_japanese(normalized):
+            currency = 'JPY'
         return amount, currency, _AMOUNT_CURRENCY_REGEX
 
     return None
@@ -83,6 +140,9 @@ def _match_amount(line: str) -> Optional[Tuple[Decimal, str, re.Pattern]]:
 
 def _parse_line(line: str) -> List[Dict[str, Any]]:
     normalized = _normalize_text(line)
+    if _is_receipt_metadata_line(normalized) or _DATETIME_LINE_REGEX.search(normalized):
+        return []
+
     matched = _match_amount(normalized)
     if not matched:
         return []
@@ -91,11 +151,32 @@ def _parse_line(line: str) -> List[Dict[str, Any]]:
     return [_build_item(normalized, amount, currency, pattern)]
 
 
+def _finalize_receipt_items(items: List[Dict[str, Any]], full_text: str) -> List[Dict[str, Any]]:
+    if not items:
+        return items
+
+    product_like = [
+        item
+        for item in items
+        if not _is_receipt_summary_line(str(item.get('raw_line', '')))
+        and not _is_receipt_metadata_line(str(item.get('raw_line', '')))
+    ]
+    if product_like:
+        items = product_like
+
+    if _looks_japanese(full_text):
+        for item in items:
+            if not str(item.get('currency', '')).strip():
+                item['currency'] = 'JPY'
+
+    return items
+
+
 def parse_text_for_expenses(text: str) -> List[Dict[str, Any]]:
     """Parse a free-form text input and return a list of expense items.
 
     Supports Western formats (e.g. 'Lunch 120 THB') and Japanese receipts
-    (e.g. 'コーヒー 450円', '合計 ¥1,280', full-width digits).
+    (e.g. 'コーヒー 450円', '合計 ¥1,280', '159※', full-width digits).
     """
     if not text or not isinstance(text, str):
         logger.info('Receipt parser: skipped (empty or invalid input)')
@@ -112,6 +193,8 @@ def parse_text_for_expenses(text: str) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     for line in lines:
         items.extend(_parse_line(line))
+
+    items = _finalize_receipt_items(items, text)
 
     if items:
         logger.info(

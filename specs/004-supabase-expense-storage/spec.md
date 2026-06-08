@@ -92,6 +92,7 @@ The following were in the original feature description but are **explicitly defe
 
 - Persistent storage fails after a successful expense detection: user still gets the reply; storage failure is logged for investigation.
 - Receipt contains mixed currencies: each stored item keeps its own currency; analysis totals group by currency unless a conversion policy is defined (see Assumptions).
+- Multi-item receipt: each line item is stored separately with its **own category**; per-item `amount` reflects **final cash-out** (tax + discounts allocated per [002 receipt-amount-semantics](../002-expense-intent-analysis/contracts/receipt-amount-semantics.md)).
 - Expense date on receipt differs from message received date: expense date defaults to receipt date when available, otherwise the log timestamp date; both are interpreted in JST for monthly/yearly grouping.
 - Duplicate submission of the same LINE message (webhook retry): processing is idempotent on LINE message ID; no duplicate expense records are created.
 - Local console harness: each invocation generates a fresh synthetic message ID; rerunning the same input creates new expense records unless the same synthetic ID is deliberately reused in tests.
