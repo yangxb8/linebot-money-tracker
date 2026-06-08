@@ -21,9 +21,7 @@ Minimum deploy variables:
 - `GEMINI_API_KEY`
 
 Optional (recommended for production receipt OCR):
-- `DOCUMENT_AI_PROJECT_ID`
-- `DOCUMENT_AI_PROCESSOR_ID`
-- `DOCUMENT_AI_LOCATION`
+- `GOOGLE_VISION_API_KEY` — Cloud Vision `DOCUMENT_TEXT_DETECTION` fallback when Tesseract is insufficient
 
 The container image includes Tesseract with Japanese support; `TESSERACT_LANG` defaults to `jpn+eng` inside the image.
 
@@ -53,12 +51,8 @@ gcloud run deploy linebot-money-tracker \
   --set-env-vars LINE_CHANNEL_SECRET=$LINE_CHANNEL_SECRET,\
 LINE_CHANNEL_ACCESS_TOKEN=$LINE_CHANNEL_ACCESS_TOKEN,\
 GEMINI_API_KEY=$GEMINI_API_KEY,\
-DOCUMENT_AI_PROJECT_ID=$GOOGLE_CLOUD_PROJECT,\
-DOCUMENT_AI_PROCESSOR_ID=$DOCUMENT_AI_PROCESSOR_ID,\
-DOCUMENT_AI_LOCATION=asia-northeast1
+GOOGLE_VISION_API_KEY=$GOOGLE_VISION_API_KEY
 ```
-
-Adjust region to match your Document AI processor location.
 
 ### 3. Configure LINE webhook
 
@@ -66,12 +60,11 @@ Adjust region to match your Document AI processor location.
 2. Set LINE webhook to: `https://<service-url>/callback`
 3. Disable the local tunnel webhook when switching to production
 
-### 4. IAM for Document AI (if used)
+### 4. Cloud Vision API key
 
-Grant the Cloud Run service account:
-- `roles/documentai.apiUser` (or custom role with `documentai.processors.processOnlineDocument`)
-
-Create an OCR processor in [Document AI console](https://console.cloud.google.com/ai/document-ai/processors) in the same region as Cloud Run.
+1. Enable [Cloud Vision API](https://console.cloud.google.com/apis/library/vision.googleapis.com) on your GCP project.
+2. Create an API key (APIs & Services → Credentials) restricted to Vision API.
+3. Set `GOOGLE_VISION_API_KEY` on Cloud Run.
 
 ## Local vs Cloud Run differences
 
@@ -80,7 +73,7 @@ Create an OCR processor in [Document AI console](https://console.cloud.google.co
 | Config | `.env` file | `--set-env-vars` or console |
 | HTTPS | Via tunnel | Provided by Cloud Run |
 | Tesseract | Optional install | Preinstalled in Dockerfile |
-| Document AI auth | `gcloud auth application-default login` | Service account (automatic) |
+| Cloud Vision OCR | `GOOGLE_VISION_API_KEY` in `.env` | `GOOGLE_VISION_API_KEY` env var |
 | Webhook URL | Changes with tunnel | Stable service URL |
 
 ## Acceptance checks
@@ -90,7 +83,7 @@ Create an OCR processor in [Document AI console](https://console.cloud.google.co
 | Deploy succeeds | Service URL returned |
 | Health | POST to `/callback` with valid LINE signature returns 200 |
 | LINE message | Bot replies using production URL |
-| Receipt image | OCR + parsing works (Tesseract or Document AI fallback) |
+| Receipt image | OCR + parsing works (Tesseract or Cloud Vision fallback) |
 
 ## Rollback
 

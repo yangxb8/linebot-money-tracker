@@ -64,3 +64,6 @@
 - [X] T023 Add receipt amount normalization: tax + discount proportional allocation (`services/receipt_normalize.py`, [contracts/receipt-amount-semantics.md](./contracts/receipt-amount-semantics.md))
 - [X] T024 Update LLM assist prompts for cash-out amounts and 合計 sum validation (`services/ai_assist.py`)
 - [X] T025 Add unit tests for My Basket-style receipts and total-only fallback (`tests/test_receipt_normalize.py`)
+- [X] T026 Replace Document AI with Cloud Vision OCR (`GOOGLE_VISION_API_KEY`, `services/ocr.py`)
+- [X] T027 Add receipt output validation; remove LLM vision item extraction (`services/receipt_validate.py`)
+- [X] T028 Chinese delete-all phrases and multi-item `取消` → `soft_delete_all` (`services/reply_edit.py`)

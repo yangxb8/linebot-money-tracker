@@ -39,20 +39,20 @@ Each item `amount` is the **final cash-out share** for that line:
 
 ## Total-only fallback
 
-When OCR/parse can read **合計** (or payment total) but **no product lines**:
-
-- Log **one expense** with `description` = merchant / store name (best-effort from receipt header).
-- `amount` = final cash paid total.
+**Deprecated for image pipeline (2026-06-08).** When validation fails, do not log a total-only expense — return a parse-error reply instead.
 
 ## Image processing pipeline
 
 ```text
-OCR → deterministic parse → OCR text assist (JSON)
-  ├─ items found → normalize amounts → skip Gemini image intent
-  └─ no items → Gemini image intent
-        ├─ not receipt → canned unsupported reply
-        └─ receipt → vision assist (JSON) → normalize amounts
+OCR (Tesseract → Cloud Vision DOCUMENT_TEXT_DETECTION)
+  → deterministic parse → normalize → validate
+  → if invalid & OCR text remains → OCR text assist (JSON) → normalize → validate
+  → if still invalid & OCR was empty → Gemini image intent (receipt check only)
+  → if not receipt → canned unsupported
+  → if receipt but still invalid → parse-error reply (no DB writes)
 ```
+
+See also [receipt-validation.md](./receipt-validation.md).
 
 **Intent (FR-001)**: Gemini image classification is required only when OCR stages find **no** parseable items. High-confidence OCR parse is trusted without an extra intent call (cost reduction).
 

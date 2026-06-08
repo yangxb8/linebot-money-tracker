@@ -84,7 +84,15 @@ _AFFIRMATIVE_RE = re.compile(
     re.IGNORECASE,
 )
 _CANCEL_PENDING_RE = re.compile(
-    r'^(?:no|n|cancel|nevermind|stop|いいえ|キャンセル|不要|算了|不用)$',
+    r'^(?:no|n|cancel|nevermind|stop|いいえ|キャンセル|取消|不要|算了|不用)$',
+    re.IGNORECASE,
+)
+_DELETE_ALL_PHRASE_RE = re.compile(
+    r'^(?:'
+    r'delete\s+all|remove\s+all|'
+    r'全部(?:取消|删除|削除|删掉)|取消全部|删除全部|削除全部|'
+    r'すべて削除|全部削除'
+    r')\s*[.!。！]*$',
     re.IGNORECASE,
 )
 _DELETE_PHRASE_RE = re.compile(
@@ -112,8 +120,10 @@ Rules:
 - Amount corrections: "打错了，1700", "actually 3800", "应该是1700円", "3800円に修正" → action=update with updates.amount (number, not string).
 - "打错了"/"打错了，NNN" means wrong amount typed — UPDATE amount, NOT delete.
 - Bare 1/2/3 on single item → category_alternative_number update.
-- "cancel"/"delete"/"キャンセル"/"删除" alone → soft_delete.
-- "delete all" → soft_delete_all; "restore all" → restore_all; "restore"/"undo" → restore.
+- "cancel"/"delete"/"キャンセル"/"删除"/"取消" alone → soft_delete (single item) or soft_delete_all (multi-item).
+- "delete all"/"全部取消"/"全部删除"/"取消全部" → soft_delete_all (user must reply YES on the confirmation prompt).
+- "restore all" → restore_all; "restore"/"undo" → restore.
+- When pending_action is delete_all, "取消"/"cancel"/"いいえ" → cancel_pending (not another delete).
 - Use clarify only when multi-item and the target item cannot be identified.
 
 Examples:
@@ -143,10 +153,26 @@ def is_cancel_pending(text: str) -> bool:
     return bool(_CANCEL_PENDING_RE.match((text or '').strip()))
 
 
+def _delete_all_phrase_intent(user_text: str) -> Optional[Dict[str, Any]]:
+    if not _DELETE_ALL_PHRASE_RE.match((user_text or '').strip()):
+        return None
+    return {
+        'action': 'soft_delete_all',
+        'target': {'mode': 'all_active'},
+        'updates': {},
+        'clarification_needed': False,
+        'clarification_message': None,
+    }
+
+
 def _delete_phrase_intent(
     user_text: str,
     items_snapshot: List[Dict[str, Any]],
 ) -> Optional[Dict[str, Any]]:
+    delete_all = _delete_all_phrase_intent(user_text)
+    if delete_all is not None:
+        return delete_all
+
     if not _DELETE_PHRASE_RE.match((user_text or '').strip()):
         return None
 
@@ -160,8 +186,8 @@ def _delete_phrase_intent(
         }
 
     return {
-        'action': 'soft_delete',
-        'target': {'mode': 'unspecified'},
+        'action': 'soft_delete_all',
+        'target': {'mode': 'all_active'},
         'updates': {},
         'clarification_needed': False,
         'clarification_message': None,
@@ -389,9 +415,10 @@ async def parse_edit_intent(
     if bare is not None:
         return bare
 
-    delete_intent = _delete_phrase_intent(user_text, items_snapshot)
-    if delete_intent is not None:
-        return delete_intent
+    if pending_action != 'delete_all':
+        delete_intent = _delete_phrase_intent(user_text, items_snapshot)
+        if delete_intent is not None:
+            return delete_intent
 
     prompt = REPLY_EDIT_INTENT_PROMPT.format(
         pending_action=repr(pending_action),

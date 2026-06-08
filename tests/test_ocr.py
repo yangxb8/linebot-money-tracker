@@ -16,16 +16,16 @@ class TestOcr(unittest.TestCase):
         self.assertEqual(lines, ['Lunch 120 THB'])
         pytesseract_mock.assert_called_once()
 
-    @patch('services.ocr._ocr_with_document_ai')
+    @patch('services.ocr._ocr_with_cloud_vision')
     @patch('services.ocr._ocr_with_pytesseract', side_effect=RuntimeError('no local OCR'))
-    def test_auto_falls_back_to_document_ai(self, _pytesseract_mock, document_ai_mock):
-        document_ai_mock.return_value = ['TOTAL 45.00 USD']
+    def test_auto_falls_back_to_cloud_vision(self, _pytesseract_mock, vision_mock):
+        vision_mock.return_value = ['TOTAL 45.00 USD']
         lines = extract_text_from_image_bytes(b'fake-image', prefer='auto')
         self.assertEqual(lines, ['TOTAL 45.00 USD'])
 
-    @patch('services.ocr._ocr_with_document_ai', side_effect=RuntimeError('Document AI requires DOCUMENT_AI_PROJECT_ID'))
+    @patch('services.ocr._ocr_with_cloud_vision', side_effect=RuntimeError('GOOGLE_VISION_API_KEY'))
     @patch('services.ocr._ocr_with_pytesseract', side_effect=RuntimeError('no local OCR'))
-    def test_auto_returns_empty_when_all_backends_fail(self, _pytesseract_mock, _document_ai_mock):
+    def test_auto_returns_empty_when_all_backends_fail(self, _pytesseract_mock, _vision_mock):
         lines = extract_text_from_image_bytes(b'fake-image', prefer='auto')
         self.assertEqual(lines, [])
 

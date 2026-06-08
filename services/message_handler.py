@@ -2,7 +2,7 @@ import logging
 from decimal import Decimal
 from typing import List, Dict, Any, Optional
 
-from services.ai_assist import assist_parse_image, assist_parse_ocr
+from services.ai_assist import assist_parse_ocr
 from services.categorize import classify_expense
 from services.category_taxonomy import format_category_path, resolve_code
 from services.confirmation_repository import (
@@ -27,7 +27,8 @@ from services.message_context import (
 )
 from services.ocr import extract_text_from_image_bytes, _guess_mime_type
 from services.receipt_parser import parse_text_for_expenses
-from services.receipt_normalize import finalize_receipt_extraction
+from services.receipt_normalize import normalize_receipt_items
+from services.receipt_validate import validate_receipt_items
 from services.reply_edit import apply_edit_intent, parse_edit_intent
 from services.reply_summary import detect_reply_language, format_duplicate_reply, format_unknown_confirmation
 
@@ -42,9 +43,17 @@ ERROR_REPLY_TEXT = (
     "Please try again in a moment."
 )
 RECEIPT_PARSE_ERROR_REPLY = (
-    "I recognized this as a receipt but couldn't extract the expense amounts. "
-    "Try a clearer photo, or send the total as text (e.g. まいばすけっと 321円)."
+    "I couldn't read this receipt clearly enough to log expenses. "
+    "Please try a clearer photo, or send the total as text (e.g. まいばすけっと 321円)."
 )
+
+
+def _prepare_receipt_items(items: List[Dict[str, Any]], ocr_text: str) -> List[Dict[str, Any]]:
+    if not items:
+        return []
+    normalized = normalize_receipt_items(items, ocr_text)
+    validated = validate_receipt_items(normalized, ocr_text)
+    return validated or []
 CATEGORY_CONFIRMATION_FOOTER = (
     "Reply to this message to change category (1–3), edit fields, delete, or restore."
 )
@@ -278,18 +287,18 @@ async def _extract_expense_items_from_ocr(
     except Exception:
         logger.warning('Image pipeline: OCR raised unexpectedly; continuing to LLM fallbacks', exc_info=True)
 
-    items = finalize_receipt_extraction(parse_text_for_expenses(ocr_text), ocr_text)
+    items = _prepare_receipt_items(parse_text_for_expenses(ocr_text), ocr_text)
     if items:
         logger.info('Image pipeline: deterministic parser returned %d item(s)', len(items))
         return items, ocr_line_count, len(ocr_text), ocr_text
 
     if ocr_text:
         logger.info('Image pipeline: OCR text present but no parser matches; trying assist_parse_ocr')
-        items = finalize_receipt_extraction(await assist_parse_ocr(ocr_text, gemini), ocr_text)
+        items = _prepare_receipt_items(await assist_parse_ocr(ocr_text, gemini), ocr_text)
         if items:
             logger.info('Image pipeline: assist_parse_ocr returned %d item(s)', len(items))
             return items, ocr_line_count, len(ocr_text), ocr_text
-        logger.warning('Image pipeline: assist_parse_ocr returned no items')
+        logger.warning('Image pipeline: assist_parse_ocr returned no valid items')
 
     return [], ocr_line_count, len(ocr_text), ocr_text
 
@@ -312,17 +321,11 @@ async def process_image_message(
             image_bytes,
             gemini,
         )
-        if not items:
-            logger.info('Image pipeline: OCR stages found no items; checking receipt intent')
+        if not items and not ocr_text.strip():
+            logger.info('Image pipeline: OCR empty; checking receipt intent before giving up')
             if not await is_expense_intent_image(image_bytes, gemini, resolved_mime):
                 logger.info('Image pipeline: rejected as non-expense intent')
                 return _text_reply(CANNED_UNSUPPORTED_REPLY)
-
-            logger.info('Image pipeline: falling back to assist_parse_image (LLM vision)')
-            items = finalize_receipt_extraction(
-                await assist_parse_image(image_bytes, gemini, resolved_mime),
-                ocr_text,
-            )
 
         if not items:
             logger.warning(
