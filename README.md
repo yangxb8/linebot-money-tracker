@@ -53,7 +53,7 @@ Full guide: [specs/005-expense-reply-edits/quickstart.md](specs/005-expense-repl
 
 Apply migration `supabase/migrations/20260606130000_expense_reply_edits.sql` before using reply edits.
 
-Optional OCR: `TESSERACT_LANG`, `DOCUMENT_AI_PROJECT_ID`, `DOCUMENT_AI_PROCESSOR_ID`, `DOCUMENT_AI_LOCATION`
+Optional OCR: `TESSERACT_LANG`, `GOOGLE_VISION_API_KEY` (Cloud Vision DOCUMENT_TEXT_DETECTION fallback)
 
 See [environment variables contract](specs/003-local-dev-setup/contracts/environment-variables.md).
 
