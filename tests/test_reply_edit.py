@@ -7,11 +7,13 @@ from services.expense_repository import ExpenseRow, UpdateResult
 from services.gemini_client import GeminiClient
 from services.message_handler import format_expense_items
 from services.reply_edit import (
+    _amount_correction_intent,
     _bare_number_intent,
     _delete_phrase_intent,
     apply_edit_intent,
     is_affirmative,
     is_cancel_pending,
+    parse_edit_intent,
     resolve_category_pick,
     validate_edit_intent,
 )
@@ -26,6 +28,26 @@ class TestReplyEditIntent(unittest.TestCase):
             'updates': {'amount': 100},
         }
         self.assertIsNotNone(validate_edit_intent(intent))
+
+    def test_validate_edit_intent_coerces_amount_string(self):
+        items = [{'line_item_index': 0, 'expense_id': 'e1'}]
+        intent = {
+            'action': 'update',
+            'target': {'mode': 'unspecified'},
+            'updates': {'amount': '1700'},
+        }
+        parsed = validate_edit_intent(intent, items)
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed['updates']['amount'], 1700.0)
+        self.assertEqual(parsed['target']['mode'], 'single')
+        self.assertEqual(parsed['target']['line_item_index'], 0)
+
+    def test_amount_correction_intent_japanese_typo(self):
+        items = [{'line_item_index': 0, 'expense_id': 'e1', 'currency': 'JPY'}]
+        intent = _amount_correction_intent('打错了，1700', items)
+        self.assertIsNotNone(intent)
+        self.assertEqual(intent['action'], 'update')
+        self.assertEqual(intent['updates']['amount'], 1700.0)
 
     def test_bare_number_single_item(self):
         items = [{'line_item_index': 0, 'category_alternatives': ['a', 'b']}]
@@ -113,6 +135,30 @@ class TestReplySummary(unittest.TestCase):
         )
         self.assertIn('更新しました', summary)
         self.assertIn('→', summary)
+
+
+class TestParseEditIntent(unittest.IsolatedAsyncioTestCase):
+    async def test_parse_edit_intent_uses_llm_for_amount_correction(self):
+        items = [{'line_item_index': 0, 'expense_id': 'e1', 'description': 'Coffee', 'amount': 1500}]
+        gemini = MagicMock(spec=GeminiClient)
+        gemini.generate_json_reply = AsyncMock(
+            return_value=(
+                '{"action":"update","target":{"mode":"single","line_item_index":0},'
+                '"updates":{"amount":1700},"clarification_needed":false,"clarification_message":null}'
+            )
+        )
+        intent = await parse_edit_intent('打错了，1700', items, None, gemini)
+        self.assertEqual(intent['action'], 'update')
+        self.assertEqual(intent['updates']['amount'], 1700)
+        gemini.generate_json_reply.assert_awaited_once()
+
+    async def test_parse_edit_intent_falls_back_to_amount_extractor(self):
+        items = [{'line_item_index': 0, 'expense_id': 'e1', 'description': 'Coffee', 'amount': 1500}]
+        gemini = MagicMock(spec=GeminiClient)
+        gemini.generate_json_reply = AsyncMock(side_effect=RuntimeError('api down'))
+        intent = await parse_edit_intent('打错了，1700', items, None, gemini)
+        self.assertEqual(intent['action'], 'update')
+        self.assertEqual(intent['updates']['amount'], 1700.0)
 
 
 class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
@@ -225,6 +271,67 @@ class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.status, 'applied')
         self.assertIn('Soft-deleted', result.summary)
         soft_delete.assert_called_once_with(['e1'])
+
+    @patch('services.reply_edit.update_items_snapshot')
+    @patch('services.reply_edit.get_expenses_by_ids')
+    @patch('services.reply_edit.update_expense_fields')
+    async def test_apply_amount_correction(self, update_fields, get_by_ids, _update_snap):
+        update_fields.return_value = UpdateResult(success=True)
+        expense_row_before = ExpenseRow(
+            id='e1',
+            line_user_id='u1',
+            description='Coffee',
+            amount=Decimal('1500'),
+            currency='JPY',
+            expense_date=__import__('datetime').date.today(),
+            category_node_id='old',
+            assigned_level=1,
+            category_l1_id='old',
+            category_l2_id=None,
+            category_l3_id=None,
+        )
+        expense_row_after = ExpenseRow(
+            id='e1',
+            line_user_id='u1',
+            description='Coffee',
+            amount=Decimal('1700'),
+            currency='JPY',
+            expense_date=__import__('datetime').date.today(),
+            category_node_id='old',
+            assigned_level=1,
+            category_l1_id='old',
+            category_l2_id=None,
+            category_l3_id=None,
+        )
+        get_by_ids.side_effect = [
+            [expense_row_before],
+            [expense_row_before],
+            [expense_row_after],
+        ]
+        confirmation = ConfirmationRecord(
+            id='c1',
+            bot_message_id='bot-1',
+            line_user_id='u1',
+            confirmation_text='text',
+            items_snapshot=(
+                {
+                    'line_item_index': 0,
+                    'expense_id': 'e1',
+                    'description': 'Coffee',
+                    'amount': 1500,
+                    'currency': 'JPY',
+                    'category_guess_code': 'food.dining.cafe',
+                    'category_alternatives': ['food.grocery', 'unknown'],
+                },
+            ),
+            pending_action=None,
+        )
+        intent = _amount_correction_intent('打错了，1700', list(confirmation.items_snapshot))
+        gemini = MagicMock(spec=GeminiClient)
+        result = await apply_edit_intent(intent, confirmation, '打错了，1700', gemini)
+        self.assertEqual(result.status, 'applied')
+        update_fields.assert_called_once()
+        self.assertEqual(update_fields.call_args.kwargs['amount'], Decimal('1700.00'))
 
 
 if __name__ == '__main__':

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 
 from google import genai
 from google.genai import types
@@ -40,16 +40,22 @@ class GeminiClient:
         label: str,
         contents: Any,
         context: str = '',
+        config: Optional[types.GenerateContentConfig] = None,
     ) -> str:
         max_attempts = GEMINI_MAX_RETRIES + 1
         last_exc: Optional[Exception] = None
 
         for attempt in range(1, max_attempts + 1):
             try:
+                kwargs: Dict[str, Any] = {
+                    'model': GEMINI_MODEL,
+                    'contents': contents,
+                }
+                if config is not None:
+                    kwargs['config'] = config
                 response = await asyncio.to_thread(
                     self.client.models.generate_content,
-                    model=GEMINI_MODEL,
-                    contents=contents,
+                    **kwargs,
                 )
                 text = response.text
                 if not text or not text.strip():
@@ -108,6 +114,24 @@ class GeminiClient:
         )
         logger.debug('Gemini text prompt: %s', truncate(prompt, 1000))
         return await self._generate_content_with_retry(label='text', contents=prompt)
+
+    async def generate_json_reply(self, prompt: str) -> str:
+        if not prompt or not prompt.strip():
+            raise ValueError("Prompt cannot be empty.")
+
+        logger.info(
+            'Gemini JSON request: model=%s prompt_len=%d max_retries=%d',
+            GEMINI_MODEL,
+            len(prompt),
+            GEMINI_MAX_RETRIES,
+        )
+        logger.debug('Gemini JSON prompt: %s', truncate(prompt, 1000))
+        config = types.GenerateContentConfig(response_mime_type='application/json')
+        return await self._generate_content_with_retry(
+            label='json',
+            contents=prompt,
+            config=config,
+        )
 
     async def generate_reply_with_image(
         self,

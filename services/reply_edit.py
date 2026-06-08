@@ -19,6 +19,7 @@ from services.expense_repository import (
     update_expense_fields,
 )
 from services.gemini_client import GeminiClient
+from services.receipt_parser import _match_amount, _normalize_text
 from services.reply_summary import (
     EditSummaryInput,
     FieldChange,
@@ -95,6 +96,36 @@ _DELETE_PHRASE_RE = re.compile(
     re.IGNORECASE,
 )
 
+REPLY_EDIT_INTENT_PROMPT = """You interpret a user's reply to an expense confirmation on LINE.
+The user wants to edit, delete, or restore expense(s) linked to that confirmation.
+
+Return ONLY a JSON object with:
+- action: update | soft_delete | soft_delete_all | restore | restore_all | confirm_pending | clarify
+- target: {{ "mode": "single"|"all_active"|"all_deleted"|"unspecified", "line_item_index"?: int, "description_hint"?: string }}
+- updates: {{ "amount"?: number, "currency"?: string, "description"?: string, "expense_date"?: "YYYY-MM-DD", "category_code"?: string, "category_alternative_number"?: 1|2|3 }}
+- clarification_needed: boolean
+- clarification_message: string or null
+
+Rules:
+- Japanese, English, and Chinese are supported.
+- If items_snapshot has exactly ONE item, default target to that item (mode=single, line_item_index from snapshot).
+- Amount corrections: "打错了，1700", "actually 3800", "应该是1700円", "3800円に修正" → action=update with updates.amount (number, not string).
+- "打错了"/"打错了，NNN" means wrong amount typed — UPDATE amount, NOT delete.
+- Bare 1/2/3 on single item → category_alternative_number update.
+- "cancel"/"delete"/"キャンセル"/"删除" alone → soft_delete.
+- "delete all" → soft_delete_all; "restore all" → restore_all; "restore"/"undo" → restore.
+- Use clarify only when multi-item and the target item cannot be identified.
+
+Examples:
+{{"action":"update","target":{{"mode":"single","line_item_index":0}},"updates":{{"amount":1700}},"clarification_needed":false,"clarification_message":null}}
+{{"action":"update","target":{{"mode":"single","line_item_index":0}},"updates":{{"amount":3800,"currency":"JPY"}},"clarification_needed":false,"clarification_message":null}}
+{{"action":"soft_delete","target":{{"mode":"single","line_item_index":0}},"updates":{{}},"clarification_needed":false,"clarification_message":null}}
+
+pending_action: {pending_action}
+items_snapshot: {items_snapshot}
+user_reply: {user_reply}
+"""
+
 
 @dataclass
 class EditApplyResult:
@@ -142,17 +173,96 @@ def _parse_json_object(response: str) -> Any:
     fence_match = _JSON_FENCE_RE.match(text)
     if fence_match:
         text = fence_match.group(1).strip()
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find('{')
+        end = text.rfind('}')
+        if start >= 0 and end > start:
+            return json.loads(text[start : end + 1])
+        raise
 
 
-def validate_edit_intent(raw: Any) -> Optional[Dict[str, Any]]:
+def _normalize_edit_intent(
+    raw: Dict[str, Any],
+    items_snapshot: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    intent = dict(raw)
+    updates = dict(intent.get('updates') or {})
+
+    if updates.get('amount') is not None:
+        try:
+            amount_text = str(updates['amount']).replace(',', '').strip()
+            updates['amount'] = float(amount_text)
+        except (TypeError, ValueError):
+            updates.pop('amount', None)
+
+    if updates.get('category_alternative_number') is not None:
+        try:
+            updates['category_alternative_number'] = int(updates['category_alternative_number'])
+        except (TypeError, ValueError):
+            updates.pop('category_alternative_number', None)
+
+    if updates.get('currency') is not None:
+        updates['currency'] = str(updates['currency']).strip().upper()[:3]
+
+    intent['updates'] = updates
+
+    target = dict(intent.get('target') or {})
+    action = intent.get('action')
+    if len(items_snapshot) == 1 and action in ('update', 'soft_delete', 'restore'):
+        if target.get('mode') in (None, 'unspecified', 'single'):
+            target['mode'] = 'single'
+            if target.get('line_item_index') is None:
+                target['line_item_index'] = items_snapshot[0].get('line_item_index', 0)
+    intent['target'] = target
+
+    if 'clarification_needed' not in intent:
+        intent['clarification_needed'] = action == 'clarify'
+
+    return intent
+
+
+def validate_edit_intent(
+    raw: Any,
+    items_snapshot: Optional[List[Dict[str, Any]]] = None,
+) -> Optional[Dict[str, Any]]:
     if not isinstance(raw, dict):
         return None
+    intent = _normalize_edit_intent(raw, items_snapshot or []) if items_snapshot else raw
     try:
-        _intent_validator.validate(raw)
+        _intent_validator.validate(intent)
     except ValidationError:
         return None
-    return raw
+    return intent
+
+
+def _amount_correction_intent(
+    user_text: str,
+    items_snapshot: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    if len(items_snapshot) != 1:
+        return None
+
+    matched = _match_amount(_normalize_text(user_text))
+    if matched is None:
+        return None
+
+    amount, currency, _ = matched
+    if amount <= 0:
+        return None
+
+    updates: Dict[str, Any] = {'amount': float(amount)}
+    if currency:
+        updates['currency'] = currency.upper()
+
+    return {
+        'action': 'update',
+        'target': {'mode': 'single', 'line_item_index': items_snapshot[0].get('line_item_index', 0)},
+        'updates': updates,
+        'clarification_needed': False,
+        'clarification_message': None,
+    }
 
 
 def _bare_number_intent(user_text: str, items_snapshot: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -283,27 +393,25 @@ async def parse_edit_intent(
     if delete_intent is not None:
         return delete_intent
 
-    prompt = (
-        'Parse the user reply to an expense confirmation into EditIntent JSON.\n'
-        'Supported languages: Japanese, English, Chinese.\n'
-        'Examples: "cancel"/"delete"/"キャンセル"/"删除" → soft_delete; '
-        '"delete all" → soft_delete_all; "restore"/"undo" → restore; '
-        '"restore all" → restore_all.\n'
-        f'pending_action: {pending_action!r}\n'
-        f'items_snapshot: {json.dumps(items_snapshot, ensure_ascii=False)}\n'
-        f'user_reply: {user_text!r}\n'
-        'Return ONLY JSON with action, target, updates, clarification_needed, clarification_message.'
+    prompt = REPLY_EDIT_INTENT_PROMPT.format(
+        pending_action=repr(pending_action),
+        items_snapshot=json.dumps(items_snapshot, ensure_ascii=False),
+        user_reply=repr(user_text),
     )
 
     try:
-        response = await gemini.generate_reply(prompt)
-        parsed = validate_edit_intent(_parse_json_object(response))
+        response = await gemini.generate_json_reply(prompt)
+        parsed = validate_edit_intent(_parse_json_object(response), items_snapshot)
         if parsed:
             return parsed
     except (json.JSONDecodeError, ValidationError, TypeError):
         logger.warning('parse_edit_intent: invalid LLM JSON', exc_info=True)
     except Exception:
         logger.exception('parse_edit_intent failed')
+
+    amount_intent = _amount_correction_intent(user_text, items_snapshot)
+    if amount_intent is not None:
+        return amount_intent
 
     return {
         'action': 'clarify',
