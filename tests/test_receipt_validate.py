@@ -36,6 +36,24 @@ class TestReceiptValidate(unittest.TestCase):
         ]
         self.assertIsNone(validate_receipt_items(items, MY_BASKET_OCR))
 
+    def test_rejects_partial_parse_below_subtotal(self):
+        ocr = '''島忠
+小計 ¥5,723
+買上点数 10
+合計 ¥5,723'''
+        items = [
+            {'description': 'フリーザーバッグ', 'amount': 249.0, 'currency': 'JPY'},
+            {'description': 'アルミホイル', 'amount': 140.0, 'currency': 'JPY'},
+        ]
+        self.assertIsNone(validate_receipt_items(items, ocr))
+
+    def test_rejects_item_count_mismatch(self):
+        ocr = '''島忠
+買上点数 10
+合計 ¥5,723'''
+        items = [{'description': 'item', 'amount': 5723.0, 'currency': 'JPY'}]
+        self.assertIsNone(validate_receipt_items(items, ocr))
+
 
 if __name__ == '__main__':
     unittest.main()

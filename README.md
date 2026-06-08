@@ -87,7 +87,7 @@ Full steps: [Cloud Run deployment contract](specs/003-local-dev-setup/contracts/
 
 ## Docker
 
-The Dockerfile installs `tesseract-ocr` and `tesseract-ocr-jpn` for Japanese receipt OCR. Document AI is the cloud fallback when configured.
+The Dockerfile installs `tesseract-ocr` and `tesseract-ocr-jpn` for Japanese receipt OCR. Cloud Vision is the cloud fallback when `GOOGLE_VISION_API_KEY` is set.
 
 ## Testing
 

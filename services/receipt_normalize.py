@@ -163,6 +163,14 @@ def _distribute_proportionally(
     _apply_amounts(items, allocated)
 
 
+def _is_tax_inclusive_receipt(ocr_text: str, totals: ReceiptTotals) -> bool:
+    if '内税' in ocr_text:
+        return True
+    if totals.subtotal and totals.grand_total:
+        return abs(totals.subtotal - totals.grand_total) <= _SUM_TOLERANCE
+    return False
+
+
 def _allocate_tax(items: List[Dict[str, Any]], totals: ReceiptTotals) -> None:
     if not items or totals.tax is None or totals.tax <= 0:
         return
@@ -196,15 +204,20 @@ def normalize_receipt_items(items: List[Dict[str, Any]], ocr_text: str) -> List[
         if not str(item.get('currency', '')).strip():
             item['currency'] = 'JPY'
 
-    _allocate_tax(working, totals)
+    tax_inclusive = _is_tax_inclusive_receipt(ocr_text, totals)
+    if not tax_inclusive:
+        _allocate_tax(working, totals)
 
     target = _target_cash_total(totals)
-    if target is not None:
+    if target is not None and not tax_inclusive:
         current_sum = sum(_item_amounts(working))
-        if current_sum > target + _SUM_TOLERANCE:
-            _distribute_proportionally(working, target_total=target)
-        elif current_sum > 0 and abs(current_sum - target) > _SUM_TOLERANCE:
-            _distribute_proportionally(working, target_total=target)
+        base_subtotal = totals.subtotal if totals.subtotal and totals.subtotal > 0 else current_sum
+        # Do not scale a partial item list up to the receipt total.
+        if current_sum >= base_subtotal * Decimal('0.85'):
+            if current_sum > target + _SUM_TOLERANCE:
+                _distribute_proportionally(working, target_total=target)
+            elif current_sum > 0 and abs(current_sum - target) > _SUM_TOLERANCE:
+                _distribute_proportionally(working, target_total=target)
 
     final_sum = sum(_item_amounts(working))
     if target is not None and abs(final_sum - target) > _SUM_TOLERANCE:

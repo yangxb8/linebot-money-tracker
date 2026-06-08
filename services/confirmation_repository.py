@@ -57,6 +57,7 @@ def save_confirmation(
         row = {
             'id': confirmation_id,
             'bot_message_id': bot_message_id,
+            'interaction_bot_message_id': bot_message_id,
             'tenant_type': tenant.tenant_type,
             'tenant_id': tenant.tenant_id,
             'line_user_id': tenant.logged_by_line_user_id,
@@ -96,9 +97,11 @@ def get_confirmation_by_bot_message_id(
         response = (
             client.table('confirmation_messages')
             .select('*')
-            .eq('bot_message_id', bot_message_id)
             .eq('tenant_type', tenant.tenant_type)
             .eq('tenant_id', tenant.tenant_id)
+            .or_(
+                f'bot_message_id.eq.{bot_message_id},interaction_bot_message_id.eq.{bot_message_id}'
+            )
             .limit(1)
             .execute()
         )
@@ -134,6 +137,25 @@ def update_items_snapshot(confirmation_id: str, items_snapshot: List[Dict[str, A
         return True
     except Exception:
         logger.exception('update_items_snapshot failed')
+        return False
+
+
+def update_interaction_bot_message_id(confirmation_id: str, bot_message_id: str) -> bool:
+    if not is_supabase_configured() or not bot_message_id:
+        return False
+    try:
+        client = get_supabase_client()
+        client.table('confirmation_messages').update(
+            {'interaction_bot_message_id': bot_message_id}
+        ).eq('id', confirmation_id).execute()
+        logger.info(
+            'Updated interaction anchor confirmation_id=%s message_id=%s',
+            confirmation_id,
+            bot_message_id,
+        )
+        return True
+    except Exception:
+        logger.exception('update_interaction_bot_message_id failed')
         return False
 
 

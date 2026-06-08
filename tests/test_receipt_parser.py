@@ -42,6 +42,22 @@ class TestReceiptParser(unittest.TestCase):
         self.assertIn(150.0, amounts)
         self.assertIn(198.0, amounts)
 
+    def test_parse_shimachu_multiline_wrapped_items(self):
+        from pathlib import Path
+
+        sample = Path('specs/002-expense-intent-analysis/samples/shimachu_receipt.ocr.txt').read_text(
+            encoding='utf-8'
+        )
+        items = parse_text_for_expenses(sample)
+        amounts = sorted(item['amount'] for item in items)
+        self.assertGreaterEqual(len(items), 5)
+        self.assertIn(249.0, amounts)
+        self.assertIn(140.0, amounts)
+        self.assertIn(648.0, amounts)
+        descriptions = ' '.join(item['description'] for item in items)
+        self.assertIn('フリーザーバッグ', descriptions)
+        self.assertIn('ジッパー', descriptions)
+
     def test_parse_my_basket_style_receipt(self):
         ocr = '''まいばすけっと
 瀬ヶ崎３丁目店

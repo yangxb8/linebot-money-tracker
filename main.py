@@ -20,7 +20,7 @@ from linebot.v3.messaging.api.async_messaging_api_blob import AsyncMessagingApiB
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import MessageEvent
 
-from services.confirmation_repository import save_confirmation
+from services.confirmation_repository import save_confirmation, update_interaction_bot_message_id
 from services.env_loader import load_env, require_env_vars
 from services.gemini_client import GeminiClient
 from services.line_event import (
@@ -207,13 +207,20 @@ async def handle_callback(request: Request):
                     user_reply_message_id=source_message_id,
                     quoted_bot_message_id=quoted_message_id,
                 )
-                reply_text = await process_reply_edit(user_text, reply_context, gemini_client)
-                await line_bot_api.reply_message(
+                edit_result = await process_reply_edit(user_text, reply_context, gemini_client)
+                response = await line_bot_api.reply_message(
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
-                        messages=[TextMessage(text=reply_text)],
+                        messages=[TextMessage(text=edit_result.text)],
                     )
                 )
+                if edit_result.anchor_reply_to_sent_message and edit_result.confirmation_id:
+                    prompt_message_id = _extract_sent_message_id(response)
+                    if prompt_message_id:
+                        update_interaction_bot_message_id(
+                            edit_result.confirmation_id,
+                            prompt_message_id,
+                        )
                 continue
 
             bot_reply = await process_text_message(user_text, gemini_client, message_context)

@@ -20,8 +20,8 @@ class TestMessageHandlerReply(unittest.IsolatedAsyncioTestCase):
         with patch('services.message_handler.try_mark_reply_processed', return_value=True), patch(
             'services.message_handler.get_confirmation_by_bot_message_id', return_value=None
         ):
-            reply = await process_reply_edit('2', ctx, gemini)
-        self.assertIn('confirmation', reply.lower())
+            result = await process_reply_edit('2', ctx, gemini)
+        self.assertIn('confirmation', result.text.lower())
 
     def test_group_confirmation_includes_logged_by(self):
         text = format_expense_items(

@@ -13,6 +13,10 @@ logger = logging.getLogger(__name__)
 
 _SUM_TOLERANCE = Decimal('2')
 _SUM_RATIO_TOLERANCE = Decimal('0.05')
+_PARTIAL_PARSE_RATIO = Decimal('0.85')
+_MAX_SCALE_RATIO = Decimal('2.5')
+
+_ITEM_COUNT_RE = re.compile(r'買上点数\s*(\d+)', re.I)
 _MIN_ITEM_AMOUNT_JPY = Decimal('10')
 _MAX_ITEM_AMOUNT_JPY = Decimal('500000')
 _MAX_LINE_ITEMS = 30
@@ -56,6 +60,50 @@ def _is_garbage_item(item: Dict[str, Any]) -> bool:
             return True
 
     return False
+
+
+def _expected_item_count(ocr_text: str) -> Optional[int]:
+    match = _ITEM_COUNT_RE.search(ocr_text)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def _is_complete_parse(items: List[Dict[str, Any]], ocr_text: str) -> bool:
+    totals = extract_receipt_totals(ocr_text)
+    item_sum = sum(Decimal(str(item.get('amount', 0))) for item in items)
+
+    expected = _expected_item_count(ocr_text)
+    if expected is not None and len(items) < expected:
+        logger.warning(
+            'Receipt validate: parsed %d item(s) but receipt shows %d',
+            len(items),
+            expected,
+        )
+        return False
+
+    if totals.subtotal and totals.subtotal > 0:
+        if item_sum < totals.subtotal * _PARTIAL_PARSE_RATIO:
+            logger.warning(
+                'Receipt validate: item sum %s is far below subtotal %s (partial parse)',
+                item_sum,
+                totals.subtotal,
+            )
+            return False
+
+    target = totals.cash_paid or totals.grand_total
+    if target and item_sum > 0 and item_sum < target / _MAX_SCALE_RATIO:
+        logger.warning(
+            'Receipt validate: item sum %s too small vs total %s to trust scaling',
+            item_sum,
+            target,
+        )
+        return False
+
+    return True
 
 
 def _sum_matches_total(items: List[Dict[str, Any]], ocr_text: str) -> bool:
@@ -103,6 +151,9 @@ def validate_receipt_items(
             len(items) - len(cleaned),
             len(cleaned),
         )
+
+    if ocr_text and not _is_complete_parse(cleaned, ocr_text):
+        return None
 
     if ocr_text and not _sum_matches_total(cleaned, ocr_text):
         return None
