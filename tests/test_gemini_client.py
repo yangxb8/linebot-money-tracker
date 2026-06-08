@@ -18,6 +18,21 @@ def _server_error_503() -> ServerError:
 
 
 class TestGeminiClient(unittest.IsolatedAsyncioTestCase):
+    async def test_generate_json_reply_returns_text(self):
+        fake_response = MagicMock()
+        fake_response.text = '{"action":"update"}'
+
+        client = GeminiClient(api_key='test_key')
+        with patch.object(
+            client.client.models,
+            'generate_content',
+            return_value=fake_response,
+        ) as generate_content:
+            result = await client.generate_json_reply('Return JSON')
+            self.assertEqual(result, '{"action":"update"}')
+            _, kwargs = generate_content.call_args
+            self.assertEqual(kwargs['config'].response_mime_type, 'application/json')
+
     async def test_generate_reply_returns_text(self):
         fake_response = MagicMock()
         fake_response.text = 'Hello from Gemini'
