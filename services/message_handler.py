@@ -27,6 +27,7 @@ from services.message_context import (
 )
 from services.ocr import extract_text_from_image_bytes, _guess_mime_type
 from services.receipt_parser import parse_text_for_expenses
+from services.receipt_normalize import finalize_receipt_extraction
 from services.reply_edit import apply_edit_intent, parse_edit_intent
 from services.reply_summary import detect_reply_language, format_duplicate_reply, format_unknown_confirmation
 
@@ -265,8 +266,8 @@ async def process_text_message(
 async def _extract_expense_items_from_ocr(
     image_bytes: bytes,
     gemini: GeminiClient,
-) -> tuple[List[Dict[str, Any]], int, int]:
-    """Run OCR and text-based extraction (parser + OCR assist). Returns (items, line_count, text_len)."""
+) -> tuple[List[Dict[str, Any]], int, int, str]:
+    """Run OCR and text-based extraction (parser + OCR assist). Returns (items, line_count, text_len, ocr_text)."""
     ocr_text = ''
     ocr_line_count = 0
     try:
@@ -277,20 +278,20 @@ async def _extract_expense_items_from_ocr(
     except Exception:
         logger.warning('Image pipeline: OCR raised unexpectedly; continuing to LLM fallbacks', exc_info=True)
 
-    items = parse_text_for_expenses(ocr_text)
+    items = finalize_receipt_extraction(parse_text_for_expenses(ocr_text), ocr_text)
     if items:
         logger.info('Image pipeline: deterministic parser returned %d item(s)', len(items))
-        return items, ocr_line_count, len(ocr_text)
+        return items, ocr_line_count, len(ocr_text), ocr_text
 
     if ocr_text:
         logger.info('Image pipeline: OCR text present but no parser matches; trying assist_parse_ocr')
-        items = await assist_parse_ocr(ocr_text, gemini)
+        items = finalize_receipt_extraction(await assist_parse_ocr(ocr_text, gemini), ocr_text)
         if items:
             logger.info('Image pipeline: assist_parse_ocr returned %d item(s)', len(items))
-            return items, ocr_line_count, len(ocr_text)
+            return items, ocr_line_count, len(ocr_text), ocr_text
         logger.warning('Image pipeline: assist_parse_ocr returned no items')
 
-    return [], ocr_line_count, len(ocr_text)
+    return [], ocr_line_count, len(ocr_text), ocr_text
 
 
 async def process_image_message(
@@ -307,7 +308,7 @@ async def process_image_message(
         mime_type or 'auto-detected',
     )
     try:
-        items, ocr_line_count, ocr_text_len = await _extract_expense_items_from_ocr(
+        items, ocr_line_count, ocr_text_len, ocr_text = await _extract_expense_items_from_ocr(
             image_bytes,
             gemini,
         )
@@ -318,7 +319,10 @@ async def process_image_message(
                 return _text_reply(CANNED_UNSUPPORTED_REPLY)
 
             logger.info('Image pipeline: falling back to assist_parse_image (LLM vision)')
-            items = await assist_parse_image(image_bytes, gemini, resolved_mime)
+            items = finalize_receipt_extraction(
+                await assist_parse_image(image_bytes, gemini, resolved_mime),
+                ocr_text,
+            )
 
         if not items:
             logger.warning(

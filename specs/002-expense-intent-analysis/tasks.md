@@ -60,3 +60,7 @@
 ## Follow-up
 
 - [X] T021 Use LLM-based intent classification in `services/intent.py` for text and image inputs (reject non-receipt images like pet photos)
+- [X] T022 Reorder image pipeline: OCR/parse before Gemini image intent; skip intent when OCR finds items (`services/message_handler.py`)
+- [X] T023 Add receipt amount normalization: tax + discount proportional allocation (`services/receipt_normalize.py`, [contracts/receipt-amount-semantics.md](./contracts/receipt-amount-semantics.md))
+- [X] T024 Update LLM assist prompts for cash-out amounts and 合計 sum validation (`services/ai_assist.py`)
+- [X] T025 Add unit tests for My Basket-style receipts and total-only fallback (`tests/test_receipt_normalize.py`)

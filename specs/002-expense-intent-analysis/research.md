@@ -27,12 +27,14 @@ B. OCR-first + deterministic parsing (recommended primary path)
 - Pros: low cost, deterministic, fast. Works for most printed receipts.
 - Cons: less robust on very noisy images or handwriting.
 
-C. OCR-first + AI-assisted disambiguation (recommended hybrid)
+C. OCR-first + AI-assisted disambiguation (recommended hybrid) — **implemented**
 
 - Run OCR as in B. If deterministic parser yields ambiguous or low-confidence output (e.g., multiple candidate amounts, no clear lines), call the AI with a small, focused prompt that asks for structured extraction from the OCR text only.
 - Limit AI call scope: pass OCR text, not raw image, and request compact JSON with strict schema. Use the smallest capable model or low-latency variant.
+- **Gemini image intent** runs only when OCR stages find **no** items; trusted OCR parse skips intent (2026-06-08 clarification).
+- **Vision assist** runs only after image intent confirms a receipt.
 - Pros: much lower AI cost than A; better robustness than B alone.
-- Cons: still incurs AI cost for edge cases.
+- Cons: still incurs AI cost for edge cases; OCR false positives on non-receipt images are accepted for cost savings.
 
 D. Document AI + lightweight parsing
 
@@ -87,7 +89,15 @@ Phase 1 (integration & tests)
 - Hybrid flow calls AI for <20% of images in an initial test set.
 - AI responses conform to the JSON schema without additional text in >=95% of assisted cases.
 
-7. Next steps & tasks
+7. Receipt amount normalization (2026-06-08)
+
+- Module: `services/receipt_normalize.py`
+- Per-item amounts = shelf price + proportional tax + proportional discount/points-used adjustment toward final cash paid.
+- Ignore points earned; sum of items ≈ 合計 within ¥2.
+- Total-only fallback: one line expense when only 合計 is parseable.
+- Contract: [contracts/receipt-amount-semantics.md](./contracts/receipt-amount-semantics.md)
+
+8. Next steps & tasks
 
 - Implement `services/ocr.py` and `services/receipt_parser.py` prototypes.
 - Create a small corpus of sample receipts (images or OCR output) for unit testing.

@@ -8,6 +8,17 @@
 
 **Input**: User description: "Add a new spec to enhance the bot so that it can analyze user input first. And only allow user request to log an expense to be processed (but we will allow more request type in future). User can only send expense via text or a picture, the agent should analyze and return the detected expense in text. If there are multiple expenses (ex. items in a receipt photo), list them separately."
 
+## Clarifications
+
+### Session 2026-06-08
+
+- Q: Image pipeline order — OCR first or Gemini intent first? → A: **OCR and deterministic parse first**; Gemini image intent only when OCR stages find no items. When OCR yields parseable items, **skip** the image intent call (trusted parse).
+- Q: Multi-item receipts — logging and categories? → A: **Each line item logged independently** with its **own category** (see 004).
+- Q: Per-item amount definition? → A: **Final cash-out share** per item: shelf price + **proportionally allocated tax**, then **proportionally allocated discounts/points used**; ignore points earned. See [receipt-amount-semantics.md](./contracts/receipt-amount-semantics.md).
+- Q: Tax allocation? → A: **Proportional by line price**; item amounts must sum roughly to **合計** including tax (LLM assist validates).
+- Q: Total-only receipts? → A: Log **one expense** for the final total with merchant name when product lines are unreadable.
+- Q: Discount / points used? → A: **Proportional reduction** by tax-inclusive line price toward final cash paid.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Detect expense intent from text (Priority: P1)
@@ -36,7 +47,8 @@ A user sends a photo of a receipt or expense document and the bot extracts expen
 **Acceptance Scenarios**:
 
 1. **Given** the user uploads a receipt photo containing one expense, **when** the bot processes the image, **then** it returns the detected expense detail in text.
-2. **Given** the user uploads a receipt photo containing multiple expense lines, **when** the bot processes the image, **then** it returns each detected expense item separately in the response.
+2. **Given** the user uploads a receipt photo containing multiple expense lines, **when** the bot processes the image, **then** it returns each detected expense item separately in the response with amounts reflecting final cash-out (tax and discounts allocated per [receipt-amount-semantics.md](./contracts/receipt-amount-semantics.md)).
+3. **Given** OCR extracts parseable line items from a receipt image, **when** the bot processes the image, **then** it proceeds without a separate Gemini image-intent call.
 
 ---
 
@@ -58,15 +70,19 @@ A user sends a non-expense request and the bot must not process it as an expense
 
 - A receipt image contains text but no clear expense amounts: reply with a request for clearer expense details.
 - A text message is ambiguous between expense and non-expense: the bot should clarify that only explicit expense logging is supported.
-- A receipt image contains multiple items: the response must list each item separately.
+- A receipt image contains multiple items: the response must list each item separately; each item is categorized independently when persisted (004).
+- A receipt shows mixed tax rates or a single 合計: per-item amounts are normalized so they sum to final cash paid within ¥2 tolerance.
+- Only 合計 is readable: one expense is logged for the total with the store name as description.
+- Coupons, 値引, or points **redeemed** at payment reduce per-item amounts proportionally; points **earned** are ignored.
 - The input includes different currencies or amounts: preserve the original context in the returned expense text.
+- OCR finds items on a non-receipt image: accepted without image-intent call (trusted parse path).
 
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST determine whether a user message is an expense logging request before processing it.
-- **FR-002**: The system MUST only process requests that are recognized as expense logging requests.
+- **FR-001**: The system MUST determine whether a user message is an expense logging request before processing it. For **images**, Gemini image intent is required only when OCR-based extraction finds **no** parseable items; text intent is unchanged.
+- **FR-002**: The system MUST only process requests that are recognized as expense logging requests (or images with trusted OCR parse per FR-001).
 - **FR-003**: The system MUST accept expense input submitted as free-form text or as a receipt image.
 - **FR-004**: The system MUST return detected expense details in plain text.
 - **FR-005**: When multiple expenses are detected in one input, the system MUST list each expense item separately.
@@ -74,6 +90,9 @@ A user sends a non-expense request and the bot must not process it as an expense
 - **FR-007**: The system MUST ask for clarification when the input is ambiguous or does not clearly contain expense data.
 - **FR-008**: The system MUST preserve original amounts and currency context when summarizing detected expenses.
 - **FR-009**: The system MUST reply with a fixed canned message for unsupported or non-expense requests to avoid unnecessary AI usage.
+- **FR-010**: For receipt images, the system MUST run **OCR → deterministic parse → OCR text assist** before Gemini image intent or vision assist.
+- **FR-011**: Per-item receipt amounts MUST reflect **final cash-out** per [receipt-amount-semantics.md](./contracts/receipt-amount-semantics.md): tax and discounts/points used allocated proportionally; points earned ignored.
+- **FR-012**: When only a receipt total is readable, the system MUST log a **single expense** for that total using the merchant name when available.
 
 ### Key Entities _(include if feature involves data)_
 

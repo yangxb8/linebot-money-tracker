@@ -9,6 +9,8 @@ This directory contains sample OCR text outputs for unit testing the determinist
 | `simple_thai_receipt.ocr.txt` | Single-line Thai cafe receipt |
 | `multi_line_receipt.ocr.txt` | Multi-line grocery receipt with several items |
 | `usd_receipt.ocr.txt` | US dollar receipt with `$` symbol |
+| `japanese_receipt.ocr.txt` | Japanese convenience store receipt with 円 suffix |
+| `my_basket_receipt.ocr.txt` | My Basket (まいばすけっと) receipt with ※ tax-marker prices and 合計 |
 
 ## Usage
 

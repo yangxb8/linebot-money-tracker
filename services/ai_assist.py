@@ -10,6 +10,16 @@ from services.log_utils import describe_bytes, truncate
 
 logger = logging.getLogger(__name__)
 
+_RECEIPT_ITEM_PROMPT = (
+    'Parse this receipt into a JSON array of product/service line items only. '
+    'Each item: description (string), amount (number), currency (3-letter code). '
+    'Exclude subtotal, tax, total, payment, and change lines. '
+    'Per-item amount = final cash-out share: shelf price plus proportional tax, '
+    'minus proportional coupons/points USED at payment. Ignore points EARNED (付与). '
+    'Item amounts must sum to roughly the final cash paid total (合計/支払). '
+    'Return ONLY the JSON array.'
+)
+
 EXPENSE_ITEMS_SCHEMA: Dict[str, Any] = {
     'type': 'array',
     'items': {
@@ -78,11 +88,7 @@ async def assist_parse_ocr(ocr_text: str, gemini: GeminiClient) -> List[Dict[str
     logger.info('%s: parsing OCR text len=%d', source, len(ocr_text))
     logger.debug('%s OCR text sample: %s', source, truncate(ocr_text, 800))
 
-    prompt = (
-        'Parse the following OCR text from a receipt into a JSON array of items. '
-        'Each item must include: description (string), amount (numeric), currency (3-letter code or symbol). '
-        'Return ONLY the JSON array, no other text. OCR_TEXT:\n' + ocr_text
-    )
+    prompt = _RECEIPT_ITEM_PROMPT + '\nOCR_TEXT:\n' + ocr_text
 
     response = await gemini.generate_json_reply(prompt)
     try:
@@ -115,11 +121,7 @@ async def assist_parse_image(
 
     logger.info('%s: parsing image=%s mime=%s', source, describe_bytes(image_bytes), mime_type)
 
-    prompt = (
-        'Parse this receipt image into a JSON array of expense items. '
-        'Each item must include: description (string), amount (numeric), currency (3-letter code or symbol). '
-        'Return ONLY the JSON array, no other text.'
-    )
+    prompt = _RECEIPT_ITEM_PROMPT
 
     response = await gemini.generate_json_reply_with_image(prompt, image_bytes, mime_type)
     try:
