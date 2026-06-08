@@ -13,11 +13,12 @@ from services.expense_repository import (
     yearly_expense_total,
 )
 from services.message_context import MessageContext
+from services.tenant_context import TenantContext
 
 
 class TestBuildInsertRow(unittest.TestCase):
     def test_builds_denormalized_l3_row(self):
-        context = MessageContext(line_user_id='u1', source_message_id='m1')
+        context = MessageContext(tenant=TenantContext.personal('u1'), source_message_id='m1')
         row = build_insert_row(
             context=context,
             item={'description': 'Coffee', 'amount': 450, 'currency': 'JPY'},
@@ -41,6 +42,9 @@ class TestInsertExpenses(unittest.TestCase):
     @patch('services.expense_repository.is_supabase_configured', return_value=False)
     def test_skips_when_not_configured(self, _configured):
         row = ExpenseInsertRow(
+            tenant_type='user',
+            tenant_id='u1',
+            logged_by_line_user_id='u1',
             line_user_id='u1',
             source_message_id='m1',
             line_item_index=0,
@@ -70,6 +74,9 @@ class TestInsertExpenses(unittest.TestCase):
         get_client.return_value = client
 
         row = ExpenseInsertRow(
+            tenant_type='user',
+            tenant_id='u1',
+            logged_by_line_user_id='u1',
             line_user_id='u1',
             source_message_id='m1',
             line_item_index=0,
@@ -94,6 +101,9 @@ class TestInsertExpenses(unittest.TestCase):
     @patch('services.expense_repository.is_supabase_configured', return_value=True)
     def test_insert_error_does_not_raise(self, _configured, _client):
         row = ExpenseInsertRow(
+            tenant_type='user',
+            tenant_id='u1',
+            logged_by_line_user_id='u1',
             line_user_id='u1',
             source_message_id='m1',
             line_item_index=0,
@@ -122,12 +132,14 @@ class TestRollupRpc(unittest.TestCase):
         client.rpc.return_value = rpc
         get_client.return_value = client
 
-        total = monthly_expense_total('u1', 2026, 6, 'cat-id', 'JPY')
+        tenant = TenantContext.personal('u1')
+        total = monthly_expense_total(tenant, 2026, 6, 'cat-id', 'JPY')
         self.assertEqual(total, Decimal('1234.5'))
         client.rpc.assert_called_once_with(
             'monthly_expense_total',
             {
-                'p_line_user_id': 'u1',
+                'p_tenant_type': 'user',
+                'p_tenant_id': 'u1',
                 'p_year': 2026,
                 'p_month': 6,
                 'p_category_node_id': 'cat-id',
@@ -144,7 +156,7 @@ class TestRollupRpc(unittest.TestCase):
         client.rpc.return_value = rpc
         get_client.return_value = client
 
-        total = yearly_expense_total('u1', 2026, 'cat-id', 'JPY')
+        total = yearly_expense_total(TenantContext.personal('u1'), 2026, 'cat-id', 'JPY')
         self.assertEqual(total, Decimal('9999'))
 
 

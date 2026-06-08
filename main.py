@@ -30,6 +30,7 @@ from services.line_event import (
     extract_source_message_id,
     extract_text_message,
 )
+from services.tenant_context import resolve_tenant_from_event
 from services.message_context import BotReply, MessageContext, ReplyContext
 from services.message_handler import (
     CANNED_UNSUPPORTED_REPLY,
@@ -146,7 +147,6 @@ async def _reply_and_save_confirmation(
     reply_token: str,
     reply_text: str,
     confirmation_payload,
-    line_user_id: Optional[str],
 ) -> None:
     response = await line_bot_api.reply_message(
         ReplyMessageRequest(
@@ -155,10 +155,10 @@ async def _reply_and_save_confirmation(
         )
     )
     bot_message_id = _extract_sent_message_id(response)
-    if confirmation_payload and bot_message_id and line_user_id:
+    if confirmation_payload and bot_message_id:
         save_confirmation(
             bot_message_id=bot_message_id,
-            line_user_id=line_user_id,
+            tenant=confirmation_payload.tenant,
             confirmation_text=confirmation_payload.confirmation_text,
             items=list(confirmation_payload.items),
         )
@@ -190,17 +190,19 @@ async def handle_callback(request: Request):
         source_message_id = extract_source_message_id(event)
         quoted_message_id = extract_quoted_message_id(event)
 
+        tenant = resolve_tenant_from_event(event, line_user_id) if line_user_id else None
+
         message_context = None
-        if line_user_id and source_message_id:
+        if tenant and source_message_id:
             message_context = MessageContext(
-                line_user_id=line_user_id,
+                tenant=tenant,
                 source_message_id=source_message_id,
             )
 
         if user_text:
-            if quoted_message_id and line_user_id and source_message_id:
+            if quoted_message_id and tenant and source_message_id:
                 reply_context = ReplyContext(
-                    line_user_id=line_user_id,
+                    tenant=tenant,
                     user_reply_message_id=source_message_id,
                     quoted_bot_message_id=quoted_message_id,
                 )
@@ -218,7 +220,6 @@ async def handle_callback(request: Request):
                 event.reply_token,
                 bot_reply.text,
                 bot_reply.confirmation,
-                line_user_id,
             )
             continue
 
@@ -234,7 +235,6 @@ async def handle_callback(request: Request):
                 event.reply_token,
                 bot_reply.text,
                 bot_reply.confirmation,
-                line_user_id,
             )
             continue
 

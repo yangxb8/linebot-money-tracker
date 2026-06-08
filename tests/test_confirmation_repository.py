@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from services.confirmation_repository import ConfirmationRecord, save_confirmation, try_mark_reply_processed
 from services.message_context import ConfirmationItemSnapshot
+from services.tenant_context import TenantContext
 
 
 class TestConfirmationRepository(unittest.TestCase):
@@ -27,7 +28,7 @@ class TestConfirmationRepository(unittest.TestCase):
                 category_alternatives=('unknown',),
             )
         ]
-        result = save_confirmation('bot-1', 'user-1', 'text', items)
+        result = save_confirmation('bot-1', TenantContext.personal('user-1'), 'text', items)
         self.assertIsNone(result)
 
     @patch('services.confirmation_repository.get_supabase_client')
@@ -53,7 +54,7 @@ class TestConfirmationRepository(unittest.TestCase):
                 category_alternatives=('unknown',),
             )
         ]
-        confirmation_id = save_confirmation('bot-1', 'user-1', 'confirm text', items)
+        confirmation_id = save_confirmation('bot-1', TenantContext.personal('user-1'), 'confirm text', items)
         self.assertIsNotNone(confirmation_id)
         self.assertEqual(client.table.call_count, 2)
 
@@ -69,19 +70,21 @@ class TestConfirmationRepository(unittest.TestCase):
                     'id': 'c1',
                     'bot_message_id': 'bot-1',
                     'line_user_id': 'user-1',
+                    'tenant_type': 'user',
+                    'tenant_id': 'user-1',
                     'confirmation_text': 'hello',
                     'items_snapshot': [{'line_item_index': 0, 'expense_id': 'e1'}],
                     'pending_action': None,
                 }
             ]
         )
-        table.select.return_value.eq.return_value.eq.return_value = chain
+        table.select.return_value.eq.return_value.eq.return_value.eq.return_value = chain
         client = MagicMock()
         client.table.return_value = table
         get_client.return_value = client
 
         record = __import__('services.confirmation_repository', fromlist=['get_confirmation_by_bot_message_id']).get_confirmation_by_bot_message_id(
-            'bot-1', 'user-1'
+            'bot-1', TenantContext.personal('user-1')
         )
         self.assertIsInstance(record, ConfirmationRecord)
         self.assertEqual(record.bot_message_id, 'bot-1')
@@ -98,7 +101,7 @@ class TestConfirmationRepository(unittest.TestCase):
         client.table.return_value = table
         get_client.return_value = client
 
-        allowed = try_mark_reply_processed('user-1', 'r1')
+        allowed = try_mark_reply_processed(TenantContext.personal('user-1'), 'r1')
         self.assertFalse(allowed)
 
 

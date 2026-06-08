@@ -14,6 +14,45 @@ def extract_text_message(event) -> Optional[str]:
     return text.strip() or None
 
 
+def extract_source_type(event) -> Optional[str]:
+    """Return LINE source type: user, group, or room."""
+    source = getattr(event, 'source', None)
+    if source is None:
+        return None
+
+    source_type = getattr(source, 'type', None)
+    if not isinstance(source_type, str):
+        return None
+
+    return source_type.strip().lower() or None
+
+
+def extract_group_id(event) -> Optional[str]:
+    """Return LINE group ID when the message is from a group chat."""
+    source = getattr(event, 'source', None)
+    if source is None:
+        return None
+
+    group_id = getattr(source, 'group_id', None) or getattr(source, 'groupId', None)
+    if not isinstance(group_id, str):
+        return None
+
+    return group_id.strip() or None
+
+
+def extract_room_id(event) -> Optional[str]:
+    """Return LINE room ID when the message is from a multi-person room."""
+    source = getattr(event, 'source', None)
+    if source is None:
+        return None
+
+    room_id = getattr(source, 'room_id', None) or getattr(source, 'roomId', None)
+    if not isinstance(room_id, str):
+        return None
+
+    return room_id.strip() or None
+
+
 def extract_line_user_id(event) -> Optional[str]:
     """Return LINE user ID from a message event source."""
     source = getattr(event, 'source', None)

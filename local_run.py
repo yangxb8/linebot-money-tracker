@@ -13,6 +13,7 @@ from services.confirmation_repository import save_confirmation
 from services.env_loader import load_env, require_env_vars
 from services.gemini_client import GeminiClient
 from services.message_context import MessageContext, ReplyContext
+from services.tenant_context import resolve_tenant_for_console
 from services.message_handler import process_image_message, process_reply_edit, process_text_message
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help='Bot confirmation message ID to simulate reply-to-message flow',
     )
     parser.add_argument(
+        '--group-id',
+        help='Simulate a LINE group chat (shared ledger for this group ID)',
+    )
+    parser.add_argument(
+        '--room-id',
+        help='Simulate a LINE multi-person room (shared ledger for this room ID)',
+    )
+    parser.add_argument(
         '--debug',
         action='store_true',
         help='Enable debug-level logging (or set LOG_LEVEL=DEBUG)',
@@ -64,11 +73,20 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None]:
     gemini = GeminiClient(api_key=os.getenv('GEMINI_API_KEY'))
     line_user_id = os.getenv('LOCAL_LINE_USER_ID', 'local-dev-user')
 
+    if args.group_id and args.room_id:
+        raise ValueError('Use only one of --group-id or --room-id')
+
+    tenant = resolve_tenant_for_console(
+        line_user_id,
+        group_id=args.group_id,
+        room_id=args.room_id,
+    )
+
     if args.reply_to:
         if not args.text:
             raise ValueError('--reply-to requires --text')
         reply_context = ReplyContext(
-            line_user_id=line_user_id,
+            tenant=tenant,
             user_reply_message_id=str(uuid.uuid4()),
             quoted_bot_message_id=args.reply_to,
         )
@@ -76,7 +94,7 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None]:
         return reply, None
 
     context = MessageContext(
-        line_user_id=line_user_id,
+        tenant=tenant,
         source_message_id=str(uuid.uuid4()),
     )
     if args.text is not None:
@@ -90,7 +108,7 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None]:
         bot_message_id = f'console-{uuid.uuid4()}'
         save_confirmation(
             bot_message_id=bot_message_id,
-            line_user_id=line_user_id,
+            tenant=bot_reply.confirmation.tenant,
             confirmation_text=bot_reply.confirmation.confirmation_text,
             items=list(bot_reply.confirmation.items),
         )
