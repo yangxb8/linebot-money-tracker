@@ -3,6 +3,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from services.confirmation_repository import ConfirmationRecord
+from services.tenant_context import TenantContext
 from services.expense_repository import ExpenseRow, UpdateResult
 from services.gemini_client import GeminiClient
 from services.message_handler import format_expense_items
@@ -201,7 +202,7 @@ class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
         confirmation = ConfirmationRecord(
             id='c1',
             bot_message_id='bot-1',
-            line_user_id='u1',
+            tenant=TenantContext.personal('u1'),
             confirmation_text='text',
             items_snapshot=(
                 {
@@ -250,7 +251,7 @@ class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
         confirmation = ConfirmationRecord(
             id='c1',
             bot_message_id='bot-1',
-            line_user_id='u1',
+            tenant=TenantContext.personal('u1'),
             confirmation_text='text',
             items_snapshot=(
                 {
@@ -311,7 +312,7 @@ class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
         confirmation = ConfirmationRecord(
             id='c1',
             bot_message_id='bot-1',
-            line_user_id='u1',
+            tenant=TenantContext.personal('u1'),
             confirmation_text='text',
             items_snapshot=(
                 {

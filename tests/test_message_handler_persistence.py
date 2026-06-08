@@ -6,6 +6,7 @@ from services.categorize import CategoryResult
 from services.expense_repository import PersistResult
 from services.gemini_client import GeminiClient
 from services.message_context import MessageContext
+from services.tenant_context import TenantContext
 from services.message_handler import format_expense_items, process_text_message
 
 
@@ -16,7 +17,7 @@ def _unknown_category():
 class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
     async def test_persists_when_context_provided(self):
         gemini = MagicMock(spec=GeminiClient)
-        context = MessageContext(line_user_id='u1', source_message_id='msg-1')
+        context = MessageContext(tenant=TenantContext.personal('u1'), source_message_id='msg-1')
         with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
@@ -47,7 +48,7 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
 
     async def test_storage_error_still_returns_reply(self):
         gemini = MagicMock(spec=GeminiClient)
-        context = MessageContext(line_user_id='u1', source_message_id='msg-1')
+        context = MessageContext(tenant=TenantContext.personal('u1'), source_message_id='msg-1')
         with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
@@ -111,7 +112,7 @@ class TestExpenseRollupLogic(unittest.TestCase):
         client.rpc.return_value = rpc
         get_client.return_value = client
 
-        total = monthly_expense_total('user', 2026, 6, 'food-id', 'JPY')
+        total = monthly_expense_total(TenantContext.personal('user'), 2026, 6, 'food-id', 'JPY')
         self.assertEqual(total, Decimal('500'))
         client.rpc.assert_called_once()
 

@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 
 from services.category_taxonomy import CategoryNode, load_category_taxonomy, resolve_code
 from services.message_context import MessageContext
+from services.tenant_context import TenantContext
 from services.supabase_client import get_supabase_client, is_supabase_configured
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,9 @@ JST = ZoneInfo('Asia/Tokyo')
 
 @dataclass
 class ExpenseInsertRow:
+    tenant_type: str
+    tenant_id: str
+    logged_by_line_user_id: str
     line_user_id: str
     source_message_id: str
     line_item_index: int
@@ -98,8 +102,12 @@ def build_insert_row(
     currency = str(item.get('currency', 'JPY')).strip().upper()[:3]
     description = str(item.get('description', 'Expense')).strip() or 'Expense'
 
+    tenant = context.tenant
     return ExpenseInsertRow(
-        line_user_id=context.line_user_id,
+        tenant_type=tenant.tenant_type,
+        tenant_id=tenant.tenant_id,
+        logged_by_line_user_id=tenant.logged_by_line_user_id,
+        line_user_id=tenant.logged_by_line_user_id,
         source_message_id=context.source_message_id,
         line_item_index=line_item_index,
         description=description,
@@ -141,7 +149,7 @@ def insert_expenses(rows: List[ExpenseInsertRow]) -> PersistResult:
             client.table('expenses')
             .upsert(
                 payload,
-                on_conflict='line_user_id,source_message_id,line_item_index',
+                on_conflict='tenant_type,tenant_id,source_message_id,line_item_index',
                 ignore_duplicates=True,
             )
             .execute()
@@ -175,7 +183,8 @@ def _count_existing_rows(client, rows: List[ExpenseInsertRow]) -> Optional[int]:
         response = (
             client.table('expenses')
             .select('id', count='exact')
-            .eq('line_user_id', sample.line_user_id)
+            .eq('tenant_type', sample.tenant_type)
+            .eq('tenant_id', sample.tenant_id)
             .eq('source_message_id', sample.source_message_id)
             .execute()
         )
@@ -185,7 +194,7 @@ def _count_existing_rows(client, rows: List[ExpenseInsertRow]) -> Optional[int]:
 
 
 def monthly_expense_total(
-    line_user_id: str,
+    tenant: TenantContext,
     year: int,
     month: int,
     category_node_id: str,
@@ -200,7 +209,8 @@ def monthly_expense_total(
         response = client.rpc(
             'monthly_expense_total',
             {
-                'p_line_user_id': line_user_id,
+                'p_tenant_type': tenant.tenant_type,
+                'p_tenant_id': tenant.tenant_id,
                 'p_year': year,
                 'p_month': month,
                 'p_category_node_id': category_node_id,
@@ -217,7 +227,7 @@ def monthly_expense_total(
 
 
 def yearly_expense_total(
-    line_user_id: str,
+    tenant: TenantContext,
     year: int,
     category_node_id: str,
     currency: str,
@@ -231,7 +241,8 @@ def yearly_expense_total(
         response = client.rpc(
             'yearly_expense_total',
             {
-                'p_line_user_id': line_user_id,
+                'p_tenant_type': tenant.tenant_type,
+                'p_tenant_id': tenant.tenant_id,
                 'p_year': year,
                 'p_category_node_id': category_node_id,
                 'p_currency': currency.upper()[:3],
@@ -247,7 +258,7 @@ def yearly_expense_total(
 
 
 def fetch_expense_ids_for_message(
-    line_user_id: str,
+    tenant: TenantContext,
     source_message_id: str,
 ) -> List[Dict[str, Any]]:
     """Return expense id and line_item_index rows for a source message."""
@@ -259,7 +270,8 @@ def fetch_expense_ids_for_message(
         response = (
             client.table('expenses')
             .select('id, line_item_index')
-            .eq('line_user_id', line_user_id)
+            .eq('tenant_type', tenant.tenant_type)
+            .eq('tenant_id', tenant.tenant_id)
             .eq('source_message_id', source_message_id)
             .order('line_item_index')
             .execute()

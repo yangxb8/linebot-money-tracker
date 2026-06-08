@@ -2,22 +2,32 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import List, Optional
 
+from services.tenant_context import TenantContext
+
 
 @dataclass(frozen=True)
 class MessageContext:
     """LINE user and message identifiers for expense idempotency."""
 
-    line_user_id: str
+    tenant: TenantContext
     source_message_id: str
+
+    @property
+    def line_user_id(self) -> str:
+        return self.tenant.logged_by_line_user_id
 
 
 @dataclass(frozen=True)
 class ReplyContext:
     """Inbound reply-to-confirmation context."""
 
-    line_user_id: str
+    tenant: TenantContext
     user_reply_message_id: str
     quoted_bot_message_id: str
+
+    @property
+    def line_user_id(self) -> str:
+        return self.tenant.logged_by_line_user_id
 
 
 @dataclass(frozen=True)
@@ -33,9 +43,13 @@ class ConfirmationItemSnapshot:
 
 @dataclass(frozen=True)
 class ConfirmationSavePayload:
-    line_user_id: str
+    tenant: TenantContext
     confirmation_text: str
     items: tuple[ConfirmationItemSnapshot, ...]
+
+    @property
+    def line_user_id(self) -> str:
+        return self.tenant.logged_by_line_user_id
 
 
 @dataclass(frozen=True)

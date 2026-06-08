@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from services.message_context import ConfirmationItemSnapshot
+from services.tenant_context import TenantContext
 from services.supabase_client import get_supabase_client, is_supabase_configured
 
 logger = logging.getLogger(__name__)
@@ -15,10 +16,14 @@ logger = logging.getLogger(__name__)
 class ConfirmationRecord:
     id: str
     bot_message_id: str
-    line_user_id: str
+    tenant: TenantContext
     confirmation_text: str
     items_snapshot: tuple[Dict[str, Any], ...]
     pending_action: Optional[str]
+
+    @property
+    def line_user_id(self) -> str:
+        return self.tenant.logged_by_line_user_id
 
 
 def _snapshot_to_json(items: List[ConfirmationItemSnapshot]) -> List[Dict[str, Any]]:
@@ -38,7 +43,7 @@ def _snapshot_to_json(items: List[ConfirmationItemSnapshot]) -> List[Dict[str, A
 
 def save_confirmation(
     bot_message_id: str,
-    line_user_id: str,
+    tenant: TenantContext,
     confirmation_text: str,
     items: List[ConfirmationItemSnapshot],
 ) -> Optional[str]:
@@ -52,7 +57,9 @@ def save_confirmation(
         row = {
             'id': confirmation_id,
             'bot_message_id': bot_message_id,
-            'line_user_id': line_user_id,
+            'tenant_type': tenant.tenant_type,
+            'tenant_id': tenant.tenant_id,
+            'line_user_id': tenant.logged_by_line_user_id,
             'confirmation_text': confirmation_text,
             'items_snapshot': _snapshot_to_json(items),
             'pending_action': None,
@@ -79,7 +86,7 @@ def save_confirmation(
 
 def get_confirmation_by_bot_message_id(
     bot_message_id: str,
-    line_user_id: str,
+    tenant: TenantContext,
 ) -> Optional[ConfirmationRecord]:
     if not is_supabase_configured():
         return None
@@ -90,7 +97,8 @@ def get_confirmation_by_bot_message_id(
             client.table('confirmation_messages')
             .select('*')
             .eq('bot_message_id', bot_message_id)
-            .eq('line_user_id', line_user_id)
+            .eq('tenant_type', tenant.tenant_type)
+            .eq('tenant_id', tenant.tenant_id)
             .limit(1)
             .execute()
         )
@@ -99,10 +107,15 @@ def get_confirmation_by_bot_message_id(
             return None
         row = rows[0]
         snapshot = row.get('items_snapshot') or []
+        record_tenant = TenantContext(
+            tenant_type=str(row.get('tenant_type') or tenant.tenant_type),
+            tenant_id=str(row.get('tenant_id') or tenant.tenant_id),
+            logged_by_line_user_id=str(row.get('line_user_id') or tenant.logged_by_line_user_id),
+        )
         return ConfirmationRecord(
             id=row['id'],
             bot_message_id=row['bot_message_id'],
-            line_user_id=row['line_user_id'],
+            tenant=record_tenant,
             confirmation_text=row.get('confirmation_text') or '',
             items_snapshot=tuple(snapshot),
             pending_action=row.get('pending_action'),
@@ -136,7 +149,7 @@ def set_pending_action(confirmation_id: str, action: Optional[str]) -> bool:
         return False
 
 
-def try_mark_reply_processed(line_user_id: str, user_reply_message_id: str) -> bool:
+def try_mark_reply_processed(tenant: TenantContext, user_reply_message_id: str) -> bool:
     """Return True if this reply may be processed; False if duplicate."""
     if not is_supabase_configured():
         return True
@@ -146,7 +159,8 @@ def try_mark_reply_processed(line_user_id: str, user_reply_message_id: str) -> b
         existing = (
             client.table('processed_reply_messages')
             .select('user_reply_message_id')
-            .eq('line_user_id', line_user_id)
+            .eq('tenant_type', tenant.tenant_type)
+            .eq('tenant_id', tenant.tenant_id)
             .eq('user_reply_message_id', user_reply_message_id)
             .limit(1)
             .execute()
@@ -156,7 +170,9 @@ def try_mark_reply_processed(line_user_id: str, user_reply_message_id: str) -> b
 
         client.table('processed_reply_messages').insert(
             {
-                'line_user_id': line_user_id,
+                'tenant_type': tenant.tenant_type,
+                'tenant_id': tenant.tenant_id,
+                'line_user_id': tenant.logged_by_line_user_id,
                 'user_reply_message_id': user_reply_message_id,
             }
         ).execute()

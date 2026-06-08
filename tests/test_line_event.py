@@ -1,7 +1,13 @@
 import unittest
 from unittest.mock import patch
 
-from services.line_event import extract_quoted_message_id, extract_text_message
+from services.line_event import (
+    extract_group_id,
+    extract_quoted_message_id,
+    extract_room_id,
+    extract_source_type,
+    extract_text_message,
+)
 
 
 class TestLineEventExtraction(unittest.TestCase):
@@ -50,6 +56,33 @@ class TestLineEventExtraction(unittest.TestCase):
                 self.message = DummyMessage()
 
         self.assertEqual(extract_quoted_message_id(DummyEvent()), 'bot-msg-123')
+
+    def test_extract_source_type_group(self):
+        class DummySource:
+            type = 'group'
+
+        class DummyEvent:
+            source = DummySource()
+
+        self.assertEqual(extract_source_type(DummyEvent()), 'group')
+
+    def test_extract_group_id(self):
+        class DummySource:
+            groupId = 'group-abc'
+
+        class DummyEvent:
+            source = DummySource()
+
+        self.assertEqual(extract_group_id(DummyEvent()), 'group-abc')
+
+    def test_extract_room_id(self):
+        class DummySource:
+            room_id = 'room-xyz'
+
+        class DummyEvent:
+            source = DummySource()
+
+        self.assertEqual(extract_room_id(DummyEvent()), 'room-xyz')
 
     def test_extract_quoted_message_id_camel_case(self):
         class DummyMessage:
