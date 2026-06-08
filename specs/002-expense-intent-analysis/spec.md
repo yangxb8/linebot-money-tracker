@@ -19,6 +19,14 @@
 - Q: Total-only receipts? → A: Log **one expense** for the final total with merchant name when product lines are unreadable.
 - Q: Discount / points used? → A: **Proportional reduction** by tax-inclusive line price toward final cash paid.
 
+### Session 2026-06-08 (iteration 2)
+
+- Q: Multi-item `取消` alone? → A: **`soft_delete_all`** with YES confirmation (same as 全部取消).
+- Q: `全部取消` flow? → A: Two-step **YES** on the bot confirmation message (`是` / YES).
+- Q: OCR cloud backend? → A: **Google Cloud Vision** `DOCUMENT_TEXT_DETECTION` with **`GOOGLE_VISION_API_KEY`** (replaces Document AI).
+- Q: Low-confidence parse? → A: **Do not log**; ask user to retry photo or send text (no total-only fallback on failed validation).
+- Q: Vision item extraction? → A: **Removed** — only OCR text → parse → OCR JSON assist; no direct image→items LLM path.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Detect expense intent from text (Priority: P1)

@@ -99,14 +99,26 @@ class TestReplyEditIntent(unittest.TestCase):
                 self.assertEqual(intent['action'], 'soft_delete')
                 self.assertEqual(intent['target']['mode'], 'single')
 
-    def test_delete_phrase_multi_item_unspecified(self):
+    def test_delete_phrase_multi_item_triggers_delete_all(self):
         items = [
             {'line_item_index': 0, 'expense_id': 'e1'},
             {'line_item_index': 1, 'expense_id': 'e2'},
         ]
-        intent = _delete_phrase_intent('cancel', items)
-        self.assertEqual(intent['action'], 'soft_delete')
-        self.assertEqual(intent['target']['mode'], 'unspecified')
+        for phrase in ('cancel', '取消', '删除'):
+            with self.subTest(phrase=phrase):
+                intent = _delete_phrase_intent(phrase, items)
+                self.assertEqual(intent['action'], 'soft_delete_all')
+                self.assertEqual(intent['target']['mode'], 'all_active')
+
+    def test_delete_all_phrases_chinese(self):
+        items = [{'line_item_index': 0, 'expense_id': 'e1'}]
+        for phrase in ('全部取消', '全部删除', '取消全部', 'delete all'):
+            with self.subTest(phrase=phrase):
+                intent = _delete_phrase_intent(phrase, items)
+                self.assertEqual(intent['action'], 'soft_delete_all')
+
+    def test_cancel_pending_includes_chinese_quxiao(self):
+        self.assertTrue(is_cancel_pending('取消'))
 
     def test_delete_phrase_non_delete(self):
         items = [{'line_item_index': 0, 'expense_id': 'e1'}]

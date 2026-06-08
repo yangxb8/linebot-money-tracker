@@ -67,6 +67,17 @@
 
 When `pending_action = delete_all`, map YES / はい / 是 / confirm to `confirm_pending`.
 
+## Delete phrase detection (deterministic, before LLM)
+
+| User phrase | Items | action |
+| ----------- | ----- | ------ |
+| `cancel`, `delete`, `取消`, `删除`, `キャンセル`, … | 1 | `soft_delete` |
+| Same phrases | 2+ | `soft_delete_all` (YES confirmation) |
+| `delete all`, `全部取消`, `全部删除`, `取消全部`, `削除全部`, … | any | `soft_delete_all` |
+| `取消`, `cancel`, `いいえ`, `算了`, … | pending `delete_all` | `cancel_pending` |
+
+User MUST reply to the **bot confirmation message** (LINE reply-to) for YES / cancel-pending on bulk delete.
+
 ## Validation
 
 `jsonschema` Draft7; invalid → treat as `clarify` with generic message.

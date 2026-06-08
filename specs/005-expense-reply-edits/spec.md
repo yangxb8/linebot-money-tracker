@@ -10,6 +10,12 @@
 
 ## Clarifications
 
+### Session 2026-06-08
+
+- Q: Multi-item bare `取消`? → A: **`soft_delete_all`** with YES confirmation (not “which item?”).
+- Q: `全部取消` / `全部删除` / `取消全部`? → A: **`soft_delete_all`**; user confirms with YES/`是` on the **bot confirmation message** (reply-to-message).
+- Q: `取消` while delete-all pending? → A: **`cancel_pending`** (abort bulk delete).
+
 ### Session 2026-06-06
 
 - Q: When a user deletes an expense via reply, should the record be permanently removed or soft-deleted? → A: **Soft delete** — mark as deleted, exclude from totals/analysis, retain row for audit; user can **cancel/undo a deletion** by replying to the same confirmation (e.g., "undo delete", "restore").

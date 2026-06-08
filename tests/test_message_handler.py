@@ -77,11 +77,8 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
         gemini = MagicMock(spec=GeminiClient)
         with patch('services.message_handler.is_expense_intent_image', AsyncMock(return_value=False)), patch(
             'services.message_handler.extract_text_from_image_bytes', return_value=[]
-        ), patch('services.message_handler.parse_text_for_expenses', return_value=[]), patch(
-            'services.message_handler.assist_parse_image', AsyncMock(return_value=[])
-        ) as image_mock:
+        ):
             reply = await process_image_message(b'cat-photo', gemini)
-        image_mock.assert_not_awaited()
         self.assertEqual(reply.text, CANNED_UNSUPPORTED_REPLY)
 
     async def test_process_image_ocr_ai_assist_fallback(self):
@@ -91,33 +88,35 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
         ), patch('services.message_handler.parse_text_for_expenses', return_value=[]), patch(
             'services.message_handler.assist_parse_ocr',
             AsyncMock(return_value=[{'description': 'Item', 'amount': 10.0, 'currency': 'USD'}]),
-        ), patch('services.message_handler.assist_parse_image', AsyncMock(return_value=[])) as image_mock, patch(
-            'services.message_handler.insert_expenses',
-        ), patch('services.message_handler.is_expense_intent_image', AsyncMock()) as intent_mock:
+        ), patch('services.message_handler.insert_expenses'), patch(
+            'services.message_handler.is_expense_intent_image', AsyncMock()
+        ) as intent_mock:
             reply = await process_image_message(b'receipt', gemini)
-        image_mock.assert_not_awaited()
         intent_mock.assert_not_awaited()
         self.assertIn('Detected expense(s):', reply.text)
 
-    async def test_process_image_llm_fallback_when_ocr_fails(self):
+    async def test_process_image_returns_parse_error_when_ocr_empty_and_not_receipt(self):
         gemini = MagicMock(spec=GeminiClient)
-        with self._patch_categorize(), patch(
-            'services.message_handler.extract_text_from_image_bytes', return_value=[]
-        ), patch('services.message_handler.is_expense_intent_image', AsyncMock(return_value=True)), patch(
-            'services.message_handler.assist_parse_image', AsyncMock(
-                return_value=[{'description': 'Coffee', 'amount': 450.0, 'currency': 'JPY'}]
-            )
-        ) as image_mock, patch('services.message_handler.insert_expenses'):
+        with patch('services.message_handler.extract_text_from_image_bytes', return_value=[]), patch(
+            'services.message_handler.is_expense_intent_image', AsyncMock(return_value=False)
+        ):
+            reply = await process_image_message(b'cat-photo', gemini)
+        self.assertEqual(reply.text, CANNED_UNSUPPORTED_REPLY)
+
+    async def test_process_image_parse_error_when_ocr_and_assist_fail(self):
+        gemini = MagicMock(spec=GeminiClient)
+        with patch('services.message_handler.extract_text_from_image_bytes', return_value=['noise']), patch(
+            'services.message_handler.assist_parse_ocr', AsyncMock(return_value=[])
+        ), patch('services.message_handler.is_expense_intent_image', AsyncMock()) as intent_mock:
             reply = await process_image_message(b'receipt', gemini)
-        image_mock.assert_awaited_once()
-        self.assertIn('Detected expense(s):', reply.text)
-        self.assertIn('Coffee', reply.text)
+        intent_mock.assert_not_awaited()
+        self.assertEqual(reply.text, RECEIPT_PARSE_ERROR_REPLY)
 
     async def test_process_image_parse_failure_returns_clear_message(self):
         gemini = MagicMock(spec=GeminiClient)
         with patch('services.message_handler.extract_text_from_image_bytes', return_value=[]), patch(
             'services.message_handler.is_expense_intent_image', AsyncMock(return_value=True)
-        ), patch('services.message_handler.assist_parse_image', AsyncMock(return_value=[])):
+        ):
             reply = await process_image_message(b'receipt', gemini)
         self.assertEqual(reply.text, RECEIPT_PARSE_ERROR_REPLY)
 

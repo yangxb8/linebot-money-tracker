@@ -1,7 +1,11 @@
 from typing import List, Optional
 from io import BytesIO
+import base64
+import json
 import logging
 import os
+import urllib.error
+import urllib.request
 
 from services.log_utils import describe_bytes, truncate
 
@@ -17,6 +21,8 @@ try:
 except Exception:
     pytesseract = None
 
+_VISION_ANNOTATE_URL = 'https://vision.googleapis.com/v1/images:annotate'
+
 
 def _guess_mime_type(image_bytes: bytes) -> str:
     if image_bytes.startswith(b'\xff\xd8\xff'):
@@ -31,7 +37,6 @@ def _guess_mime_type(image_bytes: bytes) -> str:
 
 
 def _tesseract_lang() -> str:
-    # jpn+eng handles mixed Japanese/English labels common on receipts.
     return os.getenv('TESSERACT_LANG', 'jpn+eng')
 
 
@@ -47,7 +52,7 @@ def _ocr_with_pytesseract(image_bytes: bytes) -> List[str]:
         img = img.convert('RGB')
 
     text = pytesseract.image_to_string(img, lang=lang)
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
     logger.info('OCR pytesseract: extracted %d line(s)', len(lines))
     if lines:
         logger.debug('OCR pytesseract sample: %s', truncate('\n'.join(lines[:5]), 500))
@@ -56,66 +61,82 @@ def _ocr_with_pytesseract(image_bytes: bytes) -> List[str]:
     return lines
 
 
-def _ocr_with_document_ai(image_bytes: bytes) -> List[str]:
-    try:
-        from google.cloud import documentai_v1 as documentai
-    except Exception as e:
-        raise RuntimeError('google-cloud-documentai not installed') from e
+def _ocr_with_cloud_vision(image_bytes: bytes) -> List[str]:
+    api_key = os.getenv('GOOGLE_VISION_API_KEY')
+    if not api_key:
+        raise RuntimeError('GOOGLE_VISION_API_KEY environment variable is not set')
 
-    project_id = os.getenv('DOCUMENT_AI_PROJECT_ID') or os.getenv('GOOGLE_CLOUD_PROJECT')
-    location = os.getenv('DOCUMENT_AI_LOCATION', 'asia-southeast1')
-    processor_id = os.getenv('DOCUMENT_AI_PROCESSOR_ID')
-
-    if not project_id or not processor_id:
-        raise RuntimeError(
-            'Document AI requires DOCUMENT_AI_PROJECT_ID (or GOOGLE_CLOUD_PROJECT) '
-            'and DOCUMENT_AI_PROCESSOR_ID'
-        )
-
-    mime_type = _guess_mime_type(image_bytes)
     logger.info(
-        'OCR Document AI: starting project=%s location=%s processor=%s mime=%s image=%s',
-        project_id,
-        location,
-        processor_id,
-        mime_type,
+        'OCR Cloud Vision: DOCUMENT_TEXT_DETECTION image=%s',
         describe_bytes(image_bytes),
     )
 
-    client = documentai.DocumentProcessorServiceClient()
-    name = client.processor_path(project_id, location, processor_id)
-    raw_document = documentai.RawDocument(
-        content=image_bytes,
-        mime_type=mime_type,
+    payload = {
+        'requests': [
+            {
+                'image': {'content': base64.b64encode(image_bytes).decode('ascii')},
+                'features': [{'type': 'DOCUMENT_TEXT_DETECTION'}],
+            }
+        ]
+    }
+    url = f'{_VISION_ANNOTATE_URL}?key={api_key}'
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode('utf-8'),
+        headers={'Content-Type': 'application/json'},
+        method='POST',
     )
-    request = documentai.ProcessRequest(name=name, raw_document=raw_document)
-    result = client.process_document(request=request)
-    text = result.document.text or ''
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
-    logger.info('OCR Document AI: extracted %d line(s)', len(lines))
+
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            body = json.loads(response.read().decode('utf-8'))
+    except urllib.error.HTTPError as exc:
+        error_body = exc.read().decode('utf-8', errors='replace')
+        raise RuntimeError(f'Cloud Vision API HTTP {exc.code}: {error_body[:500]}') from exc
+
+    responses = body.get('responses') or []
+    if not responses:
+        logger.warning('OCR Cloud Vision: empty responses')
+        return []
+
+    first = responses[0]
+    if first.get('error'):
+        message = first['error'].get('message', 'unknown error')
+        raise RuntimeError(f'Cloud Vision API error: {message}')
+
+    full_text = ''
+    full_annotation = first.get('fullTextAnnotation') or {}
+    if isinstance(full_annotation, dict):
+        full_text = full_text or (full_annotation.get('text') or '')
+
+    if not full_text:
+        annotations = first.get('textAnnotations') or []
+        if annotations and isinstance(annotations[0], dict):
+            full_text = annotations[0].get('description') or ''
+
+    lines = [line.strip() for line in full_text.splitlines() if line.strip()]
+    logger.info('OCR Cloud Vision: extracted %d line(s)', len(lines))
     if lines:
-        logger.debug('OCR Document AI sample: %s', truncate('\n'.join(lines[:5]), 500))
+        logger.debug('OCR Cloud Vision sample: %s', truncate('\n'.join(lines[:5]), 500))
     else:
-        logger.warning('OCR Document AI: no text lines extracted')
+        logger.warning('OCR Cloud Vision: no text lines extracted')
     return lines
 
 
 def extract_text_from_image_bytes(image_bytes: bytes, prefer: Optional[str] = 'auto') -> List[str]:
     """Extract text lines from image bytes.
 
-    Parameters:
-      - image_bytes: raw image bytes
-      - prefer: 'pytesseract', 'documentai', or 'auto' (try pytesseract then Document AI)
+    Backends (auto order): pytesseract → Cloud Vision DOCUMENT_TEXT_DETECTION.
 
-    Returns list of text lines (may be empty if all backends fail).
+    Cloud Vision requires GOOGLE_VISION_API_KEY.
     """
-    backends = []
+    backends: List[str] = []
     if prefer == 'pytesseract':
         backends = ['pytesseract']
-    elif prefer in ('documentai', 'vision'):
-        backends = ['documentai']
+    elif prefer in ('vision', 'cloud_vision', 'documentai'):
+        backends = ['vision']
     else:
-        backends = ['pytesseract', 'documentai']
+        backends = ['pytesseract', 'vision']
 
     logger.info(
         'OCR extract: image=%s prefer=%s backends=%s',
@@ -125,15 +146,15 @@ def extract_text_from_image_bytes(image_bytes: bytes, prefer: Optional[str] = 'a
     )
 
     last_exc = None
-    for b in backends:
+    for backend in backends:
         try:
-            if b == 'pytesseract':
+            if backend == 'pytesseract':
                 return _ocr_with_pytesseract(image_bytes)
-            if b == 'documentai':
-                return _ocr_with_document_ai(image_bytes)
-        except Exception as e:
-            logger.warning('OCR backend %s failed: %s', b, e)
-            last_exc = e
+            if backend == 'vision':
+                return _ocr_with_cloud_vision(image_bytes)
+        except Exception as exc:
+            logger.warning('OCR backend %s failed: %s', backend, exc)
+            last_exc = exc
 
     logger.warning(
         'OCR extract: all backends failed (%s); returning empty text. last_error=%s',
