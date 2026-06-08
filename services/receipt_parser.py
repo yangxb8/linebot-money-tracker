@@ -19,9 +19,9 @@ _AMOUNT_CURRENCY_REGEX = re.compile(
 )
 _YEN_SUFFIX_REGEX = re.compile(r'(?P<amount>[\d,]+)\s*円')
 _YEN_PREFIX_REGEX = re.compile(r'[¥￥]\s*(?P<amount>[\d,]+)')
-_YEN_TAX_MARKER_REGEX = re.compile(r'(?P<amount>[\d,]+)\s*※')
+_YEN_TAX_MARKER_REGEX = re.compile(r'(?P<amount>[\d,]+)\s*※\s*[A-Za-z]?')
 _TRAILING_AMOUNT_REGEX = re.compile(
-    r'(?P<amount>[\d,]+(?:\.\d{1,2})?)\s*(?:※|円|[A-Za-z]{3})?\s*$',
+    r'(?P<amount>[\d,]+(?:\.\d{1,2})?)\s*(?:※\s*[A-Za-z]?|円|[A-Za-z]{3})?\s*$',
 )
 
 _RECEIPT_SUMMARY_REGEX = re.compile(
@@ -38,6 +38,10 @@ _DATETIME_LINE_REGEX = re.compile(
     r'\d{4}[/\-年]\s*\d{1,2}[/\-月]\s*\d{1,2}',
 )
 _JAPANESE_CHAR_REGEX = re.compile(r'[\u3040-\u30ff\u4e00-\u9fff]')
+_PRICE_AT_END_RE = re.compile(
+    r'[¥￥]\s*[\d,]+(?:\.\d{1,2})?\s*$|'
+    r'[\d,]+(?:\.\d{1,2})?\s*(?:円|※\s*[A-Za-z]?)\s*$',
+)
 
 
 def _normalize_text(text: str) -> str:
@@ -151,6 +155,46 @@ def _parse_line(line: str) -> List[Dict[str, Any]]:
     return [_build_item(normalized, amount, currency, pattern)]
 
 
+def _line_has_trailing_price(line: str) -> bool:
+    return bool(_PRICE_AT_END_RE.search(_normalize_text(line)))
+
+
+def preprocess_wrapped_receipt_lines(lines: List[str]) -> List[str]:
+    """Join product name lines with the following price line (common on JP receipts)."""
+    merged: List[str] = []
+    pending: List[str] = []
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            continue
+        if _is_receipt_metadata_line(line) or _DATETIME_LINE_REGEX.search(line):
+            if pending:
+                merged.extend(pending)
+                pending = []
+            merged.append(line)
+            continue
+        if _is_receipt_summary_line(line):
+            if pending:
+                merged.extend(pending)
+                pending = []
+            merged.append(line)
+            continue
+
+        if _line_has_trailing_price(line):
+            if pending:
+                merged.append(' '.join(pending + [line]))
+                pending = []
+            else:
+                merged.append(line)
+        else:
+            pending.append(line)
+
+    if pending:
+        merged.extend(pending)
+    return merged
+
+
 def _finalize_receipt_items(items: List[Dict[str, Any]], full_text: str) -> List[Dict[str, Any]]:
     if not items:
         return items
@@ -182,7 +226,9 @@ def parse_text_for_expenses(text: str) -> List[Dict[str, Any]]:
         logger.info('Receipt parser: skipped (empty or invalid input)')
         return []
 
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    lines = preprocess_wrapped_receipt_lines(
+        [line.strip() for line in text.splitlines() if line.strip()]
+    )
     if not lines:
         logger.info('Receipt parser: no non-empty lines in input (text_len=%d)', len(text))
         return []

@@ -56,3 +56,10 @@ class ConfirmationSavePayload:
 class BotReply:
     text: str
     confirmation: Optional[ConfirmationSavePayload] = None
+
+
+@dataclass(frozen=True)
+class ReplyEditResult:
+    text: str
+    confirmation_id: Optional[str] = None
+    anchor_reply_to_sent_message: bool = False

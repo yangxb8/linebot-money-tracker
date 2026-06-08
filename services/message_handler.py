@@ -24,6 +24,7 @@ from services.message_context import (
     ConfirmationSavePayload,
     MessageContext,
     ReplyContext,
+    ReplyEditResult,
 )
 from services.ocr import extract_text_from_image_bytes, _guess_mime_type
 from services.receipt_parser import parse_text_for_expenses
@@ -198,18 +199,18 @@ async def process_reply_edit(
     text: str,
     reply_context: ReplyContext,
     gemini: GeminiClient,
-) -> str:
+) -> ReplyEditResult:
     language = detect_reply_language(text)
 
     if not try_mark_reply_processed(reply_context.tenant, reply_context.user_reply_message_id):
-        return format_duplicate_reply(language)
+        return ReplyEditResult(text=format_duplicate_reply(language))
 
     confirmation = get_confirmation_by_bot_message_id(
         reply_context.quoted_bot_message_id,
         reply_context.tenant,
     )
     if confirmation is None:
-        return format_unknown_confirmation(language)
+        return ReplyEditResult(text=format_unknown_confirmation(language))
 
     try:
         intent = await parse_edit_intent(
@@ -228,14 +229,21 @@ async def process_reply_edit(
             result.status,
             result.summary,
         )
-        return result.summary
+        return ReplyEditResult(
+            text=result.summary,
+            confirmation_id=confirmation.id,
+            anchor_reply_to_sent_message=result.anchor_reply_to_sent_message,
+        )
     except Exception:
         logger.exception('process_reply_edit failed')
         from services.reply_summary import EditSummaryInput, format_edit_result
 
-        return format_edit_result(
-            language,
-            EditSummaryInput(status='error', action='update', error_message=None),
+        return ReplyEditResult(
+            text=format_edit_result(
+                language,
+                EditSummaryInput(status='error', action='update', error_message=None),
+            ),
+            confirmation_id=confirmation.id,
         )
 
 

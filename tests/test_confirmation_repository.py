@@ -78,7 +78,7 @@ class TestConfirmationRepository(unittest.TestCase):
                 }
             ]
         )
-        table.select.return_value.eq.return_value.eq.return_value.eq.return_value = chain
+        table.select.return_value.eq.return_value.eq.return_value.or_.return_value = chain
         client = MagicMock()
         client.table.return_value = table
         get_client.return_value = client
@@ -88,6 +88,37 @@ class TestConfirmationRepository(unittest.TestCase):
         )
         self.assertIsInstance(record, ConfirmationRecord)
         self.assertEqual(record.bot_message_id, 'bot-1')
+
+    @patch('services.confirmation_repository.get_supabase_client')
+    @patch('services.confirmation_repository.is_supabase_configured', return_value=True)
+    def test_get_confirmation_by_interaction_message_id(self, _configured, get_client):
+        table = MagicMock()
+        chain = MagicMock()
+        chain.limit.return_value = chain
+        chain.execute.return_value = MagicMock(
+            data=[
+                {
+                    'id': 'c1',
+                    'bot_message_id': 'bot-original',
+                    'line_user_id': 'user-1',
+                    'tenant_type': 'user',
+                    'tenant_id': 'user-1',
+                    'confirmation_text': 'delete prompt',
+                    'items_snapshot': [{'line_item_index': 0, 'expense_id': 'e1'}],
+                    'pending_action': 'delete_all',
+                }
+            ]
+        )
+        table.select.return_value.eq.return_value.eq.return_value.or_.return_value = chain
+        client = MagicMock()
+        client.table.return_value = table
+        get_client.return_value = client
+
+        from services.confirmation_repository import get_confirmation_by_bot_message_id
+
+        record = get_confirmation_by_bot_message_id('bot-delete-prompt', TenantContext.personal('user-1'))
+        self.assertIsNotNone(record)
+        self.assertEqual(record.pending_action, 'delete_all')
 
     @patch('services.confirmation_repository.get_supabase_client')
     @patch('services.confirmation_repository.is_supabase_configured', return_value=True)

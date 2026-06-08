@@ -78,6 +78,19 @@ class TestReceiptNormalize(unittest.TestCase):
         result = normalize_receipt_items(items, 'Lunch 120 THB at cafe')
         self.assertEqual(result[0]['amount'], 120.0)
 
+    def test_tax_inclusive_receipt_keeps_shelf_prices(self):
+        from pathlib import Path
+
+        ocr = Path('specs/002-expense-intent-analysis/samples/shimachu_receipt.ocr.txt').read_text(
+            encoding='utf-8'
+        )
+        items = parse_text_for_expenses(ocr)[:5]
+        normalized = normalize_receipt_items(items, ocr)
+        amounts = [item['amount'] for item in normalized]
+        self.assertIn(249.0, amounts)
+        self.assertIn(140.0, amounts)
+        self.assertTrue(all(amount < 1000 for amount in amounts))
+
 
 if __name__ == '__main__':
     unittest.main()

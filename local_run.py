@@ -90,8 +90,8 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None]:
             user_reply_message_id=str(uuid.uuid4()),
             quoted_bot_message_id=args.reply_to,
         )
-        reply = await process_reply_edit(args.text, reply_context, gemini)
-        return reply, None
+        edit_result = await process_reply_edit(args.text, reply_context, gemini)
+        return edit_result.text, None
 
     context = MessageContext(
         tenant=tenant,

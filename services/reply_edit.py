@@ -143,6 +143,7 @@ class EditApplyResult:
     summary: str
     intent_json: Dict[str, Any]
     items_snapshot: List[Dict[str, Any]] = field(default_factory=list)
+    anchor_reply_to_sent_message: bool = False
 
 
 def is_affirmative(text: str) -> bool:
@@ -522,7 +523,13 @@ async def apply_edit_intent(
     if action == 'soft_delete_all':
         set_pending_action(confirmation.id, 'delete_all')
         summary = format_edit_result(language, EditSummaryInput(status='applied', action='soft_delete_all_pending'))
-        return EditApplyResult(status='applied', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+        return EditApplyResult(
+            status='applied',
+            summary=summary,
+            intent_json=intent,
+            items_snapshot=items_snapshot,
+            anchor_reply_to_sent_message=True,
+        )
 
     if action == 'cancel_pending' and confirmation.pending_action == 'delete_all':
         set_pending_action(confirmation.id, None)
