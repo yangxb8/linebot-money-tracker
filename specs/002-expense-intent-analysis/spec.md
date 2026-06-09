@@ -51,6 +51,12 @@
 - Q: OCR toggle? → A: **5B** — hard-wired LLM-only in production; re-enable OCR by editing code (`_extract_expense_items_from_ocr`).
 - Q: Receipt image model? → A: **Gemini 2.5 Pro** for `assist_parse_image` only; all other Gemini calls stay on **2.5 Flash** to minimize Pro usage.
 
+### Session 2026-06-10 (quota / model fallback)
+
+- Q: Default Gemini model? → A: **gemini-3.5-flash**.
+- Q: Quota error on receipt image? → A: **No model fallback** — reply with usage-limit message (JA/EN/ZH); receipt stays on **2.5 Pro**.
+- Q: Quota error on other calls? → A: Fallback order: **2.5 flash → 3.1 flash lite → 2.5 flash lite** (after default 3.5 flash).
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Detect expense intent from text (Priority: P1)

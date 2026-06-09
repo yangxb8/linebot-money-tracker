@@ -5,12 +5,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from services.ai_assist import ReceiptImageParseResult
 from services.categorize import CategoryResult
-from services.gemini_client import GeminiClient
+from services.gemini_client import GeminiClient, GeminiUsageLimitError
 from services.message_context import MessageContext
 from services.message_handler import (
     canned_unsupported_reply,
     error_reply_text,
     receipt_parse_error_reply,
+    usage_limit_reply,
     format_expense_items,
     process_image_message,
     process_text_message,
@@ -111,6 +112,15 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
         with patch('services.message_handler.assist_parse_image', AsyncMock(return_value=None)):
             reply = await process_image_message(b'receipt', gemini, context=self._english_context())
         self.assertEqual(reply.text, receipt_parse_error_reply('en'))
+
+    async def test_process_image_usage_limit_returns_dedicated_message(self):
+        gemini = MagicMock(spec=GeminiClient)
+        with patch(
+            'services.message_handler.assist_parse_image',
+            AsyncMock(side_effect=GeminiUsageLimitError('quota')),
+        ):
+            reply = await process_image_message(b'receipt', gemini, context=self._english_context())
+        self.assertEqual(reply.text, usage_limit_reply('en'))
 
     async def test_process_image_error(self):
         gemini = MagicMock(spec=GeminiClient)

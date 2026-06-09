@@ -15,7 +15,7 @@ from services.expense_repository import (
     fetch_expense_ids_for_message,
     insert_expenses,
 )
-from services.gemini_client import GeminiClient
+from services.gemini_client import GeminiClient, GeminiUsageLimitError
 from services.intent import is_expense_intent_text
 from services.log_utils import describe_bytes
 from services.message_context import (
@@ -47,6 +47,10 @@ def canned_unsupported_reply(language: str = 'ja') -> str:
 
 def error_reply_text(language: str = 'ja') -> str:
     return t(language, 'error')
+
+
+def usage_limit_reply(language: str = 'ja') -> str:
+    return t(language, 'usage_limit')
 
 
 # Backward-compatible defaults (English) for imports in tests and main.py
@@ -356,7 +360,12 @@ async def process_image_message(
     )
     language = context.reply_language if context else 'ja'
     try:
-        items = await _extract_expense_items_from_image(image_bytes, gemini, resolved_mime)
+        try:
+            items = await _extract_expense_items_from_image(image_bytes, gemini, resolved_mime)
+        except GeminiUsageLimitError:
+            logger.warning('Image pipeline: Gemini usage limit reached for receipt parse')
+            return _text_reply(usage_limit_reply(language))
+
         if not items:
             logger.warning(
                 'Image pipeline: no expense items extracted (image=%s mime=%s)',
