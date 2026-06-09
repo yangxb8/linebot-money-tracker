@@ -37,6 +37,10 @@ _STRINGS: Dict[str, Dict[str, str]] = {
             'レシート画像またはテキスト（例: ランチ 1200円）を送ってください。'
         ),
         'error': '応答を生成できませんでした。しばらくしてからもう一度お試しください。',
+        'usage_limit': (
+            'AIの利用上限に達したため、レシート画像の解析ができません。'
+            'しばらくしてから再度お試しいただくか、合計金額をテキストで送ってください。'
+        ),
     },
     'en': {
         'header': 'Detected expense(s):',
@@ -57,6 +61,10 @@ _STRINGS: Dict[str, Dict[str, str]] = {
             "Please send a receipt image or text like: 'Lunch 1200 yen'."
         ),
         'error': "Sorry, I couldn't generate a response right now. Please try again in a moment.",
+        'usage_limit': (
+            "I can't analyze receipt images right now because the AI usage limit has been reached. "
+            'Please try again later, or send the total as text.'
+        ),
     },
     'zh': {
         'header': '检测到的支出:',
@@ -77,6 +85,10 @@ _STRINGS: Dict[str, Dict[str, str]] = {
             '请发送收据图片或文字（例: 午餐 1200円）。'
         ),
         'error': '暂时无法生成回复，请稍后再试。',
+        'usage_limit': (
+            'AI 使用额度已达上限，暂时无法解析收据图片。'
+            '请稍后再试，或以文字发送合计金额。'
+        ),
     },
 }
 
