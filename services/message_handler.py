@@ -27,6 +27,7 @@ from services.message_context import (
     ReplyEditResult,
 )
 from services.ocr import extract_text_from_image_bytes, _guess_mime_type
+from services.receipt_image_preprocess import preprocess_receipt_image
 from services.receipt_parser import parse_text_for_expenses
 from services.receipt_normalize import normalize_receipt_items
 from services.receipt_validate import validate_receipt_items
@@ -321,8 +322,9 @@ async def _extract_expense_items_from_image(
     gemini: GeminiClient,
     mime_type: str,
 ) -> List[Dict[str, Any]]:
-    """Production image pipeline: Gemini vision → validate items against LLM-reported total."""
-    parse_result = await assist_parse_image(image_bytes, gemini, mime_type)
+    """Production image pipeline: preprocess → Gemini vision → validate against LLM total."""
+    processed_bytes, processed_mime = preprocess_receipt_image(image_bytes)
+    parse_result = await assist_parse_image(processed_bytes, gemini, processed_mime)
     if not parse_result:
         logger.warning('Image pipeline: assist_parse_image returned no valid parse')
         return []

@@ -58,6 +58,15 @@
 - Q: Quota error on other calls? → A: Fallback order: **3 flash → 2.5 flash → 3.1 flash lite → 2.5 flash lite** (after default 3.5 flash).
 - Q: Receipt without 2.5 Pro quota (free tier)? → A: Receipt uses **same chain as general** starting **3.5 flash → 3 flash → 2.5 flash → …**; usage-limit when all exhausted.
 
+### Session 2026-06-10 (receipt image preprocessing)
+
+- Q: When to preprocess? → A: **1A** — always before receipt LLM call.
+- Q: Color? → A: **2B** — grayscale + contrast boost for vision input.
+- Q: Max resolution? → A: **3C** — long edge **2048px**.
+- Q: Rotation? → A: **4A** — EXIF auto-rotate only.
+- Q: Compression? → A: **5A** — JPEG quality **~85**, always JPEG output.
+- Q: Receipt crop? → A: **Optional** — crop only when a receipt-like bounding box is **clearly** detected (conservative thresholds); otherwise send full frame.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Detect expense intent from text (Priority: P1)

@@ -85,10 +85,15 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             450.0,
         )
         with self._patch_categorize(), patch(
+            'services.message_handler.preprocess_receipt_image',
+            return_value=(b'processed-jpeg', 'image/jpeg'),
+        ) as preprocess_mock, patch(
             'services.message_handler.assist_parse_image',
             AsyncMock(return_value=llm_result),
-        ), patch('services.message_handler.insert_expenses'):
+        ) as parse_mock, patch('services.message_handler.insert_expenses'):
             reply = await process_image_message(b'fake-image', gemini, context=self._english_context())
+        preprocess_mock.assert_called_once_with(b'fake-image')
+        parse_mock.assert_awaited_once_with(b'processed-jpeg', gemini, 'image/jpeg')
         self.assertIn('Detected expense(s):', reply.text)
 
     async def test_process_image_non_receipt_returns_parse_error(self):
