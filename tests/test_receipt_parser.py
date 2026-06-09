@@ -42,6 +42,22 @@ class TestReceiptParser(unittest.TestCase):
         self.assertIn(150.0, amounts)
         self.assertIn(198.0, amounts)
 
+    def test_parse_shimachu_vision_ocr_compound_line(self):
+        from pathlib import Path
+
+        sample = Path(
+            'specs/002-expense-intent-analysis/samples/shimachu_receipt.vision_ocr.txt'
+        ).read_text(encoding='utf-8')
+        items = parse_text_for_expenses(sample)
+        amounts = sorted(item['amount'] for item in items)
+        self.assertEqual(len(items), 10)
+        self.assertEqual(sum(item['amount'] for item in items), 5723.0)
+        self.assertIn(249.0, amounts)
+        self.assertIn(140.0, amounts)
+        self.assertIn(327.0, amounts)
+        self.assertIn(877.0, amounts)
+        self.assertNotIn('P2111200001860', items[1]['description'])
+
     def test_parse_shimachu_multiline_wrapped_items(self):
         from pathlib import Path
 

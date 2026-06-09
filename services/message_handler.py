@@ -56,7 +56,8 @@ def _prepare_receipt_items(items: List[Dict[str, Any]], ocr_text: str) -> List[D
     validated = validate_receipt_items(normalized, ocr_text)
     return validated or []
 CATEGORY_CONFIRMATION_FOOTER = (
-    "Reply to this message to change category (1–3), edit fields, delete, or restore."
+    "Reply with item number + edit (e.g. \"2 3800円\" or \"2 取消\"), "
+    "category 1–3 under each item, or delete/restore."
 )
 
 
@@ -72,13 +73,13 @@ def format_expense_items(
     lines = []
     if is_shared_tenant and logged_by_line_user_id:
         lines.append(f'Logged by: {logged_by_line_user_id}')
-    for it in items:
+    for index, it in enumerate(items, start=1):
         description = str(it.get('description', 'Expense')).strip()
         amount = it.get('amount', '')
         currency = it.get('currency', '')
         amount_text = str(amount)
         currency_text = f" {currency}" if currency else ''
-        lines.append(f"- {description}: {amount_text}{currency_text}")
+        lines.append(f"{index}) {description}: {amount_text}{currency_text}")
 
         guess_path = it.get('category_guess_path')
         if guess_path:

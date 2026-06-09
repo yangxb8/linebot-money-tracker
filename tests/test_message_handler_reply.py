@@ -51,7 +51,7 @@ class TestMessageHandlerReply(unittest.IsolatedAsyncioTestCase):
                 }
             ]
         )
-        self.assertIn('Reply to this message', text)
+        self.assertIn('Reply with item number', text)
 
     @patch('services.message_handler.fetch_expense_ids_for_message', return_value=[{'id': 'e1', 'line_item_index': 0}])
     async def test_process_text_returns_confirmation_payload(self, _fetch):

@@ -18,6 +18,7 @@ class TestFormatExpenseItems(unittest.TestCase):
     def test_formats_single_item(self):
         text = format_expense_items([{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}])
         self.assertIn('Detected expense(s):', text)
+        self.assertIn('1) Lunch:', text)
         self.assertIn('120.0', text)
 
 

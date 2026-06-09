@@ -100,7 +100,10 @@ def normalize_category_result(result: CategoryResult) -> CategoryResult:
 
 async def classify_expense(item: Dict[str, Any], gemini: GeminiClient) -> CategoryResult:
     """Ask Gemini for category JSON only; map invalid codes to unknown."""
-    description = str(item.get('description', 'Expense')).strip()
+    from services.receipt_parser import clean_receipt_description
+
+    raw_description = str(item.get('description', 'Expense')).strip()
+    description = clean_receipt_description(raw_description) if raw_description else 'Expense'
     amount = item.get('amount', '')
     currency = item.get('currency', '')
 

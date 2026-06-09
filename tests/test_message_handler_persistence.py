@@ -77,9 +77,10 @@ class TestEnrichedReplyFormat(unittest.TestCase):
             ]
         )
         self.assertIn('Category (guess): 食費 > 食料品', text)
-        self.assertIn('1) 食費 > 外食', text)
-        self.assertIn('2) 不明', text)
-        self.assertIn('Reply to this message', text)
+        self.assertIn('1) Supermarket:', text)
+        self.assertIn('  1) 食費 > 外食', text)
+        self.assertIn('  2) 不明', text)
+        self.assertIn('Reply with item number', text)
 
     def test_no_budget_impact_text(self):
         text = format_expense_items(
