@@ -8,10 +8,12 @@ os.environ.setdefault('GEMINI_API_KEY', 'test_key')
 from google.genai.errors import ClientError, ServerError
 
 from services.gemini_client import (
+    GEMINI_3_FLASH_MODEL,
     GEMINI_GENERAL_MODEL_FALLBACK_CHAIN,
     GEMINI_MAX_RETRIES,
     GEMINI_MODEL,
     GEMINI_RECEIPT_IMAGE_MODEL,
+    GEMINI_RECEIPT_IMAGE_MODEL_FALLBACK_CHAIN,
     GeminiClient,
     GeminiUsageLimitError,
 )
@@ -173,6 +175,11 @@ class TestGeminiClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(generate_mock.call_count, 1)
         sleep_mock.assert_not_awaited()
 
+    async def test_general_fallback_chain_includes_3_flash_before_25_flash(self):
+        flash_index = GEMINI_GENERAL_MODEL_FALLBACK_CHAIN.index(GEMINI_3_FLASH_MODEL)
+        flash_25_index = GEMINI_GENERAL_MODEL_FALLBACK_CHAIN.index('gemini-2.5-flash')
+        self.assertLess(flash_index, flash_25_index)
+
     async def test_generate_reply_falls_back_on_quota(self):
         fake_response = MagicMock()
         fake_response.text = 'Fallback response'
@@ -191,6 +198,7 @@ class TestGeminiClient(unittest.IsolatedAsyncioTestCase):
         second_model = generate_mock.call_args_list[1].kwargs['model']
         self.assertEqual(first_model, GEMINI_GENERAL_MODEL_FALLBACK_CHAIN[0])
         self.assertEqual(second_model, GEMINI_GENERAL_MODEL_FALLBACK_CHAIN[1])
+        self.assertEqual(second_model, GEMINI_3_FLASH_MODEL)
 
     async def test_generate_reply_raises_usage_limit_when_all_models_quota(self):
         client = GeminiClient(api_key='test_key')
@@ -206,13 +214,41 @@ class TestGeminiClient(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(generate_mock.call_count, quota_calls)
 
-    async def test_receipt_image_raises_usage_limit_on_quota_without_fallback(self):
+    async def test_receipt_image_falls_back_to_3_flash_on_pro_quota(self):
+        fake_response = MagicMock()
+        fake_response.text = '{"items":[],"total":0,"currency":"JPY"}'
         client = GeminiClient(api_key='test_key')
 
         with patch.object(
             client.client.models,
             'generate_content',
-            side_effect=_quota_error_429(),
+            side_effect=[_quota_error_429(), fake_response],
+        ) as generate_mock:
+            result = await client.generate_json_reply_with_image(
+                'Parse receipt',
+                b'fake-image',
+                'image/jpeg',
+            )
+
+        self.assertIn('items', result)
+        self.assertEqual(generate_mock.call_count, 2)
+        self.assertEqual(
+            generate_mock.call_args_list[0].kwargs['model'],
+            GEMINI_RECEIPT_IMAGE_MODEL_FALLBACK_CHAIN[0],
+        )
+        self.assertEqual(
+            generate_mock.call_args_list[1].kwargs['model'],
+            GEMINI_3_FLASH_MODEL,
+        )
+
+    async def test_receipt_image_raises_usage_limit_when_pro_and_3_flash_quota(self):
+        client = GeminiClient(api_key='test_key')
+        quota_calls = len(GEMINI_RECEIPT_IMAGE_MODEL_FALLBACK_CHAIN)
+
+        with patch.object(
+            client.client.models,
+            'generate_content',
+            side_effect=[_quota_error_429()] * quota_calls,
         ) as generate_mock:
             with self.assertRaises(GeminiUsageLimitError):
                 await client.generate_json_reply_with_image(
@@ -221,8 +257,7 @@ class TestGeminiClient(unittest.IsolatedAsyncioTestCase):
                     'image/jpeg',
                 )
 
-        self.assertEqual(generate_mock.call_count, 1)
-        self.assertEqual(generate_mock.call_args.kwargs['model'], GEMINI_RECEIPT_IMAGE_MODEL)
+        self.assertEqual(generate_mock.call_count, quota_calls)
 
 
 if __name__ == '__main__':

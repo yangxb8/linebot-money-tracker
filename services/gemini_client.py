@@ -12,12 +12,18 @@ from services.log_utils import describe_bytes, truncate
 logger = logging.getLogger(__name__)
 
 GEMINI_MODEL = 'gemini-3.5-flash'
+GEMINI_3_FLASH_MODEL = 'gemini-3-flash-preview'
 GEMINI_RECEIPT_IMAGE_MODEL = 'gemini-2.5-pro'
 GEMINI_GENERAL_MODEL_FALLBACK_CHAIN: Tuple[str, ...] = (
     'gemini-3.5-flash',
+    GEMINI_3_FLASH_MODEL,
     'gemini-2.5-flash',
     'gemini-3.1-flash-lite',
     'gemini-2.5-flash-lite',
+)
+GEMINI_RECEIPT_IMAGE_MODEL_FALLBACK_CHAIN: Tuple[str, ...] = (
+    GEMINI_RECEIPT_IMAGE_MODEL,
+    GEMINI_3_FLASH_MODEL,
 )
 GEMINI_MAX_RETRIES = 3
 SERVER_RETRYABLE_STATUS_CODES = frozenset({500, 502, 503, 504})
@@ -201,8 +207,8 @@ class GeminiClient:
 
         context = f' image={describe_bytes(image_bytes)} mime={mime_type}'
         logger.info(
-            'Gemini receipt image JSON request: model=%s image=%s mime=%s prompt_len=%d',
-            GEMINI_RECEIPT_IMAGE_MODEL,
+            'Gemini receipt image JSON request: models=%s image=%s mime=%s prompt_len=%d',
+            GEMINI_RECEIPT_IMAGE_MODEL_FALLBACK_CHAIN,
             describe_bytes(image_bytes),
             mime_type,
             len(prompt),
@@ -217,8 +223,8 @@ class GeminiClient:
             ],
             context=context,
             config=config,
-            models=(GEMINI_RECEIPT_IMAGE_MODEL,),
-            allow_quota_model_fallback=False,
+            models=GEMINI_RECEIPT_IMAGE_MODEL_FALLBACK_CHAIN,
+            allow_quota_model_fallback=True,
         )
 
     async def generate_reply_with_image(
