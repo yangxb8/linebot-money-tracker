@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 GEMINI_MODEL = 'gemini-3.5-flash'
 GEMINI_3_FLASH_MODEL = 'gemini-3-flash-preview'
-GEMINI_RECEIPT_IMAGE_MODEL = 'gemini-2.5-pro'
 GEMINI_GENERAL_MODEL_FALLBACK_CHAIN: Tuple[str, ...] = (
     'gemini-3.5-flash',
     GEMINI_3_FLASH_MODEL,
@@ -21,10 +20,8 @@ GEMINI_GENERAL_MODEL_FALLBACK_CHAIN: Tuple[str, ...] = (
     'gemini-3.1-flash-lite',
     'gemini-2.5-flash-lite',
 )
-GEMINI_RECEIPT_IMAGE_MODEL_FALLBACK_CHAIN: Tuple[str, ...] = (
-    GEMINI_RECEIPT_IMAGE_MODEL,
-    GEMINI_3_FLASH_MODEL,
-)
+# Receipt vision uses the same quota-fallback chain (starts at 3.5 flash).
+GEMINI_RECEIPT_IMAGE_MODEL_FALLBACK_CHAIN = GEMINI_GENERAL_MODEL_FALLBACK_CHAIN
 GEMINI_MAX_RETRIES = 3
 SERVER_RETRYABLE_STATUS_CODES = frozenset({500, 502, 503, 504})
 

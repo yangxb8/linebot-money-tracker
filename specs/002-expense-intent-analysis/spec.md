@@ -56,7 +56,7 @@
 - Q: Default Gemini model? → A: **gemini-3.5-flash**.
 - Q: Quota error on receipt image? → A: **No model fallback** — reply with usage-limit message (JA/EN/ZH); receipt stays on **2.5 Pro**.
 - Q: Quota error on other calls? → A: Fallback order: **3 flash → 2.5 flash → 3.1 flash lite → 2.5 flash lite** (after default 3.5 flash).
-- Q: Receipt without 2.5 Pro quota (free tier)? → A: Receipt chain **2.5 Pro → 3 flash** on quota; usage-limit message only when both exhausted.
+- Q: Receipt without 2.5 Pro quota (free tier)? → A: Receipt uses **same chain as general** starting **3.5 flash → 3 flash → 2.5 flash → …**; usage-limit when all exhausted.
 
 ## User Scenarios & Testing _(mandatory)_
 
