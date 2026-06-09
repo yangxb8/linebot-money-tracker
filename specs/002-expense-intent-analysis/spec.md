@@ -19,7 +19,14 @@
 - Q: Total-only receipts? → A: Log **one expense** for the final total with merchant name when product lines are unreadable.
 - Q: Discount / points used? → A: **Proportional reduction** by tax-inclusive line price toward final cash paid.
 
-### Session 2026-06-08 (iteration 2)
+### Session 2026-06-08 (iteration 3 — JP receipt format coverage)
+
+- Q: Mixed-tax per-item amounts (Daiso `外`, Shigezo `軽`)? → A: **Tax-inclusive cash-out** per line — shelf price plus proportional tax/discount allocation to match **合計** (same as 1B / [receipt-amount-semantics.md](./contracts/receipt-amount-semantics.md)).
+- Q: Quantity lines (Daiso `(@100 x 6個)`, IKEA `2 * 200`)? → A: **One expense per product at line total**; qty may appear in description text only.
+- Q: Incomplete parse (IKEA / restaurant / bad OCR)? → A: **Reject and ask retry** — no total-only fallback on validation failure (3A).
+- Q: Scope of line items? → A: **Log everything** on the receipt, including bags and low-value lines (≥ ¥1).
+- Q: Format coverage priority? → A: **Balanced** — format detectors for IKEA (`商品名`), Daiso (`(@…x…個)`, `外`/`※`), restaurant tabular (`@` / `※`), supermarket `NN*` prefixes; OCR samples as regression tests; supermarket/home-center remain primary.
+
 
 - Q: Multi-item `取消` alone? → A: **`soft_delete_all`** with YES confirmation (same as 全部取消).
 - Q: `全部取消` flow? → A: Two-step **YES** on the bot confirmation message (`是` / YES).
@@ -79,8 +86,8 @@ A user sends a non-expense request and the bot must not process it as an expense
 - A receipt image contains text but no clear expense amounts: reply with a request for clearer expense details.
 - A text message is ambiguous between expense and non-expense: the bot should clarify that only explicit expense logging is supported.
 - A receipt image contains multiple items: the response must list each item separately; each item is categorized independently when persisted (004).
-- A receipt shows mixed tax rates or a single 合計: per-item amounts are normalized so they sum to final cash paid within ¥2 tolerance.
-- Only 合計 is readable: one expense is logged for the total with the store name as description.
+- A receipt shows mixed tax rates or a single 合計: per-item amounts are normalized to **tax-inclusive cash-out** using line tax markers (`外`/`※`/`軽`/`NN*`) when present, else proportional allocation; amounts sum to **合計** within ¥2 tolerance.
+- Only 合計 is readable and line items fail validation: **do not log**; ask user to retry (no total-only fallback on failed validation).
 - Coupons, 値引, or points **redeemed** at payment reduce per-item amounts proportionally; points **earned** are ignored.
 - The input includes different currencies or amounts: preserve the original context in the returned expense text.
 - OCR finds items on a non-receipt image: accepted without image-intent call (trusted parse path).
@@ -100,7 +107,10 @@ A user sends a non-expense request and the bot must not process it as an expense
 - **FR-009**: The system MUST reply with a fixed canned message for unsupported or non-expense requests to avoid unnecessary AI usage.
 - **FR-010**: For receipt images, the system MUST run **OCR → deterministic parse → OCR text assist** before Gemini image intent or vision assist.
 - **FR-011**: Per-item receipt amounts MUST reflect **final cash-out** per [receipt-amount-semantics.md](./contracts/receipt-amount-semantics.md): tax and discounts/points used allocated proportionally; points earned ignored.
-- **FR-012**: When only a receipt total is readable, the system MUST log a **single expense** for that total using the merchant name when available.
+- **FR-012**: When only a receipt total is readable **and line-item validation passes**, a single expense MAY be logged for that total; when validation fails, the system MUST NOT persist and MUST ask the user to retry.
+- **FR-013**: The parser MUST support format-specific detectors (balanced coverage): home-center JAN splits, supermarket `NN*` lines, Daiso qty-detail lines, IKEA `商品名` blocks, restaurant tabular rows; see `services/receipt_formats.py` and `samples/*.ocr.txt`.
+- **FR-014**: Multi-qty receipt lines MUST log **line totals only** (one expense row per product), not per-unit splits.
+- **FR-015**: All product lines including bags and items under ¥10 MUST be logged when parsed (minimum ¥1).
 
 ### Key Entities _(include if feature involves data)_
 

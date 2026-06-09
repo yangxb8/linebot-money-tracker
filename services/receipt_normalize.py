@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import re
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Dict, List, Optional
@@ -192,6 +193,63 @@ def _target_cash_total(totals: ReceiptTotals) -> Optional[Decimal]:
     return None
 
 
+def _gross_up_by_tax_hint(items: List[Dict[str, Any]]) -> None:
+    from decimal import ROUND_HALF_UP
+
+    for item in items:
+        hint = item.get('tax_rate_hint')
+        if not hint:
+            continue
+        amount = Decimal(str(item.get('amount', 0)))
+        if hint == '8':
+            gross = amount * Decimal('1.08')
+        elif hint == '10':
+            gross = amount * Decimal('1.10')
+        else:
+            continue
+        item['amount'] = float(gross.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
+
+
+def _receipt_has_mixed_tax_rates(ocr_text: str) -> bool:
+    has_10 = bool(re.search(r'10\s*%', ocr_text))
+    has_8 = bool(re.search(r'8\s*%', ocr_text))
+    return has_10 and has_8 and ('税抜' in ocr_text or '税額' in ocr_text)
+
+
+def _apply_mixed_rate_tax(items: List[Dict[str, Any]], totals: ReceiptTotals, ocr_text: str) -> bool:
+    """Gross up ex-tax line prices when hints or subtotal match indicate tax-exclusive shelf prices."""
+    if not items:
+        return False
+
+    item_sum = sum(_item_amounts(items))
+    target = _target_cash_total(totals)
+    subtotal = totals.subtotal
+
+    if target and abs(item_sum - target) <= _SUM_TOLERANCE:
+        return False
+
+    has_hints = any(item.get('tax_rate_hint') for item in items)
+    if has_hints and subtotal and abs(item_sum - subtotal) <= _SUM_TOLERANCE:
+        if _receipt_has_mixed_tax_rates(ocr_text):
+            _gross_up_by_tax_hint(items)
+            return True
+        return False
+
+    if has_hints and subtotal is None and target and _receipt_has_mixed_tax_rates(ocr_text):
+        _gross_up_by_tax_hint(items)
+        return True
+
+    if '外税' in ocr_text and subtotal and abs(item_sum - subtotal) <= _SUM_TOLERANCE:
+        for item in items:
+            if not item.get('tax_rate_hint') and re.search(r'\d{2}\*', str(item.get('raw_line', ''))):
+                item['tax_rate_hint'] = '8'
+        if any(item.get('tax_rate_hint') for item in items) and _receipt_has_mixed_tax_rates(ocr_text):
+            _gross_up_by_tax_hint(items)
+            return True
+
+    return False
+
+
 def normalize_receipt_items(items: List[Dict[str, Any]], ocr_text: str) -> List[Dict[str, Any]]:
     """Adjust per-line amounts to tax-inclusive cash-out shares."""
     if not items or not looks_like_receipt_text(ocr_text):
@@ -205,7 +263,8 @@ def normalize_receipt_items(items: List[Dict[str, Any]], ocr_text: str) -> List[
             item['currency'] = 'JPY'
 
     tax_inclusive = _is_tax_inclusive_receipt(ocr_text, totals)
-    if not tax_inclusive:
+    mixed_grossed = _apply_mixed_rate_tax(working, totals, ocr_text)
+    if not tax_inclusive and not mixed_grossed:
         _allocate_tax(working, totals)
 
     target = _target_cash_total(totals)

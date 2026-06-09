@@ -16,8 +16,9 @@ _SUM_RATIO_TOLERANCE = Decimal('0.05')
 _PARTIAL_PARSE_RATIO = Decimal('0.85')
 _MAX_SCALE_RATIO = Decimal('2.5')
 
-_ITEM_COUNT_RE = re.compile(r'買上点数\s*(\d+)', re.I)
-_MIN_ITEM_AMOUNT_JPY = Decimal('10')
+_ITEM_COUNT_RE = re.compile(r'(?:買上点数|購入点数)\s*(\d+)', re.I)
+_SUBTOTAL_ITEM_COUNT_RE = re.compile(r'小計[^\\n]*?(\d+)\s*点', re.I)
+_MIN_ITEM_AMOUNT_JPY = Decimal('1')
 _MAX_ITEM_AMOUNT_JPY = Decimal('500000')
 _MAX_LINE_ITEMS = 30
 
@@ -64,12 +65,18 @@ def _is_garbage_item(item: Dict[str, Any]) -> bool:
 
 def _expected_item_count(ocr_text: str) -> Optional[int]:
     match = _ITEM_COUNT_RE.search(ocr_text)
-    if not match:
-        return None
-    try:
-        return int(match.group(1))
-    except ValueError:
-        return None
+    if match:
+        try:
+            return int(match.group(1))
+        except ValueError:
+            pass
+    subtotal_match = _SUBTOTAL_ITEM_COUNT_RE.search(ocr_text)
+    if subtotal_match:
+        try:
+            return int(subtotal_match.group(1))
+        except ValueError:
+            pass
+    return None
 
 
 def _is_complete_parse(items: List[Dict[str, Any]], ocr_text: str) -> bool:
