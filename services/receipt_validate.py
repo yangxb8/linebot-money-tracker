@@ -114,9 +114,7 @@ def _is_complete_parse(items: List[Dict[str, Any]], ocr_text: str) -> bool:
     return True
 
 
-def _item_amounts_sane(items: List[Dict[str, Any]], ocr_text: str) -> bool:
-    totals = extract_receipt_totals(ocr_text)
-    target = totals.cash_paid or totals.grand_total
+def _item_amounts_sane_for_target(items: List[Dict[str, Any]], target: Decimal) -> bool:
     if target is None or target <= 0:
         return True
 
@@ -143,9 +141,15 @@ def _item_amounts_sane(items: List[Dict[str, Any]], ocr_text: str) -> bool:
     return True
 
 
-def _sum_matches_total(items: List[Dict[str, Any]], ocr_text: str) -> bool:
+def _item_amounts_sane(items: List[Dict[str, Any]], ocr_text: str) -> bool:
     totals = extract_receipt_totals(ocr_text)
     target = totals.cash_paid or totals.grand_total
+    if target is None or target <= 0:
+        return True
+    return _item_amounts_sane_for_target(items, target)
+
+
+def _sum_matches_target(items: List[Dict[str, Any]], target: Decimal) -> bool:
     if target is None or target <= 0:
         return True
 
@@ -165,9 +169,19 @@ def _sum_matches_total(items: List[Dict[str, Any]], ocr_text: str) -> bool:
     return False
 
 
+def _sum_matches_total(items: List[Dict[str, Any]], ocr_text: str) -> bool:
+    totals = extract_receipt_totals(ocr_text)
+    target = totals.cash_paid or totals.grand_total
+    if target is None or target <= 0:
+        return True
+    return _sum_matches_target(items, target)
+
+
 def validate_receipt_items(
     items: List[Dict[str, Any]],
     ocr_text: str = '',
+    *,
+    receipt_total: Optional[Decimal] = None,
 ) -> Optional[List[Dict[str, Any]]]:
     """Return cleaned items when trustworthy, else None (do not persist)."""
     if not items:
@@ -188,6 +202,13 @@ def validate_receipt_items(
             len(items) - len(cleaned),
             len(cleaned),
         )
+
+    if receipt_total is not None:
+        if not _sum_matches_target(cleaned, receipt_total):
+            return None
+        if not _item_amounts_sane_for_target(cleaned, receipt_total):
+            return None
+        return cleaned
 
     if ocr_text and not _is_complete_parse(cleaned, ocr_text):
         return None

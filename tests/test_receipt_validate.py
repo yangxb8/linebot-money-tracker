@@ -1,4 +1,5 @@
 import unittest
+from decimal import Decimal
 
 from services.receipt_validate import validate_receipt_items
 
@@ -53,6 +54,21 @@ class TestReceiptValidate(unittest.TestCase):
 合計 ¥5,723'''
         items = [{'description': 'item', 'amount': 5723.0, 'currency': 'JPY'}]
         self.assertIsNone(validate_receipt_items(items, ocr))
+
+    def test_accepts_items_matching_llm_total(self):
+        items = [
+            {'description': 'ジャイアントコーンショ', 'amount': 171.0, 'currency': 'JPY'},
+            {'description': 'エッセルカップバニラ', 'amount': 150.0, 'currency': 'JPY'},
+        ]
+        result = validate_receipt_items(items, receipt_total=Decimal('321'))
+        self.assertEqual(len(result), 2)
+
+    def test_rejects_items_not_matching_llm_total(self):
+        items = [
+            {'description': 'お茶', 'amount': 100.0, 'currency': 'JPY'},
+            {'description': 'コーヒー', 'amount': 100.0, 'currency': 'JPY'},
+        ]
+        self.assertIsNone(validate_receipt_items(items, receipt_total=Decimal('321')))
 
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@ import logging
 from decimal import Decimal
 from typing import List, Dict, Any, Optional
 
-from services.ai_assist import assist_parse_ocr
+from services.ai_assist import assist_parse_image, assist_parse_ocr
 from services.categorize import classify_expense
 from services.category_taxonomy import format_category_path, resolve_code
 from services.confirmation_repository import (
@@ -16,7 +16,7 @@ from services.expense_repository import (
     insert_expenses,
 )
 from services.gemini_client import GeminiClient
-from services.intent import is_expense_intent_image, is_expense_intent_text
+from services.intent import is_expense_intent_text
 from services.log_utils import describe_bytes
 from services.message_context import (
     BotReply,
@@ -56,10 +56,22 @@ RECEIPT_PARSE_ERROR_REPLY = receipt_parse_error_reply('en')
 
 
 def _prepare_receipt_items(items: List[Dict[str, Any]], ocr_text: str) -> List[Dict[str, Any]]:
+    """OCR pipeline: normalize shelf prices then validate against OCR totals (unused in production)."""
     if not items:
         return []
     normalized = normalize_receipt_items(items, ocr_text)
     validated = validate_receipt_items(normalized, ocr_text)
+    return validated or []
+
+
+def _prepare_llm_receipt_items(
+    items: List[Dict[str, Any]],
+    receipt_total: Decimal,
+) -> List[Dict[str, Any]]:
+    """LLM vision pipeline: trust tax-inclusive line amounts; validate sum vs LLM total."""
+    if not items:
+        return []
+    validated = validate_receipt_items(items, receipt_total=receipt_total)
     return validated or []
 def format_expense_items(
     items: Optional[List[Dict[str, Any]]],
@@ -271,39 +283,62 @@ async def process_text_message(
 async def _extract_expense_items_from_ocr(
     image_bytes: bytes,
     gemini: GeminiClient,
-) -> tuple[List[Dict[str, Any]], int, int, str]:
-    """Run OCR and text-based extraction (parser + OCR assist). Returns (items, line_count, text_len, ocr_text)."""
+) -> List[Dict[str, Any]]:
+    """Legacy OCR pipeline (kept for future use — not called in production).
+
+    OCR → deterministic parser → assist_parse_ocr fallback.
+    Re-enable by wiring this into ``process_image_message`` instead of the LLM path.
+    """
     ocr_text = ''
-    ocr_line_count = 0
     try:
         ocr_lines = extract_text_from_image_bytes(image_bytes)
-        ocr_line_count = len(ocr_lines)
         ocr_text = '\n'.join(ocr_lines)
-        logger.info('Image pipeline: OCR returned %d line(s), text_len=%d', ocr_line_count, len(ocr_text))
+        logger.info('OCR pipeline: OCR returned %d line(s), text_len=%d', len(ocr_lines), len(ocr_text))
     except Exception:
-        logger.warning('Image pipeline: OCR raised unexpectedly; continuing to LLM fallbacks', exc_info=True)
+        logger.warning('OCR pipeline: OCR raised unexpectedly', exc_info=True)
 
     parsed = parse_text_for_expenses(ocr_text)
     prepared = _prepare_receipt_items(parsed, ocr_text)
     if prepared:
-        logger.info('Image pipeline: deterministic parser returned %d item(s)', len(prepared))
-        return prepared, ocr_line_count, len(ocr_text), ocr_text
+        logger.info('OCR pipeline: deterministic parser returned %d item(s)', len(prepared))
+        return prepared
 
     if ocr_text:
-        if parsed:
-            logger.info(
-                'Image pipeline: parser found %d item(s) but validation failed; trying assist_parse_ocr',
-                len(parsed),
-            )
-        else:
-            logger.info('Image pipeline: OCR text present but no parser matches; trying assist_parse_ocr')
         assist_prepared = _prepare_receipt_items(await assist_parse_ocr(ocr_text, gemini), ocr_text)
         if assist_prepared:
-            logger.info('Image pipeline: assist_parse_ocr returned %d item(s)', len(assist_prepared))
-            return assist_prepared, ocr_line_count, len(ocr_text), ocr_text
-        logger.warning('Image pipeline: assist_parse_ocr returned no valid items')
+            logger.info('OCR pipeline: assist_parse_ocr returned %d item(s)', len(assist_prepared))
+            return assist_prepared
 
-    return [], ocr_line_count, len(ocr_text), ocr_text
+    return []
+
+
+async def _extract_expense_items_from_image(
+    image_bytes: bytes,
+    gemini: GeminiClient,
+    mime_type: str,
+) -> List[Dict[str, Any]]:
+    """Production image pipeline: Gemini vision → validate items against LLM-reported total."""
+    parse_result = await assist_parse_image(image_bytes, gemini, mime_type)
+    if not parse_result:
+        logger.warning('Image pipeline: assist_parse_image returned no valid parse')
+        return []
+
+    prepared = _prepare_llm_receipt_items(parse_result.items, parse_result.total)
+    if prepared:
+        logger.info(
+            'Image pipeline: LLM returned %d item(s), total=%s %s',
+            len(prepared),
+            parse_result.total,
+            parse_result.currency,
+        )
+        return prepared
+
+    logger.warning(
+        'Image pipeline: LLM parse failed validation (items=%d total=%s)',
+        len(parse_result.items),
+        parse_result.total,
+    )
+    return []
 
 
 async def process_image_message(
@@ -321,24 +356,12 @@ async def process_image_message(
     )
     language = context.reply_language if context else 'ja'
     try:
-        items, ocr_line_count, ocr_text_len, ocr_text = await _extract_expense_items_from_ocr(
-            image_bytes,
-            gemini,
-        )
-        if not items and not ocr_text.strip():
-            logger.info('Image pipeline: OCR empty; checking receipt intent before giving up')
-            if not await is_expense_intent_image(image_bytes, gemini, resolved_mime):
-                logger.info('Image pipeline: rejected as non-expense intent')
-                return _text_reply(canned_unsupported_reply(language))
-
+        items = await _extract_expense_items_from_image(image_bytes, gemini, resolved_mime)
         if not items:
             logger.warning(
-                'Image pipeline: no expense items extracted after all stages '
-                '(image=%s mime=%s ocr_lines=%d ocr_text_len=%d)',
+                'Image pipeline: no expense items extracted (image=%s mime=%s)',
                 describe_bytes(image_bytes),
                 resolved_mime,
-                ocr_line_count,
-                ocr_text_len,
             )
             return _text_reply(receipt_parse_error_reply(language))
 

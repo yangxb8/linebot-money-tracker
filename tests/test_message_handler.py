@@ -1,7 +1,9 @@
 import os
 import unittest
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from services.ai_assist import ReceiptImageParseResult
 from services.categorize import CategoryResult
 from services.gemini_client import GeminiClient
 from services.message_context import MessageContext
@@ -41,6 +43,9 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             AsyncMock(return_value=CategoryResult(guessed='unknown', alternatives=())),
         )
 
+    def _valid_llm_parse(self, items, total):
+        return ReceiptImageParseResult(items=items, total=Decimal(str(total)), currency='JPY')
+
     async def test_process_text_expense_with_parser(self):
         gemini = MagicMock(spec=GeminiClient)
         with self._patch_categorize(), patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
@@ -74,68 +79,45 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
 
     async def test_process_image_receipt(self):
         gemini = MagicMock(spec=GeminiClient)
+        llm_result = self._valid_llm_parse(
+            [{'description': 'Coffee', 'amount': 450.0, 'currency': 'JPY'}],
+            450.0,
+        )
         with self._patch_categorize(), patch(
-            'services.message_handler.extract_text_from_image_bytes', return_value=['Coffee 450 JPY']
-        ), patch(
-            'services.message_handler.parse_text_for_expenses',
-            return_value=[{'description': 'Coffee', 'amount': 450.0, 'currency': 'JPY'}],
-        ), patch('services.message_handler.insert_expenses'), patch(
-            'services.message_handler.is_expense_intent_image', AsyncMock()
-        ) as intent_mock:
+            'services.message_handler.assist_parse_image',
+            AsyncMock(return_value=llm_result),
+        ), patch('services.message_handler.insert_expenses'):
             reply = await process_image_message(b'fake-image', gemini, context=self._english_context())
-        intent_mock.assert_not_awaited()
         self.assertIn('Detected expense(s):', reply.text)
 
-    async def test_process_image_non_receipt(self):
+    async def test_process_image_non_receipt_returns_parse_error(self):
         gemini = MagicMock(spec=GeminiClient)
-        with patch('services.message_handler.is_expense_intent_image', AsyncMock(return_value=False)), patch(
-            'services.message_handler.extract_text_from_image_bytes', return_value=[]
-        ):
+        with patch('services.message_handler.assist_parse_image', AsyncMock(return_value=None)):
             reply = await process_image_message(b'cat-photo', gemini, context=self._english_context())
-        self.assertEqual(reply.text, canned_unsupported_reply('en'))
-
-    async def test_process_image_ocr_ai_assist_fallback(self):
-        gemini = MagicMock(spec=GeminiClient)
-        with self._patch_categorize(), patch(
-            'services.message_handler.extract_text_from_image_bytes', return_value=['receipt noise']
-        ), patch('services.message_handler.parse_text_for_expenses', return_value=[]), patch(
-            'services.message_handler.assist_parse_ocr',
-            AsyncMock(return_value=[{'description': 'Item', 'amount': 10.0, 'currency': 'USD'}]),
-        ), patch('services.message_handler.insert_expenses'), patch(
-            'services.message_handler.is_expense_intent_image', AsyncMock()
-        ) as intent_mock:
-            reply = await process_image_message(b'receipt', gemini, context=self._english_context())
-        intent_mock.assert_not_awaited()
-        self.assertIn('Detected expense(s):', reply.text)
-
-    async def test_process_image_returns_parse_error_when_ocr_empty_and_not_receipt(self):
-        gemini = MagicMock(spec=GeminiClient)
-        with patch('services.message_handler.extract_text_from_image_bytes', return_value=[]), patch(
-            'services.message_handler.is_expense_intent_image', AsyncMock(return_value=False)
-        ):
-            reply = await process_image_message(b'cat-photo', gemini, context=self._english_context())
-        self.assertEqual(reply.text, canned_unsupported_reply('en'))
-
-    async def test_process_image_parse_error_when_ocr_and_assist_fail(self):
-        gemini = MagicMock(spec=GeminiClient)
-        with patch('services.message_handler.extract_text_from_image_bytes', return_value=['noise']), patch(
-            'services.message_handler.assist_parse_ocr', AsyncMock(return_value=[])
-        ), patch('services.message_handler.is_expense_intent_image', AsyncMock()) as intent_mock:
-            reply = await process_image_message(b'receipt', gemini, context=self._english_context())
-        intent_mock.assert_not_awaited()
         self.assertEqual(reply.text, receipt_parse_error_reply('en'))
 
-    async def test_process_image_parse_failure_returns_clear_message(self):
+    async def test_process_image_parse_error_when_validation_fails(self):
         gemini = MagicMock(spec=GeminiClient)
-        with patch('services.message_handler.extract_text_from_image_bytes', return_value=[]), patch(
-            'services.message_handler.is_expense_intent_image', AsyncMock(return_value=True)
-        ):
+        llm_result = self._valid_llm_parse(
+            [{'description': 'Item', 'amount': 10.0, 'currency': 'JPY'}],
+            999.0,
+        )
+        with patch('services.message_handler.assist_parse_image', AsyncMock(return_value=llm_result)):
+            reply = await process_image_message(b'receipt', gemini, context=self._english_context())
+        self.assertEqual(reply.text, receipt_parse_error_reply('en'))
+
+    async def test_process_image_parse_error_when_llm_returns_none(self):
+        gemini = MagicMock(spec=GeminiClient)
+        with patch('services.message_handler.assist_parse_image', AsyncMock(return_value=None)):
             reply = await process_image_message(b'receipt', gemini, context=self._english_context())
         self.assertEqual(reply.text, receipt_parse_error_reply('en'))
 
     async def test_process_image_error(self):
         gemini = MagicMock(spec=GeminiClient)
-        with patch('services.message_handler.is_expense_intent_image', AsyncMock(side_effect=RuntimeError('fail'))):
+        with patch(
+            'services.message_handler.assist_parse_image',
+            AsyncMock(side_effect=RuntimeError('fail')),
+        ):
             reply = await process_image_message(b'bad', gemini, context=self._english_context())
         self.assertEqual(reply.text, error_reply_text('en'))
 
