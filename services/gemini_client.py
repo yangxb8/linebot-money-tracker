@@ -12,6 +12,7 @@ from services.log_utils import describe_bytes, truncate
 logger = logging.getLogger(__name__)
 
 GEMINI_MODEL = 'gemini-2.5-flash'
+GEMINI_RECEIPT_IMAGE_MODEL = 'gemini-2.5-pro'
 GEMINI_MAX_RETRIES = 3
 RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 
@@ -41,14 +42,16 @@ class GeminiClient:
         contents: Any,
         context: str = '',
         config: Optional[types.GenerateContentConfig] = None,
+        model: Optional[str] = None,
     ) -> str:
+        resolved_model = model or GEMINI_MODEL
         max_attempts = GEMINI_MAX_RETRIES + 1
         last_exc: Optional[Exception] = None
 
         for attempt in range(1, max_attempts + 1):
             try:
                 kwargs: Dict[str, Any] = {
-                    'model': GEMINI_MODEL,
+                    'model': resolved_model,
                     'contents': contents,
                 }
                 if config is not None:
@@ -96,7 +99,7 @@ class GeminiClient:
                     attempt,
                     max_attempts,
                     context,
-                    GEMINI_MODEL,
+                    resolved_model,
                 )
                 raise RuntimeError("Unable to generate response from Gemini API") from exc
 
@@ -146,23 +149,24 @@ class GeminiClient:
 
         context = f' image={describe_bytes(image_bytes)} mime={mime_type}'
         logger.info(
-            'Gemini multimodal JSON request: model=%s image=%s mime=%s prompt_len=%d max_retries=%d',
-            GEMINI_MODEL,
+            'Gemini receipt image JSON request: model=%s image=%s mime=%s prompt_len=%d max_retries=%d',
+            GEMINI_RECEIPT_IMAGE_MODEL,
             describe_bytes(image_bytes),
             mime_type,
             len(prompt),
             GEMINI_MAX_RETRIES,
         )
-        logger.debug('Gemini multimodal JSON prompt: %s', truncate(prompt, 1000))
+        logger.debug('Gemini receipt image JSON prompt: %s', truncate(prompt, 1000))
         config = types.GenerateContentConfig(response_mime_type='application/json')
         return await self._generate_content_with_retry(
-            label='multimodal-json',
+            label='receipt-image-json',
             contents=[
                 types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
                 prompt.strip(),
             ],
             context=context,
             config=config,
+            model=GEMINI_RECEIPT_IMAGE_MODEL,
         )
 
     async def generate_reply_with_image(
