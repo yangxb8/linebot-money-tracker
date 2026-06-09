@@ -21,6 +21,7 @@ _SUBTOTAL_ITEM_COUNT_RE = re.compile(r'小計[^\\n]*?(\d+)\s*点', re.I)
 _MIN_ITEM_AMOUNT_JPY = Decimal('1')
 _MAX_ITEM_AMOUNT_JPY = Decimal('500000')
 _MAX_LINE_ITEMS = 30
+_MAX_ITEM_TO_TOTAL_RATIO = Decimal('10')
 
 _MASKED_TEXT_RE = re.compile(r'\*{2,}|X{4,}', re.I)
 _PAYMENT_SLIP_RE = re.compile(
@@ -113,6 +114,35 @@ def _is_complete_parse(items: List[Dict[str, Any]], ocr_text: str) -> bool:
     return True
 
 
+def _item_amounts_sane(items: List[Dict[str, Any]], ocr_text: str) -> bool:
+    totals = extract_receipt_totals(ocr_text)
+    target = totals.cash_paid or totals.grand_total
+    if target is None or target <= 0:
+        return True
+
+    for item in items:
+        try:
+            amount = Decimal(str(item.get('amount', 0)))
+        except Exception:
+            return False
+        if amount > target * _MAX_ITEM_TO_TOTAL_RATIO:
+            logger.warning(
+                'Receipt validate: item amount %s exceeds %sx receipt total %s',
+                amount,
+                _MAX_ITEM_TO_TOTAL_RATIO,
+                target,
+            )
+            return False
+        if target < Decimal('5000') and amount > Decimal('10000'):
+            logger.warning(
+                'Receipt validate: item amount %s too large for small receipt total %s',
+                amount,
+                target,
+            )
+            return False
+    return True
+
+
 def _sum_matches_total(items: List[Dict[str, Any]], ocr_text: str) -> bool:
     totals = extract_receipt_totals(ocr_text)
     target = totals.cash_paid or totals.grand_total
@@ -163,6 +193,9 @@ def validate_receipt_items(
         return None
 
     if ocr_text and not _sum_matches_total(cleaned, ocr_text):
+        return None
+
+    if ocr_text and not _item_amounts_sane(cleaned, ocr_text):
         return None
 
     return cleaned

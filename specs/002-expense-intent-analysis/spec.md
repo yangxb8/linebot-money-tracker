@@ -19,6 +19,14 @@
 - Q: Total-only receipts? → A: Log **one expense** for the final total with merchant name when product lines are unreadable.
 - Q: Discount / points used? → A: **Proportional reduction** by tax-inclusive line price toward final cash paid.
 
+### Session 2026-06-09 (amount pipeline + confirmation UX)
+
+- Q: Parser partial fail — try LLM assist? → A: **1B** — try `assist_parse_ocr` once when parser finds items but validation fails; still reject if validation fails after assist.
+- Q: Per-item display amount? → A: **2A** — tax-inclusive cash-out per line (sums to 合計).
+- Q: Item numbering in reply? → A: **3A** — emoji for items (`1️⃣`…); plain `1) 2) 3)` for category alts under each item.
+- Q: Localized confirmation? → A: **4A** — full message (header, labels, instructions, errors) in JA / EN / ZH.
+- Q: Reply language source? → A: **5A** — LINE Get Profile `language` saved in DB; only change on explicit user request (e.g. “英語で返信”); default Japanese.
+
 ### Session 2026-06-08 (iteration 3 — JP receipt format coverage)
 
 - Q: Mixed-tax per-item amounts (Daiso `外`, Shigezo `軽`)? → A: **Tax-inclusive cash-out** per line — shelf price plus proportional tax/discount allocation to match **合計** (same as 1B / [receipt-amount-semantics.md](./contracts/receipt-amount-semantics.md)).

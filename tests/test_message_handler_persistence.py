@@ -17,7 +17,11 @@ def _unknown_category():
 class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
     async def test_persists_when_context_provided(self):
         gemini = MagicMock(spec=GeminiClient)
-        context = MessageContext(tenant=TenantContext.personal('u1'), source_message_id='msg-1')
+        context = MessageContext(
+            tenant=TenantContext.personal('u1'),
+            source_message_id='msg-1',
+            reply_language='en',
+        )
         with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
@@ -44,11 +48,15 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
         ), patch('services.message_handler.insert_expenses') as insert_mock:
             reply = await process_text_message('Lunch 120 THB', gemini)
         insert_mock.assert_not_called()
-        self.assertIn('Detected expense(s):', reply.text)
+        self.assertIn('検出した支出:', reply.text)
 
     async def test_storage_error_still_returns_reply(self):
         gemini = MagicMock(spec=GeminiClient)
-        context = MessageContext(tenant=TenantContext.personal('u1'), source_message_id='msg-1')
+        context = MessageContext(
+            tenant=TenantContext.personal('u1'),
+            source_message_id='msg-1',
+            reply_language='en',
+        )
         with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
@@ -76,11 +84,11 @@ class TestEnrichedReplyFormat(unittest.TestCase):
                 }
             ]
         )
-        self.assertIn('Category (guess): 食費 > 食料品', text)
-        self.assertIn('1) Supermarket:', text)
+        self.assertIn('カテゴリ（推測）: 食費 > 食料品', text)
+        self.assertIn('1️⃣ Supermarket:', text)
         self.assertIn('  1) 食費 > 外食', text)
         self.assertIn('  2) 不明', text)
-        self.assertIn('Reply with item number', text)
+        self.assertIn('このメッセージに返信', text)
 
     def test_no_budget_impact_text(self):
         text = format_expense_items(

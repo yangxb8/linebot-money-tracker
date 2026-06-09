@@ -32,13 +32,17 @@ from services.line_event import (
 )
 from services.tenant_context import resolve_tenant_from_event
 from services.message_context import BotReply, MessageContext, ReplyContext
+from services.line_profile import fetch_line_profile_language
 from services.message_handler import (
     CANNED_UNSUPPORTED_REPLY,
     ERROR_REPLY_TEXT,
+    canned_unsupported_reply,
+    error_reply_text,
     process_image_message,
     process_reply_edit,
     process_text_message,
 )
+from services.user_language import maybe_update_from_line_profile, resolve_reply_language
 
 _log_level_name = os.getenv('LOG_LEVEL', 'INFO').upper()
 _log_level = getattr(logging, _log_level_name, logging.INFO)
@@ -144,6 +148,13 @@ def _extract_sent_message_id(response) -> Optional[str]:
     return None
 
 
+async def _resolve_reply_language(line_user_id: Optional[str], user_text: Optional[str] = None) -> str:
+    if line_user_id:
+        profile_language = await fetch_line_profile_language(line_bot_api, line_user_id)
+        maybe_update_from_line_profile(line_user_id, profile_language)
+    return resolve_reply_language(line_user_id, user_text)
+
+
 async def _reply_and_save_confirmation(
     reply_token: str,
     reply_text: str,
@@ -193,11 +204,14 @@ async def handle_callback(request: Request):
 
         tenant = resolve_tenant_from_event(event, line_user_id) if line_user_id else None
 
+        reply_language = await _resolve_reply_language(line_user_id, user_text)
+
         message_context = None
         if tenant and source_message_id:
             message_context = MessageContext(
                 tenant=tenant,
                 source_message_id=source_message_id,
+                reply_language=reply_language,
             )
 
         if user_text:
@@ -206,6 +220,7 @@ async def handle_callback(request: Request):
                     tenant=tenant,
                     user_reply_message_id=source_message_id,
                     quoted_bot_message_id=quoted_message_id,
+                    reply_language=reply_language,
                 )
                 edit_result = await process_reply_edit(user_text, reply_context, gemini_client)
                 response = await line_bot_api.reply_message(
@@ -247,10 +262,11 @@ async def handle_callback(request: Request):
             continue
 
         logger.info('Unsupported or empty message event received')
+        unsupported_language = await _resolve_reply_language(line_user_id)
         await line_bot_api.reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=CANNED_UNSUPPORTED_REPLY)]
+                messages=[TextMessage(text=canned_unsupported_reply(unsupported_language))]
             )
         )
 
