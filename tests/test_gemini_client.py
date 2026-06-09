@@ -7,7 +7,12 @@ os.environ.setdefault('GEMINI_API_KEY', 'test_key')
 
 from google.genai.errors import ServerError
 
-from services.gemini_client import GEMINI_MAX_RETRIES, GeminiClient
+from services.gemini_client import (
+    GEMINI_MAX_RETRIES,
+    GEMINI_MODEL,
+    GEMINI_RECEIPT_IMAGE_MODEL,
+    GeminiClient,
+)
 
 
 def _server_error_503() -> ServerError:
@@ -74,6 +79,26 @@ class TestGeminiClient(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(RuntimeError):
                 await client.generate_reply('Hello world')
 
+    async def test_generate_json_reply_with_image_uses_receipt_pro_model(self):
+        fake_response = MagicMock()
+        fake_response.text = '{"items":[],"total":0,"currency":"JPY"}'
+
+        client = GeminiClient(api_key='test_key')
+        with patch.object(
+            client.client.models,
+            'generate_content',
+            return_value=fake_response,
+        ) as generate_content:
+            result = await client.generate_json_reply_with_image(
+                'Parse receipt',
+                b'fake-image',
+                'image/jpeg',
+            )
+            self.assertIn('items', result)
+            _, kwargs = generate_content.call_args
+            self.assertEqual(kwargs['model'], GEMINI_RECEIPT_IMAGE_MODEL)
+            self.assertNotEqual(kwargs['model'], GEMINI_MODEL)
+
     async def test_generate_reply_with_image_returns_text(self):
         fake_response = MagicMock()
         fake_response.text = '{"is_expense": true}'
@@ -82,14 +107,16 @@ class TestGeminiClient(unittest.IsolatedAsyncioTestCase):
         with patch.object(
             client.client.models,
             'generate_content',
-            return_value=fake_response
-        ):
+            return_value=fake_response,
+        ) as generate_content:
             result = await client.generate_reply_with_image(
                 'Classify this image',
                 b'fake-image',
                 'image/jpeg',
             )
             self.assertEqual(result, '{"is_expense": true}')
+            _, kwargs = generate_content.call_args
+            self.assertEqual(kwargs['model'], GEMINI_MODEL)
 
     async def test_generate_reply_retries_on_503_then_succeeds(self):
         fake_response = MagicMock()

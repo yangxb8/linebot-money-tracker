@@ -49,6 +49,7 @@
 - Q: Failure fallback? → A: **3A** — reject with parse-error; no OCR fallback (OCR code retained in repo).
 - Q: Non-receipt images when LLM empty? → A: **4B** — always parse-error; no separate image-intent check.
 - Q: OCR toggle? → A: **5B** — hard-wired LLM-only in production; re-enable OCR by editing code (`_extract_expense_items_from_ocr`).
+- Q: Receipt image model? → A: **Gemini 2.5 Pro** for `assist_parse_image` only; all other Gemini calls stay on **2.5 Flash** to minimize Pro usage.
 
 ## User Scenarios & Testing _(mandatory)_
 
