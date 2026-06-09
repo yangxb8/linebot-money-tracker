@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 _RECEIPT_ITEM_PROMPT = (
     'Parse this receipt into a JSON array of product/service line items only. '
     'Each item: description (string), amount (number), currency (3-letter code). '
-    'Exclude subtotal, tax, total, payment, and change lines. '
-    'Per-item amount = final cash-out share: shelf price plus proportional tax, '
-    'minus proportional coupons/points USED at payment. Ignore points EARNED (付与). '
-    'Item amounts must sum to roughly the final cash paid total (合計/支払). '
-    'Return ONLY the JSON array.'
+    'Exclude subtotal, tax, total, payment, change, and card-slip lines. '
+    'Per-item amount = SHELF / TAG price on the receipt line (before tax allocation). '
+    'Do NOT include tax, discounts, or card-authorization numbers as amounts. '
+    'Typical Japanese snack items are tens to hundreds of yen, not thousands. '
+    'Ignore points EARNED (付与). Return ONLY the JSON array.'
 )
 
 EXPENSE_ITEMS_SCHEMA: Dict[str, Any] = {

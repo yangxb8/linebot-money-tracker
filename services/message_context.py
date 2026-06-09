@@ -11,6 +11,7 @@ class MessageContext:
 
     tenant: TenantContext
     source_message_id: str
+    reply_language: str = 'ja'
 
     @property
     def line_user_id(self) -> str:
@@ -24,6 +25,7 @@ class ReplyContext:
     tenant: TenantContext
     user_reply_message_id: str
     quoted_bot_message_id: str
+    reply_language: str = 'ja'
 
     @property
     def line_user_id(self) -> str:

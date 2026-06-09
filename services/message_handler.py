@@ -30,23 +30,29 @@ from services.ocr import extract_text_from_image_bytes, _guess_mime_type
 from services.receipt_parser import parse_text_for_expenses
 from services.receipt_normalize import normalize_receipt_items
 from services.receipt_validate import validate_receipt_items
+from services.confirmation_i18n import format_expense_confirmation, t
 from services.reply_edit import apply_edit_intent, parse_edit_intent
-from services.reply_summary import detect_reply_language, format_duplicate_reply, format_unknown_confirmation
+from services.reply_summary import format_duplicate_reply, format_unknown_confirmation
+from services.user_language import maybe_update_from_user_message
 
 logger = logging.getLogger(__name__)
 
-CANNED_UNSUPPORTED_REPLY = (
-    "Sorry—I only accept expense submissions right now. Please send a receipt image "
-    "or a text message like: 'Lunch 120 THB at Cafe'"
-)
-ERROR_REPLY_TEXT = (
-    "Sorry, I couldn't generate a response right now. "
-    "Please try again in a moment."
-)
-RECEIPT_PARSE_ERROR_REPLY = (
-    "I couldn't read this receipt clearly enough to log expenses. "
-    "Please try a clearer photo, or send the total as text (e.g. まいばすけっと 321円)."
-)
+def receipt_parse_error_reply(language: str = 'ja') -> str:
+    return t(language, 'parse_error')
+
+
+def canned_unsupported_reply(language: str = 'ja') -> str:
+    return t(language, 'unsupported')
+
+
+def error_reply_text(language: str = 'ja') -> str:
+    return t(language, 'error')
+
+
+# Backward-compatible defaults (English) for imports in tests and main.py
+CANNED_UNSUPPORTED_REPLY = canned_unsupported_reply('en')
+ERROR_REPLY_TEXT = error_reply_text('en')
+RECEIPT_PARSE_ERROR_REPLY = receipt_parse_error_reply('en')
 
 
 def _prepare_receipt_items(items: List[Dict[str, Any]], ocr_text: str) -> List[Dict[str, Any]]:
@@ -55,44 +61,19 @@ def _prepare_receipt_items(items: List[Dict[str, Any]], ocr_text: str) -> List[D
     normalized = normalize_receipt_items(items, ocr_text)
     validated = validate_receipt_items(normalized, ocr_text)
     return validated or []
-CATEGORY_CONFIRMATION_FOOTER = (
-    "Reply with item number + edit (e.g. \"2 3800円\" or \"2 取消\"), "
-    "category 1–3 under each item, or delete/restore."
-)
-
-
 def format_expense_items(
     items: Optional[List[Dict[str, Any]]],
     *,
+    language: str = 'ja',
     logged_by_line_user_id: Optional[str] = None,
     is_shared_tenant: bool = False,
 ) -> Optional[str]:
-    if not items:
-        return None
-
-    lines = []
-    if is_shared_tenant and logged_by_line_user_id:
-        lines.append(f'Logged by: {logged_by_line_user_id}')
-    for index, it in enumerate(items, start=1):
-        description = str(it.get('description', 'Expense')).strip()
-        amount = it.get('amount', '')
-        currency = it.get('currency', '')
-        amount_text = str(amount)
-        currency_text = f" {currency}" if currency else ''
-        lines.append(f"{index}) {description}: {amount_text}{currency_text}")
-
-        guess_path = it.get('category_guess_path')
-        if guess_path:
-            lines.append(f"  Category (guess): {guess_path}")
-
-        alt_paths = it.get('category_alternative_paths') or []
-        if alt_paths:
-            lines.append("  Please confirm or pick another:")
-            for index, alt_path in enumerate(alt_paths[:3], start=1):
-                lines.append(f"  {index}) {alt_path}")
-            lines.append(f"  {CATEGORY_CONFIRMATION_FOOTER}")
-
-    return "Detected expense(s):\n" + "\n".join(lines)
+    return format_expense_confirmation(
+        items or [],
+        language=language,
+        logged_by_line_user_id=logged_by_line_user_id,
+        is_shared_tenant=is_shared_tenant,
+    )
 
 
 def _build_confirmation_payload(
@@ -179,6 +160,7 @@ async def _enrich_and_persist_items(
             )
             reply_text_preview = format_expense_items(
                 enriched,
+                language=context.reply_language,
                 logged_by_line_user_id=context.tenant.logged_by_line_user_id,
                 is_shared_tenant=context.tenant.is_shared,
             )
@@ -201,7 +183,10 @@ async def process_reply_edit(
     reply_context: ReplyContext,
     gemini: GeminiClient,
 ) -> ReplyEditResult:
-    language = detect_reply_language(text)
+    language = reply_context.reply_language
+    explicit = maybe_update_from_user_message(reply_context.line_user_id, text)
+    if explicit:
+        language = explicit
 
     if not try_mark_reply_processed(reply_context.tenant, reply_context.user_reply_message_id):
         return ReplyEditResult(text=format_duplicate_reply(language))
@@ -253,6 +238,7 @@ async def process_text_message(
     gemini: GeminiClient,
     context: Optional[MessageContext] = None,
 ) -> BotReply:
+    language = context.reply_language if context else 'ja'
     logger.info('Processing text message len=%d', len(text or ''))
     try:
         if await is_expense_intent_text(text, gemini):
@@ -263,6 +249,7 @@ async def process_text_message(
                 items, confirmation_payload = await _enrich_and_persist_items(items, gemini, context)
                 reply_text = format_expense_items(
                     items,
+                    language=language,
                     logged_by_line_user_id=context.tenant.logged_by_line_user_id if context else None,
                     is_shared_tenant=context.tenant.is_shared if context else False,
                 )
@@ -272,13 +259,13 @@ async def process_text_message(
                 logger.info('Text pipeline: Gemini reply generated (len=%d)', len(reply_text or ''))
             if not reply_text:
                 logger.warning('Text pipeline: empty reply after processing')
-                return _text_reply(ERROR_REPLY_TEXT)
+                return _text_reply(error_reply_text(language))
             return _text_reply(reply_text, confirmation_payload)
         logger.info('Text pipeline: message rejected as non-expense intent')
-        return _text_reply(CANNED_UNSUPPORTED_REPLY)
+        return _text_reply(canned_unsupported_reply(language))
     except Exception:
         logger.exception('Text message processing failed')
-        return _text_reply(ERROR_REPLY_TEXT)
+        return _text_reply(error_reply_text(language))
 
 
 async def _extract_expense_items_from_ocr(
@@ -296,17 +283,24 @@ async def _extract_expense_items_from_ocr(
     except Exception:
         logger.warning('Image pipeline: OCR raised unexpectedly; continuing to LLM fallbacks', exc_info=True)
 
-    items = _prepare_receipt_items(parse_text_for_expenses(ocr_text), ocr_text)
-    if items:
-        logger.info('Image pipeline: deterministic parser returned %d item(s)', len(items))
-        return items, ocr_line_count, len(ocr_text), ocr_text
+    parsed = parse_text_for_expenses(ocr_text)
+    prepared = _prepare_receipt_items(parsed, ocr_text)
+    if prepared:
+        logger.info('Image pipeline: deterministic parser returned %d item(s)', len(prepared))
+        return prepared, ocr_line_count, len(ocr_text), ocr_text
 
     if ocr_text:
-        logger.info('Image pipeline: OCR text present but no parser matches; trying assist_parse_ocr')
-        items = _prepare_receipt_items(await assist_parse_ocr(ocr_text, gemini), ocr_text)
-        if items:
-            logger.info('Image pipeline: assist_parse_ocr returned %d item(s)', len(items))
-            return items, ocr_line_count, len(ocr_text), ocr_text
+        if parsed:
+            logger.info(
+                'Image pipeline: parser found %d item(s) but validation failed; trying assist_parse_ocr',
+                len(parsed),
+            )
+        else:
+            logger.info('Image pipeline: OCR text present but no parser matches; trying assist_parse_ocr')
+        assist_prepared = _prepare_receipt_items(await assist_parse_ocr(ocr_text, gemini), ocr_text)
+        if assist_prepared:
+            logger.info('Image pipeline: assist_parse_ocr returned %d item(s)', len(assist_prepared))
+            return assist_prepared, ocr_line_count, len(ocr_text), ocr_text
         logger.warning('Image pipeline: assist_parse_ocr returned no valid items')
 
     return [], ocr_line_count, len(ocr_text), ocr_text
@@ -325,6 +319,7 @@ async def process_image_message(
         resolved_mime,
         mime_type or 'auto-detected',
     )
+    language = context.reply_language if context else 'ja'
     try:
         items, ocr_line_count, ocr_text_len, ocr_text = await _extract_expense_items_from_ocr(
             image_bytes,
@@ -334,7 +329,7 @@ async def process_image_message(
             logger.info('Image pipeline: OCR empty; checking receipt intent before giving up')
             if not await is_expense_intent_image(image_bytes, gemini, resolved_mime):
                 logger.info('Image pipeline: rejected as non-expense intent')
-                return _text_reply(CANNED_UNSUPPORTED_REPLY)
+                return _text_reply(canned_unsupported_reply(language))
 
         if not items:
             logger.warning(
@@ -345,17 +340,18 @@ async def process_image_message(
                 ocr_line_count,
                 ocr_text_len,
             )
-            return _text_reply(RECEIPT_PARSE_ERROR_REPLY)
+            return _text_reply(receipt_parse_error_reply(language))
 
         items, confirmation_payload = await _enrich_and_persist_items(items, gemini, context)
         reply_text = format_expense_items(
             items,
+            language=language,
             logged_by_line_user_id=context.tenant.logged_by_line_user_id if context else None,
             is_shared_tenant=context.tenant.is_shared if context else False,
         )
         if not reply_text:
             logger.warning('Image pipeline: format_expense_items returned empty for %d item(s)', len(items))
-            return _text_reply(ERROR_REPLY_TEXT)
+            return _text_reply(error_reply_text(language))
 
         logger.info('Image pipeline: success with %d item(s)', len(items))
         return _text_reply(reply_text, confirmation_payload)
@@ -365,5 +361,5 @@ async def process_image_message(
             describe_bytes(image_bytes),
             resolved_mime,
         )
-        return _text_reply(ERROR_REPLY_TEXT)
+        return _text_reply(error_reply_text(language))
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import re
-import re
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any, Dict, List, Optional
@@ -14,6 +13,14 @@ from services.receipt_parser import _JAPANESE_CHAR_REGEX, _normalize_amount, _no
 logger = logging.getLogger(__name__)
 
 _SUM_TOLERANCE = Decimal('2')
+_MAX_SCALE_RATIO = Decimal('2')
+_MAX_PLAUSIBLE_TOTAL_JPY = Decimal('500000')
+
+_PAYMENT_SLIP_LINE_RE = re.compile(
+    r'(カード会社|クレジット|売上票|伝票番号|承認番号|会員番号|お客様控え|dカード|'
+    r'金額\s*\\|i\s*EONS|\*{4,}|X{4,})',
+    re.I,
+)
 
 _GRAND_TOTAL_RE = re.compile(r'合計\s*[¥￥]?\s*(?P<amount>[\d,]+)', re.I)
 _SUBTOTAL_RE = re.compile(r'小計\s*[¥￥]?\s*(?P<amount>[\d,]+)', re.I)
@@ -57,6 +64,27 @@ def looks_like_receipt_text(text: str) -> bool:
     return len(lines) >= 3 and bool(_JAPANESE_CHAR_REGEX.search(normalized))
 
 
+def _is_untrusted_payment_line(line: str) -> bool:
+    return bool(_PAYMENT_SLIP_LINE_RE.search(_normalize_text(line)))
+
+
+def _plausible_receipt_total(
+    amount: Decimal,
+    subtotal: Optional[Decimal],
+    ocr_text: str = '',
+) -> bool:
+    if amount <= 0 or amount > _MAX_PLAUSIBLE_TOTAL_JPY:
+        return False
+    if subtotal is not None and subtotal > 0:
+        if amount > subtotal * _MAX_SCALE_RATIO + _SUM_TOLERANCE:
+            return False
+        if amount < subtotal - _SUM_TOLERANCE:
+            if '値引' in ocr_text or '割引' in ocr_text:
+                return True
+            return False
+    return True
+
+
 def _amount_from_match(pattern: re.Pattern, line: str) -> Optional[Decimal]:
     match = pattern.search(_normalize_text(line))
     if not match:
@@ -74,6 +102,7 @@ def extract_receipt_totals(ocr_text: str) -> ReceiptTotals:
     grand_total: Optional[Decimal] = None
     cash_paid: Optional[Decimal] = None
     discounts = Decimal('0')
+    normalized_ocr = _normalize_text(ocr_text)
 
     for raw_line in ocr_text.splitlines():
         line = raw_line.strip()
@@ -94,11 +123,18 @@ def extract_receipt_totals(ocr_text: str) -> ReceiptTotals:
             tax_seen = True
 
         total_value = _amount_from_match(_GRAND_TOTAL_RE, line)
-        if total_value is not None:
-            grand_total = total_value
+        if total_value is not None and not _is_untrusted_payment_line(line):
+            if _plausible_receipt_total(total_value, subtotal, normalized_ocr):
+                grand_total = total_value
 
         payment_value = _amount_from_match(_PAYMENT_RE, line)
-        if payment_value is not None and '釣' not in line and 'お釣' not in line:
+        if (
+            payment_value is not None
+            and '釣' not in line
+            and 'お釣' not in line
+            and not _is_untrusted_payment_line(line)
+            and _plausible_receipt_total(payment_value, subtotal, normalized_ocr)
+        ):
             cash_paid = payment_value
 
         discount_value = _amount_from_match(_DISCOUNT_RE, line)
@@ -185,12 +221,22 @@ def _allocate_tax(items: List[Dict[str, Any]], totals: ReceiptTotals) -> None:
     _apply_amounts(items, [amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) for amount in tax_inclusive])
 
 
-def _target_cash_total(totals: ReceiptTotals) -> Optional[Decimal]:
-    if totals.cash_paid is not None and totals.cash_paid > 0:
-        return totals.cash_paid
-    if totals.grand_total is not None and totals.grand_total > 0:
+def _target_cash_total(totals: ReceiptTotals, ocr_text: str = '') -> Optional[Decimal]:
+    candidates = [value for value in (totals.grand_total, totals.cash_paid) if value and value > 0]
+    if not candidates:
+        return None
+    if totals.subtotal and totals.subtotal > 0:
+        plausible = [
+            value
+            for value in candidates
+            if _plausible_receipt_total(value, totals.subtotal, ocr_text)
+        ]
+        if plausible:
+            return min(plausible)
+        return None
+    if totals.grand_total and totals.grand_total > 0:
         return totals.grand_total
-    return None
+    return totals.cash_paid
 
 
 def _gross_up_by_tax_hint(items: List[Dict[str, Any]]) -> None:
@@ -222,7 +268,7 @@ def _apply_mixed_rate_tax(items: List[Dict[str, Any]], totals: ReceiptTotals, oc
         return False
 
     item_sum = sum(_item_amounts(items))
-    target = _target_cash_total(totals)
+    target = _target_cash_total(totals, ocr_text)
     subtotal = totals.subtotal
 
     if target and abs(item_sum - target) <= _SUM_TOLERANCE:
@@ -267,16 +313,25 @@ def normalize_receipt_items(items: List[Dict[str, Any]], ocr_text: str) -> List[
     if not tax_inclusive and not mixed_grossed:
         _allocate_tax(working, totals)
 
-    target = _target_cash_total(totals)
+    target = _target_cash_total(totals, ocr_text)
     if target is not None and not tax_inclusive:
         current_sum = sum(_item_amounts(working))
         base_subtotal = totals.subtotal if totals.subtotal and totals.subtotal > 0 else current_sum
         # Do not scale a partial item list up to the receipt total.
-        if current_sum >= base_subtotal * Decimal('0.85'):
-            if current_sum > target + _SUM_TOLERANCE:
-                _distribute_proportionally(working, target_total=target)
-            elif current_sum > 0 and abs(current_sum - target) > _SUM_TOLERANCE:
-                _distribute_proportionally(working, target_total=target)
+        if current_sum >= base_subtotal * Decimal('0.85') and current_sum > 0:
+            ratio = target / current_sum
+            if ratio <= _MAX_SCALE_RATIO and ratio >= (Decimal('1') / _MAX_SCALE_RATIO):
+                if current_sum > target + _SUM_TOLERANCE:
+                    _distribute_proportionally(working, target_total=target)
+                elif abs(current_sum - target) > _SUM_TOLERANCE:
+                    _distribute_proportionally(working, target_total=target)
+            else:
+                logger.warning(
+                    'Receipt normalize: skip scaling ratio=%s (target=%s current_sum=%s)',
+                    ratio,
+                    target,
+                    current_sum,
+                )
 
     final_sum = sum(_item_amounts(working))
     if target is not None and abs(final_sum - target) > _SUM_TOLERANCE:
@@ -303,7 +358,7 @@ def try_total_only_fallback(ocr_text: str) -> List[Dict[str, Any]]:
         return []
 
     totals = extract_receipt_totals(ocr_text)
-    target = _target_cash_total(totals)
+    target = _target_cash_total(totals, ocr_text)
     if target is None or target <= 0:
         return []
 

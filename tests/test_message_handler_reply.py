@@ -16,6 +16,7 @@ class TestMessageHandlerReply(unittest.IsolatedAsyncioTestCase):
             tenant=TenantContext.personal('u1'),
             user_reply_message_id='r1',
             quoted_bot_message_id='missing',
+            reply_language='en',
         )
         with patch('services.message_handler.try_mark_reply_processed', return_value=True), patch(
             'services.message_handler.get_confirmation_by_bot_message_id', return_value=None
@@ -26,6 +27,7 @@ class TestMessageHandlerReply(unittest.IsolatedAsyncioTestCase):
     def test_group_confirmation_includes_logged_by(self):
         text = format_expense_items(
             [{'description': 'Coffee', 'amount': 450, 'currency': 'JPY'}],
+            language='en',
             logged_by_line_user_id='user-a',
             is_shared_tenant=True,
         )
@@ -49,9 +51,10 @@ class TestMessageHandlerReply(unittest.IsolatedAsyncioTestCase):
                     'category_guess_path': 'Food',
                     'category_alternative_paths': ['Alt1'],
                 }
-            ]
+            ],
+            language='ja',
         )
-        self.assertIn('Reply with item number', text)
+        self.assertIn('このメッセージに返信', text)
 
     @patch('services.message_handler.fetch_expense_ids_for_message', return_value=[{'id': 'e1', 'line_item_index': 0}])
     async def test_process_text_returns_confirmation_payload(self, _fetch):
