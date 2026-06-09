@@ -12,7 +12,7 @@
 
 ### Session 2026-06-08
 
-- Q: Image pipeline order — OCR first or Gemini intent first? → A: **OCR and deterministic parse first**; Gemini image intent only when OCR stages find no items. When OCR yields parseable items, **skip** the image intent call (trusted parse).
+- Q: Image pipeline order — OCR first or Gemini intent first? → A: *(superseded 2026-06-10)* **Gemini vision first** — `assist_parse_image` → validate against LLM `total`. OCR/parser path kept in code but not used.
 - Q: Multi-item receipts — logging and categories? → A: **Each line item logged independently** with its **own category** (see 004).
 - Q: Per-item amount definition? → A: **Final cash-out share** per item: shelf price + **proportionally allocated tax**, then **proportionally allocated discounts/points used**; ignore points earned. See [receipt-amount-semantics.md](./contracts/receipt-amount-semantics.md).
 - Q: Tax allocation? → A: **Proportional by line price**; item amounts must sum roughly to **合計** including tax (LLM assist validates).
@@ -41,6 +41,14 @@
 - Q: OCR cloud backend? → A: **Google Cloud Vision** `DOCUMENT_TEXT_DETECTION` with **`GOOGLE_VISION_API_KEY`** (replaces Document AI).
 - Q: Low-confidence parse? → A: **Do not log**; ask user to retry photo or send text (no total-only fallback on failed validation).
 - Q: Vision item extraction? → A: **Removed** — only OCR text → parse → OCR JSON assist; no direct image→items LLM path.
+
+### Session 2026-06-10 (LLM-direct receipt parsing)
+
+- Q: Post-LLM validation? → A: **1A** — LLM returns tax-inclusive line items **and** receipt `total`; validate item sum ≈ total (±¥2); reject if validation fails.
+- Q: Per-item amount for LLM? → A: **2A** — tax-inclusive cash-out per line; prompt asks for line totals directly (no post-hoc tax allocation).
+- Q: Failure fallback? → A: **3A** — reject with parse-error; no OCR fallback (OCR code retained in repo).
+- Q: Non-receipt images when LLM empty? → A: **4B** — always parse-error; no separate image-intent check.
+- Q: OCR toggle? → A: **5B** — hard-wired LLM-only in production; re-enable OCR by editing code (`_extract_expense_items_from_ocr`).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -71,7 +79,7 @@ A user sends a photo of a receipt or expense document and the bot extracts expen
 
 1. **Given** the user uploads a receipt photo containing one expense, **when** the bot processes the image, **then** it returns the detected expense detail in text.
 2. **Given** the user uploads a receipt photo containing multiple expense lines, **when** the bot processes the image, **then** it returns each detected expense item separately in the response with amounts reflecting final cash-out (tax and discounts allocated per [receipt-amount-semantics.md](./contracts/receipt-amount-semantics.md)).
-3. **Given** OCR extracts parseable line items from a receipt image, **when** the bot processes the image, **then** it proceeds without a separate Gemini image-intent call.
+3. **Given** Gemini vision returns valid line items and a receipt total, **when** the bot processes the image, **then** it validates item sums against the total and logs each line separately.
 
 ---
 

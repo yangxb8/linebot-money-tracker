@@ -1,4 +1,6 @@
-from typing import List, Dict, Any
+from dataclasses import dataclass
+from decimal import Decimal
+from typing import List, Dict, Any, Optional
 import json
 import logging
 import re
@@ -10,6 +12,7 @@ from services.log_utils import describe_bytes, truncate
 
 logger = logging.getLogger(__name__)
 
+# Legacy OCR-text assist prompt (kept for future OCR pipeline).
 _RECEIPT_ITEM_PROMPT = (
     'Parse this receipt into a JSON array of product/service line items only. '
     'Each item: description (string), amount (number), currency (3-letter code). '
@@ -18,6 +21,23 @@ _RECEIPT_ITEM_PROMPT = (
     'Do NOT include tax, discounts, or card-authorization numbers as amounts. '
     'Typical Japanese snack items are tens to hundreds of yen, not thousands. '
     'Ignore points EARNED (付与). Return ONLY the JSON array.'
+)
+
+_RECEIPT_IMAGE_PROMPT = (
+    'Parse this receipt image into a JSON object with three fields:\n'
+    '- "items": array of product/service line items only. Each item has '
+    'description (string), amount (number), currency (3-letter code).\n'
+    '- "total": the receipt final cash total (合計 / amount paid), as a number.\n'
+    '- "currency": 3-letter code for the receipt total.\n\n'
+    'Rules:\n'
+    '- Per-item amount = tax-inclusive cash-out for that line (line total including tax). '
+    'Item amounts should sum to "total" within rounding.\n'
+    '- Exclude subtotal, tax breakdown, payment, change, and card-slip lines from items.\n'
+    '- Include quantity line totals as one item per product (e.g. 6×¥100 → amount 600).\n'
+    '- Log all product lines including bags and low-value items (≥ ¥1).\n'
+    '- Ignore points EARNED (付与); include points USED as part of total reduction only.\n'
+    '- Typical Japanese snack items are tens to hundreds of yen, not thousands.\n'
+    'Return ONLY the JSON object.'
 )
 
 EXPENSE_ITEMS_SCHEMA: Dict[str, Any] = {
@@ -34,17 +54,40 @@ EXPENSE_ITEMS_SCHEMA: Dict[str, Any] = {
     },
 }
 
-_validator = Draft7Validator(EXPENSE_ITEMS_SCHEMA)
+RECEIPT_IMAGE_PARSE_SCHEMA: Dict[str, Any] = {
+    'type': 'object',
+    'required': ['items', 'total', 'currency'],
+    'properties': {
+        'items': EXPENSE_ITEMS_SCHEMA,
+        'total': {'type': 'number'},
+        'currency': {'type': 'string', 'minLength': 1},
+    },
+    'additionalProperties': True,
+}
+
+_items_validator = Draft7Validator(EXPENSE_ITEMS_SCHEMA)
+_image_parse_validator = Draft7Validator(RECEIPT_IMAGE_PARSE_SCHEMA)
 
 _JSON_FENCE_RE = re.compile(r'^```(?:json)?\s*(.*?)\s*```$', re.DOTALL | re.IGNORECASE)
 
 
-def _parse_json_array(response: str, *, source: str) -> Any:
+@dataclass(frozen=True)
+class ReceiptImageParseResult:
+    items: List[Dict[str, Any]]
+    total: Decimal
+    currency: str
+
+
+def _strip_json_fence(response: str) -> str:
     text = response.strip()
     fence_match = _JSON_FENCE_RE.match(text)
     if fence_match:
-        logger.debug('%s: stripping markdown code fence from response', source)
-        text = fence_match.group(1).strip()
+        return fence_match.group(1).strip()
+    return text
+
+
+def _parse_json(response: str, *, source: str) -> Any:
+    text = _strip_json_fence(response)
     return json.loads(text)
 
 
@@ -55,7 +98,7 @@ def validate_expense_items(items: Any, *, source: str = 'unknown') -> List[Dict[
         return []
 
     try:
-        _validator.validate(items)
+        _items_validator.validate(items)
     except ValidationError as exc:
         logger.warning(
             '%s: schema validation failed at %s: %s',
@@ -78,6 +121,56 @@ def validate_expense_items(items: Any, *, source: str = 'unknown') -> List[Dict[
     return items
 
 
+def validate_receipt_image_parse(
+    parsed: Any,
+    *,
+    source: str = 'unknown',
+) -> Optional[ReceiptImageParseResult]:
+    """Validate vision LLM receipt parse (items + total wrapper)."""
+    if not isinstance(parsed, dict):
+        logger.warning('%s: expected JSON object, got %s', source, type(parsed).__name__)
+        return None
+
+    try:
+        _image_parse_validator.validate(parsed)
+    except ValidationError as exc:
+        logger.warning(
+            '%s: schema validation failed at %s: %s',
+            source,
+            '/'.join(str(p) for p in exc.path) or 'root',
+            exc.message,
+        )
+        return None
+
+    items = validate_expense_items(parsed.get('items'), source=source)
+    if not items:
+        return None
+
+    try:
+        total = Decimal(str(parsed['total'])).quantize(Decimal('0.01'))
+    except Exception:
+        logger.warning('%s: invalid total value %r', source, parsed.get('total'))
+        return None
+
+    if total <= 0:
+        logger.warning('%s: total must be positive, got %s', source, total)
+        return None
+
+    currency = str(parsed.get('currency', '')).strip().upper()
+    if not currency:
+        logger.warning('%s: missing currency on receipt parse', source)
+        return None
+
+    logger.info(
+        '%s: validated %d item(s) total=%s %s',
+        source,
+        len(items),
+        total,
+        currency,
+    )
+    return ReceiptImageParseResult(items=items, total=total, currency=currency)
+
+
 async def assist_parse_ocr(ocr_text: str, gemini: GeminiClient) -> List[Dict[str, Any]]:
     """Call the Gemini client with a minimal prompt to return structured JSON for OCR text."""
     source = 'assist_parse_ocr'
@@ -92,8 +185,11 @@ async def assist_parse_ocr(ocr_text: str, gemini: GeminiClient) -> List[Dict[str
 
     response = await gemini.generate_json_reply(prompt)
     try:
-        parsed = _parse_json_array(response, source=source)
-        return validate_expense_items(parsed, source=source)
+        parsed = _parse_json(response, source=source)
+        if isinstance(parsed, list):
+            return validate_expense_items(parsed, source=source)
+        logger.warning('%s: expected JSON array from OCR assist', source)
+        return []
     except json.JSONDecodeError:
         logger.warning(
             '%s: LLM response was not valid JSON: %s',
@@ -107,8 +203,8 @@ async def assist_parse_image(
     image_bytes: bytes,
     gemini: GeminiClient,
     mime_type: str = 'image/jpeg',
-) -> List[Dict[str, Any]]:
-    """Use Gemini vision to extract expense items directly from a receipt image."""
+) -> Optional[ReceiptImageParseResult]:
+    """Use Gemini vision to extract expense items and receipt total from an image."""
     source = 'assist_parse_image'
     if not image_bytes or not gemini:
         logger.info(
@@ -117,20 +213,18 @@ async def assist_parse_image(
             describe_bytes(image_bytes),
             bool(gemini),
         )
-        return []
+        return None
 
     logger.info('%s: parsing image=%s mime=%s', source, describe_bytes(image_bytes), mime_type)
 
-    prompt = _RECEIPT_ITEM_PROMPT
-
-    response = await gemini.generate_json_reply_with_image(prompt, image_bytes, mime_type)
+    response = await gemini.generate_json_reply_with_image(_RECEIPT_IMAGE_PROMPT, image_bytes, mime_type)
     try:
-        parsed = _parse_json_array(response, source=source)
-        return validate_expense_items(parsed, source=source)
+        parsed = _parse_json(response, source=source)
+        return validate_receipt_image_parse(parsed, source=source)
     except json.JSONDecodeError:
         logger.warning(
             '%s: LLM response was not valid JSON: %s',
             source,
             truncate(response, 500),
         )
-        return []
+        return None
