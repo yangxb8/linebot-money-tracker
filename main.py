@@ -32,7 +32,7 @@ from services.line_event import (
 )
 from services.tenant_context import resolve_tenant_from_event
 from services.message_context import BotReply, MessageContext, ReplyContext
-from services.line_profile import fetch_line_profile_language
+from services.line_profile import fetch_line_display_name, fetch_line_profile_language
 from services.message_handler import (
     CANNED_UNSUPPORTED_REPLY,
     ERROR_REPLY_TEXT,
@@ -206,12 +206,17 @@ async def handle_callback(request: Request):
 
         reply_language = await _resolve_reply_language(line_user_id, user_text)
 
+        logged_by_display_name = None
+        if tenant and tenant.is_shared and line_user_id:
+            logged_by_display_name = await fetch_line_display_name(line_bot_api, tenant, line_user_id)
+
         message_context = None
         if tenant and source_message_id:
             message_context = MessageContext(
                 tenant=tenant,
                 source_message_id=source_message_id,
                 reply_language=reply_language,
+                logged_by_display_name=logged_by_display_name,
             )
 
         if user_text:

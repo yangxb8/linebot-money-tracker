@@ -41,4 +41,15 @@ class TestConfirmationI18n(unittest.TestCase):
             language='en',
         )
         self.assertIn('Detected expense(s):', text)
+        self.assertIn('Total: 120 JPY', text or '')
         self.assertIn('1️⃣ Lunch:', text)
+
+    def test_total_sums_multiple_items(self):
+        text = format_expense_confirmation(
+            [
+                {'description': 'Coffee', 'amount': 450, 'currency': 'JPY'},
+                {'description': 'Tea', 'amount': 300, 'currency': 'JPY'},
+            ],
+            language='ja',
+        )
+        self.assertIn('合計: 750 JPY', text)
