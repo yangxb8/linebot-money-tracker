@@ -24,7 +24,17 @@ class TestMessageHandlerReply(unittest.IsolatedAsyncioTestCase):
             result = await process_reply_edit('2', ctx, gemini)
         self.assertIn('confirmation', result.text.lower())
 
-    def test_group_confirmation_includes_logged_by(self):
+    def test_group_confirmation_includes_logged_by_name(self):
+        text = format_expense_items(
+            [{'description': 'Coffee', 'amount': 450, 'currency': 'JPY'}],
+            language='en',
+            logged_by_line_user_id='user-a',
+            logged_by_display_name='Alice',
+            is_shared_tenant=True,
+        )
+        self.assertIn('Logged by: Alice', text)
+
+    def test_group_confirmation_falls_back_to_user_id_without_display_name(self):
         text = format_expense_items(
             [{'description': 'Coffee', 'amount': 450, 'currency': 'JPY'}],
             language='en',

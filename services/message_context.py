@@ -12,6 +12,7 @@ class MessageContext:
     tenant: TenantContext
     source_message_id: str
     reply_language: str = 'ja'
+    logged_by_display_name: Optional[str] = None
 
     @property
     def line_user_id(self) -> str:

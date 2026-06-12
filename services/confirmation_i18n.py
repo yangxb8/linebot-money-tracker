@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Dict, List, Optional
 
 ITEM_EMOJI = (
@@ -20,7 +21,8 @@ ITEM_EMOJI = (
 _STRINGS: Dict[str, Dict[str, str]] = {
     'ja': {
         'header': '検出した支出:',
-        'logged_by': '記録者: {user_id}',
+        'total': '合計: {amount}{currency}',
+        'logged_by': '記録者: {name}',
         'category_guess': 'カテゴリ（推測）: {path}',
         'pick_another': '確認するか、別のカテゴリを選んでください:',
         'instructions': (
@@ -44,7 +46,8 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     },
     'en': {
         'header': 'Detected expense(s):',
-        'logged_by': 'Logged by: {user_id}',
+        'total': 'Total: {amount}{currency}',
+        'logged_by': 'Logged by: {name}',
         'category_guess': 'Category (guess): {path}',
         'pick_another': 'Please confirm or pick another:',
         'instructions': (
@@ -68,7 +71,8 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     },
     'zh': {
         'header': '检测到的支出:',
-        'logged_by': '记录者: {user_id}',
+        'total': '合计: {amount}{currency}',
+        'logged_by': '记录者: {name}',
         'category_guess': '类别（推测）: {path}',
         'pick_another': '请确认或选择其他类别:',
         'instructions': (
@@ -122,11 +126,29 @@ def t(language: str, key: str, **kwargs: str) -> str:
     return text
 
 
+def _items_total(items: List[dict]) -> tuple[str, str]:
+    total = Decimal('0')
+    currency = ''
+    for item in items:
+        total += Decimal(str(item.get('amount', 0)))
+        if not currency:
+            raw_currency = item.get('currency')
+            if raw_currency:
+                currency = str(raw_currency).strip()
+    quantized = total.quantize(Decimal('0.01'))
+    if quantized == quantized.to_integral_value():
+        amount_text = str(int(quantized))
+    else:
+        amount_text = format(quantized, 'f').rstrip('0').rstrip('.')
+    return amount_text, currency
+
+
 def format_expense_confirmation(
     items: List[dict],
     *,
     language: str = 'ja',
     logged_by_line_user_id: Optional[str] = None,
+    logged_by_display_name: Optional[str] = None,
     is_shared_tenant: bool = False,
 ) -> Optional[str]:
     if not items:
@@ -135,8 +157,13 @@ def format_expense_confirmation(
     lang = normalize_reply_language(language)
     lines: List[str] = [t(lang, 'header')]
 
+    total_amount, currency = _items_total(items)
+    currency_text = f' {currency}' if currency else ''
+    lines.append(t(lang, 'total', amount=total_amount, currency=currency_text))
+
     if is_shared_tenant and logged_by_line_user_id:
-        lines.append(t(lang, 'logged_by', user_id=logged_by_line_user_id))
+        name = (logged_by_display_name or '').strip() or logged_by_line_user_id
+        lines.append(t(lang, 'logged_by', name=name))
 
     has_category_block = any((item.get('category_alternative_paths') or []) for item in items)
     if has_category_block:

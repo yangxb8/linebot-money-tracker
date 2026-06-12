@@ -83,14 +83,30 @@ def format_expense_items(
     *,
     language: str = 'ja',
     logged_by_line_user_id: Optional[str] = None,
+    logged_by_display_name: Optional[str] = None,
     is_shared_tenant: bool = False,
 ) -> Optional[str]:
     return format_expense_confirmation(
         items or [],
         language=language,
         logged_by_line_user_id=logged_by_line_user_id,
+        logged_by_display_name=logged_by_display_name,
         is_shared_tenant=is_shared_tenant,
     )
+
+
+def _confirmation_format_kwargs(context: Optional[MessageContext]) -> Dict[str, Any]:
+    if context is None:
+        return {
+            'logged_by_line_user_id': None,
+            'logged_by_display_name': None,
+            'is_shared_tenant': False,
+        }
+    return {
+        'logged_by_line_user_id': context.tenant.logged_by_line_user_id,
+        'logged_by_display_name': context.logged_by_display_name,
+        'is_shared_tenant': context.tenant.is_shared,
+    }
 
 
 def _build_confirmation_payload(
@@ -178,8 +194,7 @@ async def _enrich_and_persist_items(
             reply_text_preview = format_expense_items(
                 enriched,
                 language=context.reply_language,
-                logged_by_line_user_id=context.tenant.logged_by_line_user_id,
-                is_shared_tenant=context.tenant.is_shared,
+                **_confirmation_format_kwargs(context),
             )
             if reply_text_preview:
                 confirmation_payload = _build_confirmation_payload(
@@ -267,8 +282,7 @@ async def process_text_message(
                 reply_text = format_expense_items(
                     items,
                     language=language,
-                    logged_by_line_user_id=context.tenant.logged_by_line_user_id if context else None,
-                    is_shared_tenant=context.tenant.is_shared if context else False,
+                    **_confirmation_format_kwargs(context),
                 )
             else:
                 logger.info('Text pipeline: no parsed items; calling Gemini for free-form reply')
@@ -380,8 +394,7 @@ async def process_image_message(
         reply_text = format_expense_items(
             items,
             language=language,
-            logged_by_line_user_id=context.tenant.logged_by_line_user_id if context else None,
-            is_shared_tenant=context.tenant.is_shared if context else False,
+            **_confirmation_format_kwargs(context),
         )
         if not reply_text:
             logger.warning('Image pipeline: format_expense_items returned empty for %d item(s)', len(items))
@@ -396,4 +409,4 @@ async def process_image_message(
             resolved_mime,
         )
         return _text_reply(error_reply_text(language))
-
+
