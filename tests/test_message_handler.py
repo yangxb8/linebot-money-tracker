@@ -65,12 +65,25 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
 
     async def test_process_text_gemini_fallback(self):
         gemini = MagicMock(spec=GeminiClient)
-        gemini.generate_reply = AsyncMock(return_value='Gemini parsed reply')
+        with self._patch_categorize(), patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
+            'services.message_handler.parse_text_for_expenses', return_value=[]
+        ), patch(
+            'services.message_handler.assist_parse_text',
+            AsyncMock(return_value=[{'description': 'Cafe lunch', 'amount': 1200.0, 'currency': 'JPY'}]),
+        ) as assist_mock, patch('services.message_handler.insert_expenses'):
+            reply = await process_text_message('Lunch at cafe', gemini, self._english_context())
+        assist_mock.assert_awaited_once()
+        gemini.generate_reply.assert_not_called()
+        self.assertIn('Detected expense(s):', reply.text)
+
+    async def test_process_text_expense_intent_unparseable_returns_parse_error(self):
+        gemini = MagicMock(spec=GeminiClient)
         with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
             'services.message_handler.parse_text_for_expenses', return_value=[]
-        ):
-            reply = await process_text_message('Lunch at cafe', gemini)
-        self.assertEqual(reply.text, 'Gemini parsed reply')
+        ), patch('services.message_handler.assist_parse_text', AsyncMock(return_value=[])):
+            reply = await process_text_message('maybe an expense?', gemini, self._english_context())
+        self.assertEqual(reply.text, receipt_parse_error_reply('en'))
+        gemini.generate_reply.assert_not_called()
 
     async def test_process_text_error(self):
         gemini = MagicMock(spec=GeminiClient)

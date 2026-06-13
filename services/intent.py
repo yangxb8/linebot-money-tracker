@@ -9,7 +9,10 @@ logger = logging.getLogger(__name__)
 
 TEXT_INTENT_PROMPT = """You judge whether a LINE chat message is the user trying to log an expense.
 Accept: expense descriptions with amounts, receipt summaries, payment notes like "paid X for Y", spending logs.
-Reject: greetings, chitchat, unrelated questions, jokes, requests for other features.
+Accept terse Japanese/Chinese shorthand where a number is the amount spent and following text is the place or category (e.g. "861便利店" = 861 yen at a convenience store, "1200ランチ" = lunch 1200 yen).
+Reject: greetings, chitchat, jokes, requests for other features.
+Reject: general knowledge or informational questions about brands, companies, stores, or places — even if the message contains numbers (e.g. asking what "861便利店" is as a company).
+When unsure, prefer false — this bot only logs expenses, it does not answer questions.
 Reply ONLY with JSON: {{"is_expense": true}} or {{"is_expense": false}}
 
 Message:

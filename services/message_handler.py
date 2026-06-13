@@ -2,7 +2,7 @@ import logging
 from decimal import Decimal
 from typing import List, Dict, Any, Optional
 
-from services.ai_assist import assist_parse_image, assist_parse_ocr
+from services.ai_assist import assist_parse_image, assist_parse_ocr, assist_parse_text
 from services.categorize import classify_expense
 from services.category_taxonomy import format_category_path, resolve_code
 from services.confirmation_repository import (
@@ -276,22 +276,25 @@ async def process_text_message(
         if await is_expense_intent_text(text, gemini):
             items = parse_text_for_expenses(text)
             confirmation_payload = None
+            if not items:
+                logger.info('Text pipeline: deterministic parser returned no items; trying assist_parse_text')
+                items = await assist_parse_text(text, gemini)
+
             if items:
-                logger.info('Text pipeline: deterministic parser returned %d item(s)', len(items))
+                logger.info('Text pipeline: parsed %d item(s)', len(items))
                 items, confirmation_payload = await _enrich_and_persist_items(items, gemini, context)
                 reply_text = format_expense_items(
                     items,
                     language=language,
                     **_confirmation_format_kwargs(context),
                 )
-            else:
-                logger.info('Text pipeline: no parsed items; calling Gemini for free-form reply')
-                reply_text = await gemini.generate_reply(text)
-                logger.info('Text pipeline: Gemini reply generated (len=%d)', len(reply_text or ''))
-            if not reply_text:
-                logger.warning('Text pipeline: empty reply after processing')
-                return _text_reply(error_reply_text(language))
-            return _text_reply(reply_text, confirmation_payload)
+                if not reply_text:
+                    logger.warning('Text pipeline: empty confirmation after processing')
+                    return _text_reply(error_reply_text(language))
+                return _text_reply(reply_text, confirmation_payload)
+
+            logger.warning('Text pipeline: expense intent but no parseable items')
+            return _text_reply(receipt_parse_error_reply(language))
         logger.info('Text pipeline: message rejected as non-expense intent')
         return _text_reply(canned_unsupported_reply(language))
     except Exception:
