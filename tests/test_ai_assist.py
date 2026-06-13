@@ -6,6 +6,7 @@ from services.ai_assist import (
     ReceiptImageParseResult,
     assist_parse_image,
     assist_parse_ocr,
+    assist_parse_text,
     validate_expense_items,
     validate_receipt_image_parse,
 )
@@ -68,6 +69,24 @@ class TestAiAssistAsync(unittest.IsolatedAsyncioTestCase):
         )
 
         items = await assist_parse_ocr('Coffee four dollars', gemini)
+        self.assertEqual(items, [])
+
+    async def test_assist_parse_text_validates_response(self):
+        gemini = AsyncMock()
+        gemini.generate_json_reply = AsyncMock(
+            return_value='[{"description":"便利店","amount":861,"currency":"JPY"}]'
+        )
+
+        items = await assist_parse_text('861便利店', gemini)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]['amount'], 861)
+        self.assertEqual(items[0]['currency'], 'JPY')
+
+    async def test_assist_parse_text_returns_empty_array_for_non_expense(self):
+        gemini = AsyncMock()
+        gemini.generate_json_reply = AsyncMock(return_value='[]')
+
+        items = await assist_parse_text('什么是861便利店？', gemini)
         self.assertEqual(items, [])
 
     async def test_assist_parse_image_validates_response(self):

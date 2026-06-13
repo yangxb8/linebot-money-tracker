@@ -12,6 +12,14 @@ from services.log_utils import describe_bytes, truncate
 
 logger = logging.getLogger(__name__)
 
+_TEXT_EXPENSE_PROMPT = (
+    'Parse this chat message as a personal expense log. The user is recording money they spent.\n'
+    'Return a JSON array of line items. Each item: description (string), amount (number), currency (3-letter code).\n'
+    'Infer JPY when the message uses Japanese/Chinese and no currency is stated.\n'
+    'If the message is a question, brand lookup, or cannot be interpreted as logging an expense, return [].\n'
+    'Return ONLY the JSON array.'
+)
+
 # Legacy OCR-text assist prompt (kept for future OCR pipeline).
 _RECEIPT_ITEM_PROMPT = (
     'Parse this receipt into a JSON array of product/service line items only. '
@@ -169,6 +177,39 @@ def validate_receipt_image_parse(
         currency,
     )
     return ReceiptImageParseResult(items=items, total=total, currency=currency)
+
+
+async def assist_parse_text(text: str, gemini: GeminiClient) -> List[Dict[str, Any]]:
+    """Structured LLM assist for free-form expense text when the deterministic parser fails."""
+    source = 'assist_parse_text'
+    if not text or not gemini:
+        logger.info('%s: skipped (text=%s gemini=%s)', source, bool(text), bool(gemini))
+        return []
+
+    normalized = text.strip()
+    if not normalized:
+        logger.info('%s: skipped (blank after strip)', source)
+        return []
+
+    logger.info('%s: parsing text len=%d', source, len(normalized))
+    logger.debug('%s text sample: %s', source, truncate(normalized, 500))
+
+    prompt = _TEXT_EXPENSE_PROMPT + '\nMessage:\n' + normalized
+
+    response = await gemini.generate_json_reply(prompt)
+    try:
+        parsed = _parse_json(response, source=source)
+        if isinstance(parsed, list):
+            return validate_expense_items(parsed, source=source)
+        logger.warning('%s: expected JSON array from text assist', source)
+        return []
+    except json.JSONDecodeError:
+        logger.warning(
+            '%s: LLM response was not valid JSON: %s',
+            source,
+            truncate(response, 500),
+        )
+        return []
 
 
 async def assist_parse_ocr(ocr_text: str, gemini: GeminiClient) -> List[Dict[str, Any]]:

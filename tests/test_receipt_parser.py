@@ -32,6 +32,28 @@ class TestReceiptParser(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertAlmostEqual(items[0]['amount'], 300.0)
 
+    def test_parse_leading_amount_cjk_shorthand(self):
+        items = parse_text_for_expenses('861便利店')
+        self.assertEqual(len(items), 1)
+        self.assertAlmostEqual(items[0]['amount'], 861.0)
+        self.assertEqual(items[0]['currency'], 'JPY')
+        self.assertIn('便利店', items[0]['description'])
+
+    def test_parse_leading_amount_cjk_with_space(self):
+        items = parse_text_for_expenses('861 便利店')
+        self.assertEqual(len(items), 1)
+        self.assertAlmostEqual(items[0]['amount'], 861.0)
+
+    def test_parse_trailing_amount_cjk_shorthand(self):
+        items = parse_text_for_expenses('1200ランチ')
+        self.assertEqual(len(items), 1)
+        self.assertAlmostEqual(items[0]['amount'], 1200.0)
+        self.assertIn('ランチ', items[0]['description'])
+
+    def test_rejects_question_about_brand(self):
+        items = parse_text_for_expenses('什么是861便利店？')
+        self.assertEqual(items, [])
+
     def test_parse_multi_line_japanese_receipt_sample(self):
         from pathlib import Path
 

@@ -37,6 +37,9 @@ _DESC_NOISE_RE = re.compile(
     re.I,
 )
 _TRAILING_BARE_PRICE_RE = re.compile(r'(?P<amount>[\d,]{3,5})(?:\.\d{1,2})?\s*$')
+_LEADING_AMOUNT_PREFIX_RE = re.compile(r'^(?P<amount>\d[\d,]*)\s*')
+_QUESTION_MARK_RE = re.compile(r'[?？]\s*$')
+_SINGLE_LINE_SHORTHAND_MAX_LEN = 40
 
 _RECEIPT_SUMMARY_REGEX = re.compile(
     r'(小計|合計|外税|内税|消費税|税額|対象|お釣り|釣り|預り|値引|割引|ポイント|買上点数|購入点数|'
@@ -124,6 +127,47 @@ def _build_item(line: str, amount: Decimal, currency: str, pattern: re.Pattern) 
         'raw_line': line,
         'confidence': 0.8,
     }
+
+
+def _match_leading_amount_cjk(line: str) -> Optional[Tuple[Decimal, str, re.Pattern]]:
+    """Match terse expense shorthand like '861便利店' or '1200 ランチ' (amount + place)."""
+    normalized = _normalize_text(line).strip()
+    if not normalized or _QUESTION_MARK_RE.search(normalized):
+        return None
+    if len(normalized) > _SINGLE_LINE_SHORTHAND_MAX_LEN:
+        return None
+
+    match = _LEADING_AMOUNT_PREFIX_RE.match(normalized)
+    if not match:
+        return None
+
+    remainder = normalized[match.end() :].strip()
+    if not remainder or not _looks_japanese(remainder):
+        return None
+
+    try:
+        amount = _normalize_amount(match.group('amount'))
+    except Exception:
+        return None
+
+    if amount < Decimal('1') or amount > Decimal('999999'):
+        return None
+
+    return amount, 'JPY', _LEADING_AMOUNT_PREFIX_RE
+
+
+def _parse_single_line_shorthand(text: str) -> List[Dict[str, Any]]:
+    """Parse one-line terse expense logs that omit currency markers."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) != 1:
+        return []
+
+    matched = _match_leading_amount_cjk(lines[0])
+    if not matched:
+        return []
+
+    amount, currency, pattern = matched
+    return [_build_item(lines[0], amount, currency, pattern)]
 
 
 def _match_amount(line: str) -> Optional[Tuple[Decimal, str, re.Pattern]]:
@@ -319,6 +363,9 @@ def parse_text_for_expenses(text: str) -> List[Dict[str, Any]]:
     from services.receipt_formats import parse_receipt_by_format
 
     items = parse_receipt_by_format(text)
+
+    if not items:
+        items = _parse_single_line_shorthand(text)
 
     if items:
         logger.info(
