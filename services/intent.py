@@ -4,6 +4,7 @@ from typing import Optional
 
 from services.gemini_client import GeminiClient
 from services.log_utils import describe_bytes, truncate
+from services.usage_metering import llm_operation_scope
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,8 @@ async def is_expense_intent_text(text: Optional[str], gemini: GeminiClient) -> b
     logger.info('Intent check (text): classifying message len=%d', len(normalized))
     logger.debug('Intent check (text): message=%s', truncate(normalized, 500))
     prompt = TEXT_INTENT_PROMPT.format(text=normalized)
-    response = await gemini.generate_reply(prompt)
+    with llm_operation_scope('intent'):
+        response = await gemini.generate_reply(prompt)
     return _parse_intent_response(response, source='text')
 
 
@@ -88,9 +90,10 @@ async def is_expense_intent_image(
         describe_bytes(image_bytes),
         mime_type,
     )
-    response = await gemini.generate_reply_with_image(
-        IMAGE_INTENT_PROMPT,
-        image_bytes,
-        mime_type,
-    )
+    with llm_operation_scope('intent'):
+        response = await gemini.generate_reply_with_image(
+            IMAGE_INTENT_PROMPT,
+            image_bytes,
+            mime_type,
+        )
     return _parse_intent_response(response, source='image')

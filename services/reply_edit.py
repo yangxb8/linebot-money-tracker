@@ -20,6 +20,7 @@ from services.expense_repository import (
 )
 from services.gemini_client import GeminiClient
 from services.receipt_parser import _match_amount, _normalize_text
+from services.usage_metering import llm_operation_scope
 from services.reply_summary import (
     EditSummaryInput,
     FieldChange,
@@ -492,7 +493,8 @@ async def parse_edit_intent(
     )
 
     try:
-        response = await gemini.generate_json_reply(prompt)
+        with llm_operation_scope('reply_edit'):
+            response = await gemini.generate_json_reply(prompt)
         parsed = validate_edit_intent(_parse_json_object(response), items_snapshot)
         if parsed:
             return parsed

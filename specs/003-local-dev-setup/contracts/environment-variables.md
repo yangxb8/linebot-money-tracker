@@ -21,6 +21,19 @@ LINE variables are **not** required for console mode.
 | `LINE_CHANNEL_ACCESS_TOKEN` | **Yes** | Yes | Sends reply messages |
 | `GEMINI_API_KEY` | **Yes** | Yes | Intent and AI-assisted parsing |
 
+## Optional — usage limits (webhook, console, Cloud Run)
+
+Active when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set. Console: `python local_run.py --skip-usage-limits` bypasses checks.
+
+| Variable | Default | Purpose |
+| -------- | ------- | ------- |
+| `USAGE_TIER_FREE_MONTHLY_TOTAL` | `300` | Free-tier LLM invocations per calendar month (all operation types) |
+| `USAGE_TIER_FREE_RECEIPT_MONTHLY` | `100` | Free-tier receipt analyses per month (subset of monthly total) |
+| `USAGE_RATE_LIMIT_PER_MINUTE` | `10` | Max LLM-backed messages per sender per minute |
+| `USAGE_RATE_LIMIT_PER_DAY` | `100` | Max LLM-backed messages per sender per day |
+| `USAGE_MAX_TEXT_WORDS` | `1000` | Reject inbound text over this word count before LLM |
+| `USAGE_MAX_IMAGE_BYTES` | `10485760` | Reject inbound images over this size (10 MiB) before LLM |
+
 ## Optional — OCR (all profiles)
 
 | Variable | Default | Purpose |

@@ -11,6 +11,7 @@ from jsonschema import Draft7Validator, ValidationError
 from services.category_taxonomy import UNKNOWN_CODE, load_category_taxonomy, resolve_code
 from services.gemini_client import GeminiClient
 from services.log_utils import truncate
+from services.usage_metering import llm_operation_scope
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,8 @@ async def classify_expense(item: Dict[str, Any], gemini: GeminiClient) -> Catego
     )
 
     try:
-        response = await gemini.generate_reply(prompt)
+        with llm_operation_scope('categorize'):
+            response = await gemini.generate_reply(prompt)
         logger.debug('classify_expense raw response: %s', truncate(response or '', 500))
         parsed = _parse_json_object(response)
         validated = validate_categorize_response(parsed, source='classify_expense')

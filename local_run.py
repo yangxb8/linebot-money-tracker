@@ -11,9 +11,11 @@ from pathlib import Path
 
 from services.confirmation_repository import save_confirmation
 from services.env_loader import load_env, require_env_vars
-from services.gemini_client import GeminiClient
+from services.metered_gemini import create_gemini_client
 from services.message_context import MessageContext, ReplyContext
 from services.tenant_context import resolve_tenant_for_console
+from services.usage_limiter import format_denial_reply, prepare_inbound_usage
+from services.usage_metering import usage_billing_scope
 from services.message_handler import process_image_message, process_reply_edit, process_text_message
 
 logger = logging.getLogger(__name__)
@@ -52,6 +54,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help='Simulate a LINE multi-person room (shared ledger for this room ID)',
     )
     parser.add_argument(
+        '--skip-usage-limits',
+        action='store_true',
+        help='Skip per-user LLM usage limits (still runs Gemini when configured)',
+    )
+    parser.add_argument(
         '--debug',
         action='store_true',
         help='Enable debug-level logging (or set LOG_LEVEL=DEBUG)',
@@ -70,7 +77,7 @@ def _read_image(path_str: str) -> bytes:
 
 
 async def _run(args: argparse.Namespace) -> tuple[str, str | None]:
-    gemini = GeminiClient(api_key=os.getenv('GEMINI_API_KEY'))
+    gemini = create_gemini_client(api_key=os.getenv('GEMINI_API_KEY'))
     line_user_id = os.getenv('LOCAL_LINE_USER_ID', 'local-dev-user')
 
     if args.group_id and args.room_id:
@@ -82,26 +89,59 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None]:
         room_id=args.room_id,
     )
 
+    source_message_id = str(uuid.uuid4())
+
     if args.reply_to:
         if not args.text:
             raise ValueError('--reply-to requires --text')
         reply_context = ReplyContext(
             tenant=tenant,
-            user_reply_message_id=str(uuid.uuid4()),
+            user_reply_message_id=source_message_id,
             quoted_bot_message_id=args.reply_to,
         )
-        edit_result = await process_reply_edit(args.text, reply_context, gemini)
+        usage_prep = prepare_inbound_usage(
+            tenant,
+            line_user_id,
+            source_message_id,
+            text=args.text,
+            skip_limits=args.skip_usage_limits,
+        )
+        if not usage_prep.allowed:
+            return format_denial_reply('en', usage_prep.reason), None
+        with usage_billing_scope(usage_prep.billing_context):
+            edit_result = await process_reply_edit(args.text, reply_context, gemini)
         return edit_result.text, None
 
     context = MessageContext(
         tenant=tenant,
-        source_message_id=str(uuid.uuid4()),
+        source_message_id=source_message_id,
     )
+
     if args.text is not None:
-        bot_reply = await process_text_message(args.text, gemini, context)
+        usage_prep = prepare_inbound_usage(
+            tenant,
+            line_user_id,
+            source_message_id,
+            text=args.text,
+            skip_limits=args.skip_usage_limits,
+        )
+        if not usage_prep.allowed:
+            return format_denial_reply('en', usage_prep.reason), None
+        with usage_billing_scope(usage_prep.billing_context):
+            bot_reply = await process_text_message(args.text, gemini, context)
     else:
         image_bytes = _read_image(args.image)
-        bot_reply = await process_image_message(image_bytes, gemini, context=context)
+        usage_prep = prepare_inbound_usage(
+            tenant,
+            line_user_id,
+            source_message_id,
+            image_bytes=image_bytes,
+            skip_limits=args.skip_usage_limits,
+        )
+        if not usage_prep.allowed:
+            return format_denial_reply('en', usage_prep.reason), None
+        with usage_billing_scope(usage_prep.billing_context):
+            bot_reply = await process_image_message(image_bytes, gemini, context=context)
 
     bot_message_id = None
     if bot_reply.confirmation:

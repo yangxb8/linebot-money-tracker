@@ -87,8 +87,11 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
 
     async def test_process_text_error(self):
         gemini = MagicMock(spec=GeminiClient)
-        with patch('services.message_handler.is_expense_intent_text', AsyncMock(side_effect=RuntimeError('fail'))):
-            reply = await process_text_message('Lunch 120', gemini, self._english_context())
+        with patch('services.message_handler.parse_text_for_expenses', return_value=[]), patch(
+            'services.message_handler.is_expense_intent_text',
+            AsyncMock(side_effect=RuntimeError('fail')),
+        ):
+            reply = await process_text_message('maybe an expense?', gemini, self._english_context())
         self.assertEqual(reply.text, error_reply_text('en'))
 
     async def test_process_image_receipt(self):

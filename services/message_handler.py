@@ -16,6 +16,7 @@ from services.expense_repository import (
     insert_expenses,
 )
 from services.gemini_client import GeminiClient, GeminiUsageLimitError
+from services.metered_gemini import UserUsageLimitExceeded
 from services.intent import is_expense_intent_text
 from services.log_utils import describe_bytes
 from services.message_context import (
@@ -273,15 +274,27 @@ async def process_text_message(
     language = context.reply_language if context else 'ja'
     logger.info('Processing text message len=%d', len(text or ''))
     try:
+        items = parse_text_for_expenses(text)
+        if items:
+            logger.info('Text pipeline: deterministic parser returned %d item(s)', len(items))
+            items, confirmation_payload = await _enrich_and_persist_items(items, gemini, context)
+            reply_text = format_expense_items(
+                items,
+                language=language,
+                **_confirmation_format_kwargs(context),
+            )
+            if not reply_text:
+                logger.warning('Text pipeline: empty confirmation after processing')
+                return _text_reply(error_reply_text(language))
+            return _text_reply(reply_text, confirmation_payload)
+
         if await is_expense_intent_text(text, gemini):
-            items = parse_text_for_expenses(text)
             confirmation_payload = None
-            if not items:
-                logger.info('Text pipeline: deterministic parser returned no items; trying assist_parse_text')
-                items = await assist_parse_text(text, gemini)
+            logger.info('Text pipeline: no deterministic items; trying assist_parse_text')
+            items = await assist_parse_text(text, gemini)
 
             if items:
-                logger.info('Text pipeline: parsed %d item(s)', len(items))
+                logger.info('Text pipeline: assist returned %d item(s)', len(items))
                 items, confirmation_payload = await _enrich_and_persist_items(items, gemini, context)
                 reply_text = format_expense_items(
                     items,
@@ -297,6 +310,10 @@ async def process_text_message(
             return _text_reply(receipt_parse_error_reply(language))
         logger.info('Text pipeline: message rejected as non-expense intent')
         return _text_reply(canned_unsupported_reply(language))
+    except UserUsageLimitExceeded as exc:
+        return _text_reply(str(exc))
+    except GeminiUsageLimitError:
+        return _text_reply(usage_limit_reply(language))
     except Exception:
         logger.exception('Text message processing failed')
         return _text_reply(error_reply_text(language))
@@ -381,6 +398,8 @@ async def process_image_message(
     try:
         try:
             items = await _extract_expense_items_from_image(image_bytes, gemini, resolved_mime)
+        except UserUsageLimitExceeded as exc:
+            return _text_reply(str(exc))
         except GeminiUsageLimitError:
             logger.warning('Image pipeline: Gemini usage limit reached for receipt parse')
             return _text_reply(usage_limit_reply(language))

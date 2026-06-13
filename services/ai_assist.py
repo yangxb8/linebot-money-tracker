@@ -9,6 +9,7 @@ from jsonschema import Draft7Validator, ValidationError
 
 from services.gemini_client import GeminiClient
 from services.log_utils import describe_bytes, truncate
+from services.usage_metering import llm_operation_scope
 
 logger = logging.getLogger(__name__)
 
@@ -196,7 +197,8 @@ async def assist_parse_text(text: str, gemini: GeminiClient) -> List[Dict[str, A
 
     prompt = _TEXT_EXPENSE_PROMPT + '\nMessage:\n' + normalized
 
-    response = await gemini.generate_json_reply(prompt)
+    with llm_operation_scope('assist'):
+        response = await gemini.generate_json_reply(prompt)
     try:
         parsed = _parse_json(response, source=source)
         if isinstance(parsed, list):
@@ -224,7 +226,8 @@ async def assist_parse_ocr(ocr_text: str, gemini: GeminiClient) -> List[Dict[str
 
     prompt = _RECEIPT_ITEM_PROMPT + '\nOCR_TEXT:\n' + ocr_text
 
-    response = await gemini.generate_json_reply(prompt)
+    with llm_operation_scope('assist'):
+        response = await gemini.generate_json_reply(prompt)
     try:
         parsed = _parse_json(response, source=source)
         if isinstance(parsed, list):

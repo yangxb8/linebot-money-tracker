@@ -22,7 +22,7 @@ from linebot.v3.webhooks import MessageEvent
 
 from services.confirmation_repository import save_confirmation, update_interaction_bot_message_id
 from services.env_loader import load_env, require_env_vars
-from services.gemini_client import GeminiClient
+from services.metered_gemini import UserUsageLimitExceeded, create_gemini_client
 from services.line_event import (
     extract_image_message_id,
     extract_line_user_id,
@@ -30,9 +30,11 @@ from services.line_event import (
     extract_source_message_id,
     extract_text_message,
 )
-from services.tenant_context import resolve_tenant_from_event
-from services.message_context import BotReply, MessageContext, ReplyContext
+from services.tenant_context import TenantContext, resolve_tenant_from_event
+from services.message_context import BotReply, MessageContext, ReplyContext, ReplyEditResult
 from services.line_profile import fetch_line_display_name, fetch_line_profile_language
+from services.usage_limiter import format_denial_reply, prepare_inbound_usage
+from services.usage_metering import usage_billing_scope
 from services.message_handler import (
     CANNED_UNSUPPORTED_REPLY,
     ERROR_REPLY_TEXT,
@@ -94,7 +96,7 @@ def _init_webhook_state() -> list[str]:
 
     configuration = Configuration(access_token=channel_access_token)
     parser = WebhookParser(channel_secret)
-    gemini_client = GeminiClient(api_key=gemini_api_key)
+    gemini_client = create_gemini_client(api_key=gemini_api_key)
     return []
 
 
@@ -203,6 +205,8 @@ async def handle_callback(request: Request):
         quoted_message_id = extract_quoted_message_id(event)
 
         tenant = resolve_tenant_from_event(event, line_user_id) if line_user_id else None
+        if tenant is None and line_user_id:
+            tenant = TenantContext.personal(line_user_id)
 
         reply_language = await _resolve_reply_language(line_user_id, user_text)
 
@@ -227,7 +231,26 @@ async def handle_callback(request: Request):
                     quoted_bot_message_id=quoted_message_id,
                     reply_language=reply_language,
                 )
-                edit_result = await process_reply_edit(user_text, reply_context, gemini_client)
+                usage_prep = prepare_inbound_usage(
+                    tenant,
+                    line_user_id,
+                    source_message_id,
+                    reply_language=reply_language,
+                    text=user_text,
+                )
+                if not usage_prep.allowed:
+                    await line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(text=format_denial_reply(reply_language, usage_prep.reason))],
+                        )
+                    )
+                    continue
+                with usage_billing_scope(usage_prep.billing_context):
+                    try:
+                        edit_result = await process_reply_edit(user_text, reply_context, gemini_client)
+                    except UserUsageLimitExceeded as exc:
+                        edit_result = ReplyEditResult(text=str(exc))
                 response = await line_bot_api.reply_message(
                     ReplyMessageRequest(
                         reply_token=event.reply_token,
@@ -243,7 +266,26 @@ async def handle_callback(request: Request):
                         )
                 continue
 
-            bot_reply = await process_text_message(user_text, gemini_client, message_context)
+            if tenant and line_user_id and source_message_id:
+                usage_prep = prepare_inbound_usage(
+                    tenant,
+                    line_user_id,
+                    source_message_id,
+                    reply_language=reply_language,
+                    text=user_text,
+                )
+                if not usage_prep.allowed:
+                    await line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(text=format_denial_reply(reply_language, usage_prep.reason))],
+                        )
+                    )
+                    continue
+                with usage_billing_scope(usage_prep.billing_context):
+                    bot_reply = await process_text_message(user_text, gemini_client, message_context)
+            else:
+                bot_reply = await process_text_message(user_text, gemini_client, message_context)
             await _reply_and_save_confirmation(
                 event.reply_token,
                 bot_reply.text,
@@ -254,10 +296,36 @@ async def handle_callback(request: Request):
         if image_message_id:
             try:
                 image_bytes = await _fetch_image_bytes(image_message_id)
-                bot_reply = await process_image_message(image_bytes, gemini_client, context=message_context)
             except Exception:
                 logger.exception('Image fetch failed')
-                bot_reply = BotReply(text=ERROR_REPLY_TEXT)
+                await line_bot_api.reply_message(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[TextMessage(text=ERROR_REPLY_TEXT)],
+                    )
+                )
+                continue
+
+            if tenant and line_user_id and source_message_id:
+                usage_prep = prepare_inbound_usage(
+                    tenant,
+                    line_user_id,
+                    source_message_id,
+                    reply_language=reply_language,
+                    image_bytes=image_bytes,
+                )
+                if not usage_prep.allowed:
+                    await line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(text=format_denial_reply(reply_language, usage_prep.reason))],
+                        )
+                    )
+                    continue
+                with usage_billing_scope(usage_prep.billing_context):
+                    bot_reply = await process_image_message(image_bytes, gemini_client, context=message_context)
+            else:
+                bot_reply = await process_image_message(image_bytes, gemini_client, context=message_context)
 
             await _reply_and_save_confirmation(
                 event.reply_token,
