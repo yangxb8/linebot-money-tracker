@@ -10,8 +10,10 @@ from services.message_handler import format_expense_items
 from services.reply_edit import (
     _amount_correction_intent,
     _bare_number_intent,
+    _category_bulk_intent,
     _delete_phrase_intent,
     _item_prefixed_intent,
+    _parse_item_number_tokens,
     apply_edit_intent,
     is_affirmative,
     is_cancel_pending,
@@ -153,6 +155,45 @@ class TestReplyEditIntent(unittest.TestCase):
     def test_delete_phrase_non_delete(self):
         items = [{'line_item_index': 0, 'expense_id': 'e1'}]
         self.assertIsNone(_delete_phrase_intent('3800円', items))
+
+    def test_parse_item_number_tokens(self):
+        self.assertEqual(_parse_item_number_tokens('1 3'), [1, 3])
+        self.assertEqual(_parse_item_number_tokens('1,3'), [1, 3])
+        self.assertEqual(_parse_item_number_tokens('2'), [2])
+
+    def test_category_bulk_single_item(self):
+        items = [{'line_item_index': 0, 'expense_id': 'e1'}]
+        intent = _category_bulk_intent('餐饮', items)
+        self.assertIsNotNone(intent)
+        self.assertEqual(intent['action'], 'category_bulk')
+        self.assertEqual(intent['updates']['category_query'], '餐饮')
+        self.assertTrue(intent.get('skip_intent_confirm'))
+
+    def test_category_bulk_subset_space(self):
+        items = [
+            {'line_item_index': 0, 'expense_id': 'e1'},
+            {'line_item_index': 1, 'expense_id': 'e2'},
+            {'line_item_index': 2, 'expense_id': 'e3'},
+        ]
+        intent = _category_bulk_intent('1 3 交通', items)
+        self.assertEqual(intent['action'], 'category_bulk')
+        self.assertEqual(intent['target']['mode'], 'subset')
+        self.assertEqual(intent['target']['line_item_indices'], [0, 2])
+
+    def test_category_bulk_subset_comma(self):
+        items = [
+            {'line_item_index': 0, 'expense_id': 'e1'},
+            {'line_item_index': 1, 'expense_id': 'e2'},
+        ]
+        intent = _category_bulk_intent('1,2 食品', items)
+        self.assertEqual(intent['target']['line_item_indices'], [0, 1])
+
+    def test_category_bulk_multi_item_bare_returns_none(self):
+        items = [
+            {'line_item_index': 0, 'expense_id': 'e1'},
+            {'line_item_index': 1, 'expense_id': 'e2'},
+        ]
+        self.assertIsNone(_category_bulk_intent('餐饮', items))
 
 
 class TestReplySummary(unittest.TestCase):
@@ -375,6 +416,147 @@ class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.status, 'applied')
         update_fields.assert_called_once()
         self.assertEqual(update_fields.call_args.kwargs['amount'], Decimal('1700.00'))
+
+    @patch('services.reply_edit.clear_pending_state')
+    @patch('services.reply_edit.update_items_snapshot')
+    @patch('services.reply_edit.get_expenses_by_ids')
+    @patch('services.reply_edit.update_expense_fields')
+    @patch('services.reply_edit.set_pending_state')
+    @patch('services.reply_edit.map_category_from_text', new_callable=AsyncMock)
+    async def test_apply_category_bulk_single_item(
+        self,
+        map_category,
+        set_pending,
+        update_fields,
+        get_by_ids,
+        _update_snap,
+        _clear_pending,
+    ):
+        map_category.return_value = ('food.dining.restaurant', 'food.dining.cafe')
+        update_fields.return_value = UpdateResult(success=True)
+        expense_row = ExpenseRow(
+            id='e1',
+            line_user_id='u1',
+            description='Lunch',
+            amount=Decimal('1000'),
+            currency='JPY',
+            expense_date=__import__('datetime').date.today(),
+            category_node_id='old',
+            assigned_level=1,
+            category_l1_id='old',
+            category_l2_id=None,
+            category_l3_id=None,
+        )
+        get_by_ids.return_value = [expense_row]
+        confirmation = ConfirmationRecord(
+            id='c1',
+            bot_message_id='bot-1',
+            tenant=TenantContext.personal('u1'),
+            confirmation_text='text',
+            items_snapshot=(
+                {
+                    'line_item_index': 0,
+                    'expense_id': 'e1',
+                    'description': 'Lunch',
+                    'amount': 1000,
+                    'currency': 'JPY',
+                    'category_guess_code': 'food.dining.cafe',
+                    'category_alternatives': ['food.grocery'],
+                },
+            ),
+            pending_action=None,
+        )
+        intent = _category_bulk_intent('餐饮', list(confirmation.items_snapshot))
+        gemini = MagicMock(spec=GeminiClient)
+        result = await apply_edit_intent(intent, confirmation, '餐饮', gemini)
+        self.assertEqual(result.status, 'applied')
+        self.assertIn('1)', result.summary)
+        set_pending.assert_called_once()
+        map_category.assert_awaited_once()
+
+    @patch('services.reply_edit.clear_pending_state')
+    @patch('services.reply_edit.update_items_snapshot')
+    @patch('services.reply_edit.get_expenses_by_ids')
+    @patch('services.reply_edit.update_expense_fields')
+    async def test_apply_category_bulk_pick(
+        self,
+        update_fields,
+        get_by_ids,
+        _update_snap,
+        _clear_pending,
+    ):
+        update_fields.return_value = UpdateResult(success=True)
+        expense_rows = [
+            ExpenseRow(
+                id='e1',
+                line_user_id='u1',
+                description='A',
+                amount=Decimal('100'),
+                currency='JPY',
+                expense_date=__import__('datetime').date.today(),
+                category_node_id='old',
+                assigned_level=1,
+                category_l1_id='old',
+                category_l2_id=None,
+                category_l3_id=None,
+            ),
+            ExpenseRow(
+                id='e2',
+                line_user_id='u1',
+                description='B',
+                amount=Decimal('200'),
+                currency='JPY',
+                expense_date=__import__('datetime').date.today(),
+                category_node_id='old',
+                assigned_level=1,
+                category_l1_id='old',
+                category_l2_id=None,
+                category_l3_id=None,
+            ),
+        ]
+        get_by_ids.return_value = expense_rows
+        confirmation = ConfirmationRecord(
+            id='c1',
+            bot_message_id='bot-1',
+            tenant=TenantContext.personal('u1'),
+            confirmation_text='text',
+            items_snapshot=(
+                {
+                    'line_item_index': 0,
+                    'expense_id': 'e1',
+                    'description': 'A',
+                    'amount': 100,
+                    'currency': 'JPY',
+                    'category_guess_code': 'food.dining.cafe',
+                    'category_alternatives': [],
+                },
+                {
+                    'line_item_index': 1,
+                    'expense_id': 'e2',
+                    'description': 'B',
+                    'amount': 200,
+                    'currency': 'JPY',
+                    'category_guess_code': 'food.dining.cafe',
+                    'category_alternatives': [],
+                },
+            ),
+            pending_action='category_bulk',
+            pending_payload={
+                'category_query': '餐饮',
+                'category_options': ['food.dining.restaurant', 'food.dining.cafe'],
+                'target_line_item_indices': [0, 1],
+            },
+        )
+        intent = {
+            'action': 'confirm_pending',
+            'target': {'mode': 'unspecified'},
+            'updates': {'category_alternative_number': 1},
+        }
+        gemini = MagicMock(spec=GeminiClient)
+        result = await apply_edit_intent(intent, confirmation, '1', gemini)
+        self.assertEqual(result.status, 'applied')
+        self.assertEqual(update_fields.call_count, 2)
+        _clear_pending.assert_called_once()
 
 
 if __name__ == '__main__':

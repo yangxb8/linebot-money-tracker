@@ -237,6 +237,7 @@ async def process_reply_edit(
             list(confirmation.items_snapshot),
             confirmation.pending_action,
             gemini,
+            confirmation.pending_payload,
         )
         result = await apply_edit_intent(intent, confirmation, text, gemini)
         write_audit(

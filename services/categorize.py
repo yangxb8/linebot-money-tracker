@@ -99,6 +99,77 @@ def normalize_category_result(result: CategoryResult) -> CategoryResult:
     return CategoryResult(guessed=guess_code, alternatives=tuple(alts))
 
 
+CATEGORY_MAP_SCHEMA: Dict[str, Any] = {
+    'type': 'object',
+    'required': ['options'],
+    'properties': {
+        'options': {
+            'type': 'array',
+            'maxItems': 3,
+            'items': {'type': 'string', 'minLength': 1},
+        },
+    },
+    'additionalProperties': False,
+}
+
+_category_map_validator = Draft7Validator(CATEGORY_MAP_SCHEMA)
+
+
+def validate_category_map_response(data: Any, *, source: str = 'category_map') -> tuple[str, ...]:
+    if not isinstance(data, dict):
+        logger.warning('%s: expected JSON object, got %s', source, type(data).__name__)
+        return ()
+
+    try:
+        _category_map_validator.validate(data)
+    except ValidationError as exc:
+        logger.warning('%s: schema validation failed: %s', source, exc.message)
+        return ()
+
+    taxonomy = load_category_taxonomy()
+    options: List[str] = []
+    seen: set[str] = set()
+    for raw in data.get('options') or []:
+        code = str(raw).strip()
+        if not code:
+            continue
+        node = resolve_code(code)
+        if node.code == UNKNOWN_CODE and code != UNKNOWN_CODE and code not in taxonomy:
+            continue
+        if node.code in seen:
+            continue
+        options.append(node.code)
+        seen.add(node.code)
+        if len(options) >= 3:
+            break
+    return tuple(options)
+
+
+async def map_category_from_text(user_text: str, gemini: GeminiClient) -> tuple[str, ...]:
+    """Map free-text category phrase to up to 3 taxonomy codes."""
+    query = (user_text or '').strip()
+    if not query:
+        return ()
+
+    prompt = (
+        'Map the user category phrase to up to 3 matching codes from the predefined taxonomy.\n'
+        'Return JSON only with key options (array of 0-3 distinct category codes).\n'
+        'Order by best match first. Use only codes from the taxonomy list.\n\n'
+        f'User category phrase: {query}\n\n'
+        f'Taxonomy codes:\n{_taxonomy_codes_for_prompt()}'
+    )
+
+    try:
+        with llm_operation_scope('categorize'):
+            response = await gemini.generate_reply(prompt)
+        logger.debug('map_category_from_text raw response: %s', truncate(response or '', 500))
+        parsed = _parse_json_object(response)
+        return validate_category_map_response(parsed, source='map_category_from_text')
+    except Exception:
+        logger.exception('map_category_from_text failed for %r', query)
+        return ()
+
+
 async def classify_expense(item: Dict[str, Any], gemini: GeminiClient) -> CategoryResult:
     """Ask Gemini for category JSON only; map invalid codes to unknown."""
     from services.receipt_parser import clean_receipt_description

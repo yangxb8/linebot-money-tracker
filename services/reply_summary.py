@@ -53,6 +53,15 @@ def format_edit_result(language: str, summary: EditSummaryInput) -> str:
     if summary.action == 'soft_delete_all_pending':
         return _delete_all_prompt(language)
 
+    if summary.action == 'confirm_intent_pending':
+        return summary.clarification_message or _applied_generic(language)
+
+    if summary.action == 'category_bulk_pending':
+        return summary.clarification_message or _applied_generic(language)
+
+    if summary.action == 'category_bulk':
+        return _bulk_category_message(language, summary.affected_count, summary.changes)
+
     if summary.action in ('soft_delete', 'soft_delete_all'):
         return _delete_message(language, summary.item_description, summary.affected_count)
 
@@ -175,6 +184,96 @@ def category_path_for_code(code: str) -> str:
         return format_category_path(resolve_code(code))
     except Exception:
         return code
+
+
+def _bulk_category_message(language: str, count: int, changes: tuple[FieldChange, ...]) -> str:
+    category_after = changes[0].after if changes else ''
+    if language == 'zh':
+        return f'已将 {count} 笔支出的类别更新为：{category_after}'
+    if language == 'en':
+        return f'Updated category for {count} expense(s) to: {category_after}'
+    return f'{count} 件の支出のカテゴリを更新しました：{category_after}'
+
+
+def format_intent_confirmation_prompt(
+    language: str,
+    interpretation: str,
+) -> str:
+    if language == 'zh':
+        return (
+            f'{interpretation}\n\n'
+            '如果理解正确，请回复 YES 确认。\n'
+            '如果不正确，请重新回复支出确认消息并写得更清楚。'
+        )
+    if language == 'en':
+        return (
+            f'{interpretation}\n\n'
+            'Reply YES if this is correct.\n'
+            'If not, reply to the expense confirmation message again with a clearer description.'
+        )
+    return (
+        f'{interpretation}\n\n'
+        '正しければ YES と返信してください。\n'
+        '違う場合は、支出確認メッセージに再度返信して、より明確に書いてください。'
+    )
+
+
+def format_category_options_prompt(
+    language: str,
+    category_query: str,
+    option_codes: tuple[str, ...],
+    item_labels: tuple[str, ...] = (),
+) -> str:
+    lines: List[str] = []
+    if item_labels:
+        labels = ', '.join(item_labels)
+        if language == 'zh':
+            lines.append(f'请为第 {labels} 项选择类别（「{category_query}」）：')
+        elif language == 'en':
+            lines.append(f'Pick a category for item(s) {labels} ("{category_query}"):')
+        else:
+            lines.append(f'第 {labels} 項目のカテゴリを選んでください（「{category_query}」）：')
+    else:
+        if language == 'zh':
+            lines.append(f'请选择类别（「{category_query}」）：')
+        elif language == 'en':
+            lines.append(f'Pick a category ("{category_query}"):')
+        else:
+            lines.append(f'カテゴリを選んでください（「{category_query}」）：')
+
+    for index, code in enumerate(option_codes, start=1):
+        path = category_path_for_code(code)
+        lines.append(f'{index}) {path}')
+
+    if language == 'zh':
+        lines.append('请回复 1–3 选择类别。')
+    elif language == 'en':
+        lines.append('Reply with 1–3 to select a category.')
+    else:
+        lines.append('1〜3 で返信してカテゴリを選んでください。')
+
+    return '\n'.join(lines)
+
+
+def describe_category_bulk_intent(
+    language: str,
+    category_query: str,
+    target_labels: tuple[str, ...],
+    all_items: bool,
+) -> str:
+    if all_items:
+        if language == 'zh':
+            return f'将把此确认中所有支出的类别改为「{category_query}」。'
+        if language == 'en':
+            return f'Change the category to "{category_query}" for all expenses on this confirmation.'
+        return f'この確認のすべての支出のカテゴリを「{category_query}」に変更します。'
+
+    labels = ', '.join(target_labels)
+    if language == 'zh':
+        return f'将把第 {labels} 项支出的类别改为「{category_query}」。'
+    if language == 'en':
+        return f'Change the category to "{category_query}" for item(s) {labels}.'
+    return f'第 {labels} 項目のカテゴリを「{category_query}」に変更します。'
 
 
 def format_amount(amount: Decimal, currency: str) -> str:
