@@ -20,6 +20,7 @@ class ConfirmationRecord:
     confirmation_text: str
     items_snapshot: tuple[Dict[str, Any], ...]
     pending_action: Optional[str]
+    pending_payload: Optional[Dict[str, Any]] = None
 
     @property
     def line_user_id(self) -> str:
@@ -122,6 +123,7 @@ def get_confirmation_by_bot_message_id(
             confirmation_text=row.get('confirmation_text') or '',
             items_snapshot=tuple(snapshot),
             pending_action=row.get('pending_action'),
+            pending_payload=row.get('pending_payload'),
         )
     except Exception:
         logger.exception('get_confirmation_by_bot_message_id failed')
@@ -160,15 +162,28 @@ def update_interaction_bot_message_id(confirmation_id: str, bot_message_id: str)
 
 
 def set_pending_action(confirmation_id: str, action: Optional[str]) -> bool:
+    return set_pending_state(confirmation_id, action, None)
+
+
+def set_pending_state(
+    confirmation_id: str,
+    action: Optional[str],
+    payload: Optional[Dict[str, Any]],
+) -> bool:
     if not is_supabase_configured():
         return False
     try:
         client = get_supabase_client()
-        client.table('confirmation_messages').update({'pending_action': action}).eq('id', confirmation_id).execute()
+        update: Dict[str, Any] = {'pending_action': action, 'pending_payload': payload}
+        client.table('confirmation_messages').update(update).eq('id', confirmation_id).execute()
         return True
     except Exception:
-        logger.exception('set_pending_action failed')
+        logger.exception('set_pending_state failed')
         return False
+
+
+def clear_pending_state(confirmation_id: str) -> bool:
+    return set_pending_state(confirmation_id, None, None)
 
 
 def try_mark_reply_processed(tenant: TenantContext, user_reply_message_id: str) -> bool:

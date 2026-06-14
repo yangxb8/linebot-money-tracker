@@ -10,7 +10,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from jsonschema import Draft7Validator, ValidationError
 
-from services.confirmation_repository import ConfirmationRecord, set_pending_action, update_items_snapshot
+from services.categorize import map_category_from_text
+from services.confirmation_repository import (
+    ConfirmationRecord,
+    clear_pending_state,
+    set_pending_action,
+    set_pending_state,
+    update_items_snapshot,
+)
 from services.expense_repository import (
     ExpenseRow,
     get_expenses_by_ids,
@@ -25,9 +32,12 @@ from services.reply_summary import (
     EditSummaryInput,
     FieldChange,
     category_path_for_code,
+    describe_category_bulk_intent,
     detect_reply_language,
     format_amount,
+    format_category_options_prompt,
     format_edit_result,
+    format_intent_confirmation_prompt,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,6 +55,7 @@ EDIT_INTENT_SCHEMA: Dict[str, Any] = {
                 'restore',
                 'restore_all',
                 'confirm_pending',
+                'category_bulk',
                 'clarify',
             ],
         },
@@ -53,9 +64,13 @@ EDIT_INTENT_SCHEMA: Dict[str, Any] = {
             'properties': {
                 'mode': {
                     'type': 'string',
-                    'enum': ['single', 'all_active', 'all_deleted', 'unspecified'],
+                    'enum': ['single', 'all_active', 'all_deleted', 'subset', 'unspecified'],
                 },
                 'line_item_index': {'type': 'integer', 'minimum': 0},
+                'line_item_indices': {
+                    'type': 'array',
+                    'items': {'type': 'integer', 'minimum': 0},
+                },
                 'description_hint': {'type': 'string'},
             },
             'additionalProperties': True,
@@ -69,6 +84,7 @@ EDIT_INTENT_SCHEMA: Dict[str, Any] = {
                 'expense_date': {'type': 'string'},
                 'category_code': {'type': 'string'},
                 'category_alternative_number': {'type': 'integer', 'minimum': 1, 'maximum': 3},
+                'category_query': {'type': 'string', 'minLength': 1},
             },
             'additionalProperties': True,
         },
@@ -109,9 +125,9 @@ REPLY_EDIT_INTENT_PROMPT = """You interpret a user's reply to an expense confirm
 The user wants to edit, delete, or restore expense(s) linked to that confirmation.
 
 Return ONLY a JSON object with:
-- action: update | soft_delete | soft_delete_all | restore | restore_all | confirm_pending | clarify
-- target: {{ "mode": "single"|"all_active"|"all_deleted"|"unspecified", "line_item_index"?: int, "description_hint"?: string }}
-- updates: {{ "amount"?: number, "currency"?: string, "description"?: string, "expense_date"?: "YYYY-MM-DD", "category_code"?: string, "category_alternative_number"?: 1|2|3 }}
+- action: update | soft_delete | soft_delete_all | restore | restore_all | confirm_pending | category_bulk | clarify
+- target: {{ "mode": "single"|"all_active"|"all_deleted"|"subset"|"unspecified", "line_item_index"?: int, "line_item_indices"?: int[], "description_hint"?: string }}
+- updates: {{ "amount"?: number, "currency"?: string, "description"?: string, "expense_date"?: "YYYY-MM-DD", "category_code"?: string, "category_alternative_number"?: 1|2|3, "category_query"?: string }}
 - clarification_needed: boolean
 - clarification_message: string or null
 
@@ -122,11 +138,14 @@ Rules:
 - Amount corrections: "打错了，1700", "actually 3800", "应该是1700円", "3800円に修正" → action=update with updates.amount (number, not string).
 - "2 3800" / "第2 3800円" on multi-item → update that item's amount.
 - "打错了"/"打错了，NNN" means wrong amount typed — UPDATE amount, NOT delete.
-- Bare 1/2/3 on single item → category_alternative_number update.
+- Bare 1/2/3 on single item → category_alternative_number update (pick from existing alternatives).
+- Free-text category change: action=category_bulk with updates.category_query (e.g. "餐饮", "交通", "food"). For all items use mode=all_active; for specific items use mode=subset with line_item_indices (0-based).
 - "cancel"/"delete"/"キャンセル"/"删除"/"取消" alone → soft_delete (single item) or soft_delete_all (multi-item).
 - "delete all"/"全部取消"/"全部删除"/"取消全部" → soft_delete_all (user must reply YES on the confirmation prompt).
 - "restore all" → restore_all; "restore"/"undo" → restore.
 - When pending_action is delete_all, "取消"/"cancel"/"いいえ" → cancel_pending (not another delete).
+- When pending_action is confirm_intent, affirmative → confirm_pending; cancel → cancel_pending.
+- When pending_action is category_bulk, bare 1/2/3 → confirm_pending with category_alternative_number in updates.
 - Use clarify only when multi-item and the target item cannot be identified.
 
 Examples:
@@ -166,6 +185,7 @@ def _delete_all_phrase_intent(user_text: str) -> Optional[Dict[str, Any]]:
         'updates': {},
         'clarification_needed': False,
         'clarification_message': None,
+        'skip_intent_confirm': True,
     }
 
 
@@ -195,6 +215,7 @@ def _delete_phrase_intent(
         'updates': {},
         'clarification_needed': False,
         'clarification_message': None,
+        'skip_intent_confirm': True,
     }
 
 
@@ -376,6 +397,150 @@ def _bare_number_intent(user_text: str, items_snapshot: List[Dict[str, Any]]) ->
     }
 
 
+_CATEGORY_PICK_RE = re.compile(r'^[123]$')
+
+
+def _parse_item_number_tokens(raw: str) -> List[int]:
+    numbers: List[int] = []
+    for token in re.split(r'[,\s]+', (raw or '').strip()):
+        token = token.strip()
+        if not token:
+            continue
+        if not token.isdigit():
+            return []
+        numbers.append(int(token))
+    return numbers
+
+
+def _line_indices_for_item_numbers(
+    item_numbers: List[int],
+    items_snapshot: List[Dict[str, Any]],
+) -> Optional[List[int]]:
+    if not item_numbers:
+        return None
+    indices: List[int] = []
+    for item_num in item_numbers:
+        if item_num < 1 or item_num > len(items_snapshot):
+            return None
+        indices.append(items_snapshot[item_num - 1].get('line_item_index', item_num - 1))
+    return indices
+
+
+def _looks_like_category_query(rest: str) -> bool:
+    stripped = (rest or '').strip()
+    if not stripped:
+        return False
+    if stripped in ('1', '2', '3'):
+        return False
+    if _DELETE_PHRASE_RE.match(stripped):
+        return False
+    if _match_amount(_normalize_text(stripped)) is not None:
+        return False
+    return True
+
+
+def _category_bulk_intent(
+    user_text: str,
+    items_snapshot: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    stripped = user_text.strip()
+    if not stripped or not _looks_like_category_query(stripped):
+        return None
+
+    match = re.match(r'^(?:第|#)?([\d][\d,\s]*)\s+(.+)$', stripped)
+    if match:
+        item_numbers = _parse_item_number_tokens(match.group(1))
+        rest = match.group(2).strip()
+        if not item_numbers or not _looks_like_category_query(rest):
+            return None
+        line_indices = _line_indices_for_item_numbers(item_numbers, items_snapshot)
+        if line_indices is None:
+            return None
+        if len(line_indices) == 1:
+            return {
+                'action': 'category_bulk',
+                'target': {'mode': 'single', 'line_item_index': line_indices[0]},
+                'updates': {'category_query': rest},
+                'clarification_needed': False,
+                'clarification_message': None,
+                'skip_intent_confirm': True,
+            }
+        return {
+            'action': 'category_bulk',
+            'target': {'mode': 'subset', 'line_item_indices': line_indices},
+            'updates': {'category_query': rest},
+            'clarification_needed': False,
+            'clarification_message': None,
+            'skip_intent_confirm': True,
+        }
+
+    if len(items_snapshot) == 1:
+        return {
+            'action': 'category_bulk',
+            'target': {
+                'mode': 'single',
+                'line_item_index': items_snapshot[0].get('line_item_index', 0),
+            },
+            'updates': {'category_query': stripped},
+            'clarification_needed': False,
+            'clarification_message': None,
+            'skip_intent_confirm': True,
+        }
+
+    return None
+
+
+def _target_line_indices_from_intent(
+    intent: Dict[str, Any],
+    items_snapshot: List[Dict[str, Any]],
+) -> List[int]:
+    target = intent.get('target') or {}
+    mode = target.get('mode', 'single')
+    if mode == 'all_active':
+        return [item.get('line_item_index', index) for index, item in enumerate(items_snapshot)]
+    if mode == 'subset':
+        indices = target.get('line_item_indices') or []
+        return [int(index) for index in indices]
+    if mode == 'single':
+        line_index = target.get('line_item_index')
+        if line_index is not None:
+            return [int(line_index)]
+    if len(items_snapshot) == 1:
+        return [items_snapshot[0].get('line_item_index', 0)]
+    return []
+
+
+def _item_labels_for_line_indices(
+    line_indices: List[int],
+    items_snapshot: List[Dict[str, Any]],
+) -> List[str]:
+    labels: List[str] = []
+    for line_index in line_indices:
+        for position, item in enumerate(items_snapshot, start=1):
+            if item.get('line_item_index') == line_index:
+                labels.append(str(position))
+                break
+    return labels
+
+
+def _items_for_line_indices(
+    line_indices: List[int],
+    items_snapshot: List[Dict[str, Any]],
+    expenses: Dict[str, ExpenseRow],
+) -> List[Dict[str, Any]]:
+    selected: List[Dict[str, Any]] = []
+    wanted = set(line_indices)
+    for item in items_snapshot:
+        line_index = item.get('line_item_index')
+        if line_index not in wanted:
+            continue
+        expense = expenses.get(str(item.get('expense_id', '')))
+        if expense is None or expense.deleted_at:
+            continue
+        selected.append(item)
+    return selected
+
+
 def resolve_category_pick(
     intent: Dict[str, Any],
     items_snapshot: List[Dict[str, Any]],
@@ -454,6 +619,7 @@ async def parse_edit_intent(
     items_snapshot: List[Dict[str, Any]],
     pending_action: Optional[str],
     gemini: GeminiClient,
+    pending_payload: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     if pending_action == 'delete_all' and is_affirmative(user_text):
         return {
@@ -464,11 +630,29 @@ async def parse_edit_intent(
             'clarification_message': None,
         }
 
-    if pending_action == 'delete_all' and is_cancel_pending(user_text):
+    if pending_action in ('delete_all', 'confirm_intent', 'category_bulk') and is_cancel_pending(user_text):
         return {
             'action': 'cancel_pending',
             'target': {'mode': 'unspecified'},
             'updates': {},
+            'clarification_needed': False,
+            'clarification_message': None,
+        }
+
+    if pending_action == 'confirm_intent' and is_affirmative(user_text):
+        return {
+            'action': 'confirm_pending',
+            'target': {'mode': 'unspecified'},
+            'updates': {},
+            'clarification_needed': False,
+            'clarification_message': None,
+        }
+
+    if pending_action == 'category_bulk' and _CATEGORY_PICK_RE.match((user_text or '').strip()):
+        return {
+            'action': 'confirm_pending',
+            'target': {'mode': 'unspecified'},
+            'updates': {'category_alternative_number': int(user_text.strip())},
             'clarification_needed': False,
             'clarification_message': None,
         }
@@ -481,7 +665,12 @@ async def parse_edit_intent(
     if bare is not None:
         return bare
 
-    if pending_action != 'delete_all':
+    if pending_action is None:
+        category_intent = _category_bulk_intent(user_text, items_snapshot)
+        if category_intent is not None:
+            return category_intent
+
+    if pending_action not in ('delete_all', 'confirm_intent', 'category_bulk'):
         delete_intent = _delete_phrase_intent(user_text, items_snapshot)
         if delete_intent is not None:
             return delete_intent
@@ -497,11 +686,25 @@ async def parse_edit_intent(
             response = await gemini.generate_json_reply(prompt)
         parsed = validate_edit_intent(_parse_json_object(response), items_snapshot)
         if parsed:
+            if parsed.get('action') == 'category_bulk':
+                updates = parsed.get('updates') or {}
+                if not updates.get('category_query'):
+                    parsed['action'] = 'clarify'
+                    parsed['clarification_needed'] = True
             return parsed
     except (json.JSONDecodeError, ValidationError, TypeError):
         logger.warning('parse_edit_intent: invalid LLM JSON', exc_info=True)
     except Exception:
         logger.exception('parse_edit_intent failed')
+
+    if pending_action in ('confirm_intent', 'category_bulk'):
+        return {
+            'action': 'clarify',
+            'target': {'mode': 'unspecified'},
+            'updates': {},
+            'clarification_needed': True,
+            'clarification_message': None,
+        }
 
     amount_intent = _amount_correction_intent(user_text, items_snapshot)
     if amount_intent is not None:
@@ -548,6 +751,16 @@ def _clarify_message(language: str, reason: str) -> str:
             'en': 'No active expenses to edit on this confirmation.',
             'ja': '編集できる有効な支出がありません。',
         },
+        'no_category_match': {
+            'zh': '找不到匹配的类别。请换一种说法再试。',
+            'en': "Couldn't find a matching category. Please try different wording.",
+            'ja': '一致するカテゴリが見つかりませんでした。別の表現でお試しください。',
+        },
+        'pending_reply': {
+            'zh': '请回复 YES 确认，或回复 1–3 选择类别。',
+            'en': 'Reply YES to confirm, or 1–3 to pick a category.',
+            'ja': 'YES で確認するか、1〜3 でカテゴリを選んでください。',
+        },
         'generic': {
             'zh': '无法理解您的回复。请再试一次。',
             'en': "I couldn't understand that reply. Please try again.",
@@ -570,6 +783,157 @@ def _parse_expense_date(raw: Any) -> Optional[date]:
         return None
 
 
+async def _begin_category_bulk_flow(
+    intent: Dict[str, Any],
+    confirmation: ConfirmationRecord,
+    user_text: str,
+    gemini: GeminiClient,
+    items_snapshot: List[Dict[str, Any]],
+    expenses: Dict[str, ExpenseRow],
+) -> EditApplyResult:
+    language = detect_reply_language(user_text)
+    updates = intent.get('updates') or {}
+    category_query = str(updates.get('category_query', '')).strip()
+    if not category_query:
+        summary = format_edit_result(
+            language,
+            EditSummaryInput(
+                status='clarification',
+                action='category_bulk',
+                clarification_message=_clarify_message(language, 'generic'),
+            ),
+        )
+        return EditApplyResult(status='clarification', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+
+    line_indices = _target_line_indices_from_intent(intent, items_snapshot)
+    target_items = _items_for_line_indices(line_indices, items_snapshot, expenses)
+    if not target_items:
+        summary = format_edit_result(
+            language,
+            EditSummaryInput(
+                status='clarification',
+                action='category_bulk',
+                clarification_message=_clarify_message(language, 'no_active'),
+            ),
+        )
+        return EditApplyResult(status='clarification', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+
+    if not intent.get('skip_intent_confirm'):
+        target_labels = tuple(_item_labels_for_line_indices(line_indices, items_snapshot))
+        all_items = (intent.get('target') or {}).get('mode') == 'all_active'
+        interpretation = describe_category_bulk_intent(language, category_query, target_labels, all_items)
+        payload = {
+            'interpreted_action': 'category_bulk',
+            'category_query': category_query,
+            'target_line_item_indices': line_indices,
+            'interpretation': interpretation,
+        }
+        set_pending_state(confirmation.id, 'confirm_intent', payload)
+        summary = format_intent_confirmation_prompt(language, interpretation)
+        return EditApplyResult(
+            status='applied',
+            summary=summary,
+            intent_json=intent,
+            items_snapshot=items_snapshot,
+            anchor_reply_to_sent_message=True,
+        )
+
+    options = await map_category_from_text(category_query, gemini)
+    if not options:
+        summary = format_edit_result(
+            language,
+            EditSummaryInput(
+                status='clarification',
+                action='category_bulk',
+                clarification_message=_clarify_message(language, 'no_category_match'),
+            ),
+        )
+        return EditApplyResult(status='clarification', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+
+    target_labels = tuple(_item_labels_for_line_indices(line_indices, items_snapshot))
+    payload = {
+        'category_query': category_query,
+        'category_options': list(options),
+        'target_line_item_indices': line_indices,
+    }
+    set_pending_state(confirmation.id, 'category_bulk', payload)
+    summary = format_category_options_prompt(language, category_query, options, target_labels)
+    return EditApplyResult(
+        status='applied',
+        summary=summary,
+        intent_json=intent,
+        items_snapshot=items_snapshot,
+        anchor_reply_to_sent_message=True,
+    )
+
+
+async def _apply_category_bulk_pick(
+    intent: Dict[str, Any],
+    confirmation: ConfirmationRecord,
+    user_text: str,
+    items_snapshot: List[Dict[str, Any]],
+    expenses: Dict[str, ExpenseRow],
+    payload: Dict[str, Any],
+) -> EditApplyResult:
+    language = detect_reply_language(user_text)
+    alt_num = (intent.get('updates') or {}).get('category_alternative_number')
+    options = payload.get('category_options') or []
+    if alt_num is None or alt_num < 1 or alt_num > len(options):
+        summary = format_edit_result(
+            language,
+            EditSummaryInput(
+                status='clarification',
+                action='category_bulk',
+                clarification_message=_clarify_message(language, 'invalid_alternative'),
+            ),
+        )
+        return EditApplyResult(status='clarification', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+
+    category_code = str(options[int(alt_num) - 1])
+    line_indices = [int(index) for index in (payload.get('target_line_item_indices') or [])]
+    target_items = _items_for_line_indices(line_indices, items_snapshot, expenses)
+    if not target_items:
+        clear_pending_state(confirmation.id)
+        summary = format_edit_result(
+            language,
+            EditSummaryInput(
+                status='clarification',
+                action='category_bulk',
+                clarification_message=_clarify_message(language, 'no_active'),
+            ),
+        )
+        return EditApplyResult(status='clarification', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+
+    updated_count = 0
+    for item in target_items:
+        expense_id = str(item['expense_id'])
+        result = update_expense_fields(expense_id, category_code=category_code)
+        if not result.success:
+            summary = format_edit_result(
+                language,
+                EditSummaryInput(status='error', action='category_bulk', error_message=result.error),
+            )
+            return EditApplyResult(status='error', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+        updated_count += 1
+        for snap in items_snapshot:
+            if str(snap.get('expense_id')) == expense_id:
+                snap['category_guess_code'] = category_code
+                break
+
+    clear_pending_state(confirmation.id)
+    update_items_snapshot(confirmation.id, items_snapshot)
+    summary = format_edit_result(
+        language,
+        EditSummaryInput(
+            status='applied',
+            action='category_bulk',
+            affected_count=updated_count,
+            changes=(FieldChange('category', '', category_path_for_code(category_code)),),
+        ),
+    )
+    return EditApplyResult(status='applied', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+
+
 async def apply_edit_intent(
     intent: Dict[str, Any],
     confirmation: ConfirmationRecord,
@@ -582,11 +946,95 @@ async def apply_edit_intent(
     expenses = {row.id: row for row in get_expenses_by_ids(expense_ids)}
 
     action = intent.get('action', 'clarify')
+    pending_payload = dict(confirmation.pending_payload or {})
+
+    if confirmation.pending_action and action not in ('confirm_pending', 'cancel_pending'):
+        clear_pending_state(confirmation.id)
+        pending_payload = {}
+
     if intent.get('clarification_needed') or action == 'clarify':
-        msg = intent.get('clarification_message') or _clarify_message(language, 'generic')
+        if confirmation.pending_action in ('confirm_intent', 'category_bulk'):
+            msg = intent.get('clarification_message') or _clarify_message(language, 'pending_reply')
+        else:
+            msg = intent.get('clarification_message') or _clarify_message(language, 'generic')
         return EditApplyResult(status='clarification', summary=msg, intent_json=intent, items_snapshot=items_snapshot)
 
+    if action == 'category_bulk':
+        return await _begin_category_bulk_flow(intent, confirmation, user_text, gemini, items_snapshot, expenses)
+
+    if action == 'cancel_pending' and confirmation.pending_action in ('confirm_intent', 'category_bulk'):
+        clear_pending_state(confirmation.id)
+        if language == 'zh':
+            summary = '已取消待确认的操作。'
+        elif language == 'en':
+            summary = 'Pending action cancelled.'
+        else:
+            summary = '保留中の操作をキャンセルしました。'
+        return EditApplyResult(status='applied', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+
+    if action == 'confirm_pending' and confirmation.pending_action == 'confirm_intent':
+        interpreted_action = pending_payload.get('interpreted_action')
+        if interpreted_action == 'category_bulk':
+            follow_up = {
+                'action': 'category_bulk',
+                'target': {
+                    'mode': 'subset' if len(pending_payload.get('target_line_item_indices') or []) > 1 else 'single',
+                    'line_item_index': (pending_payload.get('target_line_item_indices') or [0])[0],
+                    'line_item_indices': pending_payload.get('target_line_item_indices') or [],
+                },
+                'updates': {'category_query': pending_payload.get('category_query', '')},
+                'skip_intent_confirm': True,
+            }
+            clear_pending_state(confirmation.id)
+            return await _begin_category_bulk_flow(
+                follow_up,
+                confirmation,
+                user_text,
+                gemini,
+                items_snapshot,
+                expenses,
+            )
+        if interpreted_action == 'soft_delete_all':
+            clear_pending_state(confirmation.id)
+            active = _active_items(items_snapshot, expenses)
+            ids = [str(item['expense_id']) for item in active]
+            result = soft_delete_expenses(ids)
+            if not result.success:
+                summary = format_edit_result(
+                    language,
+                    EditSummaryInput(status='error', action='soft_delete_all', error_message=result.error),
+                )
+                return EditApplyResult(status='error', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+            summary = format_edit_result(
+                language,
+                EditSummaryInput(status='applied', action='soft_delete_all', affected_count=result.affected or len(ids)),
+            )
+            return EditApplyResult(status='applied', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+
+    if action == 'confirm_pending' and confirmation.pending_action == 'category_bulk':
+        return await _apply_category_bulk_pick(intent, confirmation, user_text, items_snapshot, expenses, pending_payload)
+
     if action == 'soft_delete_all':
+        if not intent.get('skip_intent_confirm'):
+            if language == 'zh':
+                interpretation = '将软删除此确认中的所有支出。'
+            elif language == 'en':
+                interpretation = 'Soft-delete all expenses on this confirmation.'
+            else:
+                interpretation = 'この確認の支出をすべて削除します。'
+            payload = {
+                'interpreted_action': 'soft_delete_all',
+                'interpretation': interpretation,
+            }
+            set_pending_state(confirmation.id, 'confirm_intent', payload)
+            summary = format_intent_confirmation_prompt(language, interpretation)
+            return EditApplyResult(
+                status='applied',
+                summary=summary,
+                intent_json=intent,
+                items_snapshot=items_snapshot,
+                anchor_reply_to_sent_message=True,
+            )
         set_pending_action(confirmation.id, 'delete_all')
         summary = format_edit_result(language, EditSummaryInput(status='applied', action='soft_delete_all_pending'))
         return EditApplyResult(
