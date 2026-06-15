@@ -14,6 +14,12 @@ logger = logging.getLogger(__name__)
 CATEGORY_NAMESPACE = uuid.UUID('f47ac10b-58cc-4372-a567-0e02b2c3d479')
 UNKNOWN_CODE = 'unknown'
 _TAXONOMY_PATH = Path(__file__).resolve().parent.parent / 'data' / 'category_taxonomy_ja.yaml'
+# Retired L3 codes mapped to their L2 parent for backward compatibility.
+_LEGACY_L3_TO_L2: Dict[str, str] = {
+    'food.dining.cafe': 'food.dining',
+    'food.dining.restaurant': 'food.dining',
+    'food.dining.fastfood': 'food.dining',
+}
 
 
 @dataclass(frozen=True)
@@ -44,20 +50,21 @@ def _flatten_nodes(
         node_id = category_id_for_code(code)
         parent_id = parent.id if parent else None
 
+        if level > 2:
+            raise ValueError(f'Category {code!r} exceeds max depth of 2 (level={level})')
+
         if level == 1:
             l1_id, l2_id, l3_id = node_id, None, None
             path = (raw['name_ja'],)
-        elif level == 2:
+        else:
             assert parent is not None
             l1_id = parent.l1_id
             l2_id, l3_id = node_id, None
             path = parent.path_names + (raw['name_ja'],)
-        else:
-            assert parent is not None
-            l1_id = parent.l1_id
-            l2_id = parent.l2_id
-            l3_id = node_id
-            path = parent.path_names + (raw['name_ja'],)
+
+        children = raw.get('children') or []
+        if children and level >= 2:
+            raise ValueError(f'Category {code!r} at level {level} cannot have children')
 
         node = CategoryNode(
             id=node_id,
@@ -71,7 +78,6 @@ def _flatten_nodes(
             path_names=path,
         )
         flat.append(node)
-        children = raw.get('children') or []
         flat.extend(_flatten_nodes(children, node))
     return flat
 
@@ -99,6 +105,7 @@ def resolve_code(code: Optional[str]) -> CategoryNode:
         return taxonomy[UNKNOWN_CODE]
 
     normalized = code.strip()
+    normalized = _LEGACY_L3_TO_L2.get(normalized, normalized)
     node = taxonomy.get(normalized)
     if node is None:
         logger.warning('Unknown category code %r; falling back to %s', code, UNKNOWN_CODE)

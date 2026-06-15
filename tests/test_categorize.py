@@ -32,6 +32,15 @@ class TestCategorizeValidation(unittest.TestCase):
         self.assertEqual(normalized.guessed, 'unknown')
         self.assertIn('food.grocery', normalized.alternatives)
 
+    def test_normalize_maps_legacy_l3_codes_to_l2(self):
+        raw = CategoryResult(
+            guessed='food.dining.cafe',
+            alternatives=('food.dining.restaurant', 'food.grocery'),
+        )
+        normalized = normalize_category_result(raw)
+        self.assertEqual(normalized.guessed, 'food.dining')
+        self.assertEqual(normalized.alternatives, ('food.grocery',))
+
     def test_normalize_dedupes_guess_from_alts(self):
         raw = CategoryResult(
             guessed='transport.transit',

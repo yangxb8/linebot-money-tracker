@@ -15,13 +15,18 @@ class TestCategoryTaxonomy(unittest.TestCase):
         self.assertIn(UNKNOWN_CODE, taxonomy)
         self.assertEqual(taxonomy[UNKNOWN_CODE].name_ja, '不明')
 
-    def test_resolve_l3_food_cafe(self):
+    def test_legacy_l3_code_maps_to_l2_parent(self):
         node = resolve_code('food.dining.cafe')
-        self.assertEqual(node.level, 3)
+        self.assertEqual(node.level, 2)
+        self.assertEqual(node.code, 'food.dining')
         self.assertEqual(node.l1_id, category_id_for_code('food'))
         self.assertEqual(node.l2_id, category_id_for_code('food.dining'))
-        self.assertEqual(node.l3_id, node.id)
-        self.assertEqual(format_category_path(node), '食費 > 外食 > カフェ')
+        self.assertIsNone(node.l3_id)
+        self.assertEqual(format_category_path(node), '食費 > 外食')
+
+    def test_taxonomy_max_depth_is_two(self):
+        taxonomy = load_category_taxonomy()
+        self.assertTrue(all(node.level <= 2 for node in taxonomy.values()))
 
     def test_resolve_l2_denormalized_ancestors(self):
         node = resolve_code('transport.transit')
