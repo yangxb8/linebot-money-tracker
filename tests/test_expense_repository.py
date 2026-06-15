@@ -17,7 +17,7 @@ from services.tenant_context import TenantContext
 
 
 class TestBuildInsertRow(unittest.TestCase):
-    def test_builds_denormalized_l3_row(self):
+    def test_builds_denormalized_l2_row_for_legacy_l3_code(self):
         context = MessageContext(tenant=TenantContext.personal('u1'), source_message_id='m1')
         row = build_insert_row(
             context=context,
@@ -25,8 +25,8 @@ class TestBuildInsertRow(unittest.TestCase):
             line_item_index=0,
             category_code='food.dining.cafe',
         )
-        self.assertEqual(row.assigned_level, 3)
-        self.assertIsNotNone(row.category_l3_id)
+        self.assertEqual(row.assigned_level, 2)
+        self.assertIsNone(row.category_l3_id)
         self.assertEqual(row.currency, 'JPY')
         self.assertEqual(row.amount, Decimal('450.00'))
 

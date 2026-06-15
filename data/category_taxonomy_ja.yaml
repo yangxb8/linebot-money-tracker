@@ -1,4 +1,4 @@
-# Japanese household expense taxonomy (max depth 3). IDs are uuid5(namespace, code) in app/migration.
+# Japanese household expense taxonomy (max depth 2). IDs are uuid5(namespace, code) in app/migration.
 version: 1
 nodes:
   - code: food
@@ -14,19 +14,6 @@ nodes:
         name_ja: 外食
         level: 2
         sort_order: 2
-        children:
-          - code: food.dining.cafe
-            name_ja: カフェ
-            level: 3
-            sort_order: 1
-          - code: food.dining.restaurant
-            name_ja: レストラン
-            level: 3
-            sort_order: 2
-          - code: food.dining.fastfood
-            name_ja: ファストフード
-            level: 3
-            sort_order: 3
       - code: food.lunch
         name_ja: 昼食・給食
         level: 2
