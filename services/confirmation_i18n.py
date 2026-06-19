@@ -39,6 +39,18 @@ _STRINGS: Dict[str, Dict[str, str]] = {
             'レシート画像またはテキスト（例: ランチ 1200円）を送ってください。'
         ),
         'error': '応答を生成できませんでした。しばらくしてからもう一度お試しください。',
+        'retry_not_found': (
+            'このメッセージから再試行できません。'
+            'エラーメッセージに返信して「もう一度」と送ってください。'
+        ),
+        'retry_expired': (
+            '元のメッセージの保存期限が切れました。'
+            'もう一度レシートまたは金額を送ってください。'
+        ),
+        'retry_image_expired': (
+            '元の画像を取得できませんでした。'
+            'もう一度レシート写真を送ってください。'
+        ),
         'usage_limit': (
             'AIの利用上限に達したため、レシート画像の解析ができません。'
             'しばらくしてから再度お試しいただくか、合計金額をテキストで送ってください。'
@@ -64,6 +76,17 @@ _STRINGS: Dict[str, Dict[str, str]] = {
             "Please send a receipt image or text like: 'Lunch 1200 yen'."
         ),
         'error': "Sorry, I couldn't generate a response right now. Please try again in a moment.",
+        'retry_not_found': (
+            "I can't retry from this message. "
+            'Reply to the error message with "retry" or "try again".'
+        ),
+        'retry_expired': (
+            'The original message is no longer available. '
+            'Please send the receipt or amount again.'
+        ),
+        'retry_image_expired': (
+            "I couldn't fetch the original image. Please send the receipt photo again."
+        ),
         'usage_limit': (
             "I can't analyze receipt images right now because the AI usage limit has been reached. "
             'Please try again later, or send the total as text.'
@@ -89,6 +112,15 @@ _STRINGS: Dict[str, Dict[str, str]] = {
             '请发送收据图片或文字（例: 午餐 1200円）。'
         ),
         'error': '暂时无法生成回复，请稍后再试。',
+        'retry_not_found': (
+            '无法从此消息重试。请回复错误消息并发送「重试」。'
+        ),
+        'retry_expired': (
+            '原始消息已过期，请重新发送收据或金额。'
+        ),
+        'retry_image_expired': (
+            '无法获取原始图片，请重新发送收据照片。'
+        ),
         'usage_limit': (
             'AI 使用额度已达上限，暂时无法解析收据图片。'
             '请稍后再试，或以文字发送合计金额。'

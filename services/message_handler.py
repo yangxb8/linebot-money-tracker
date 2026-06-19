@@ -207,8 +207,13 @@ async def _enrich_and_persist_items(
     return enriched, confirmation_payload
 
 
-def _text_reply(text: str, confirmation: Optional[ConfirmationSavePayload] = None) -> BotReply:
-    return BotReply(text=text, confirmation=confirmation)
+def _text_reply(
+    text: str,
+    confirmation: Optional[ConfirmationSavePayload] = None,
+    *,
+    retryable_failure: Optional[str] = None,
+) -> BotReply:
+    return BotReply(text=text, confirmation=confirmation, retryable_failure=retryable_failure)
 
 
 async def process_reply_edit(
@@ -286,7 +291,7 @@ async def process_text_message(
             )
             if not reply_text:
                 logger.warning('Text pipeline: empty confirmation after processing')
-                return _text_reply(error_reply_text(language))
+                return _text_reply(error_reply_text(language), retryable_failure='processing_error')
             return _text_reply(reply_text, confirmation_payload)
 
         if await is_expense_intent_text(text, gemini):
@@ -304,7 +309,7 @@ async def process_text_message(
                 )
                 if not reply_text:
                     logger.warning('Text pipeline: empty confirmation after processing')
-                    return _text_reply(error_reply_text(language))
+                    return _text_reply(error_reply_text(language), retryable_failure='processing_error')
                 return _text_reply(reply_text, confirmation_payload)
 
             logger.warning('Text pipeline: expense intent but no parseable items')
@@ -317,7 +322,7 @@ async def process_text_message(
         return _text_reply(usage_limit_reply(language))
     except Exception:
         logger.exception('Text message processing failed')
-        return _text_reply(error_reply_text(language))
+        return _text_reply(error_reply_text(language), retryable_failure='processing_error')
 
 
 async def _extract_expense_items_from_ocr(
@@ -421,7 +426,7 @@ async def process_image_message(
         )
         if not reply_text:
             logger.warning('Image pipeline: format_expense_items returned empty for %d item(s)', len(items))
-            return _text_reply(error_reply_text(language))
+            return _text_reply(error_reply_text(language), retryable_failure='processing_error')
 
         logger.info('Image pipeline: success with %d item(s)', len(items))
         return _text_reply(reply_text, confirmation_payload)
@@ -431,5 +436,5 @@ async def process_image_message(
             describe_bytes(image_bytes),
             resolved_mime,
         )
-        return _text_reply(error_reply_text(language))
+        return _text_reply(error_reply_text(language), retryable_failure='processing_error')
 

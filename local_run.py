@@ -9,10 +9,16 @@ import sys
 import uuid
 from pathlib import Path
 
-from services.confirmation_repository import save_confirmation
+from services.confirmation_repository import get_confirmation_by_bot_message_id, save_confirmation
 from services.env_loader import load_env, require_env_vars
+from services.inbound_message_repository import (
+    save_failure_retry_anchor,
+    save_inbound_image_message,
+    save_inbound_text_message,
+)
 from services.metered_gemini import create_gemini_client
-from services.message_context import MessageContext, ReplyContext
+from services.message_context import MessageContext, ReplyContext, RetryContext
+from services.message_retry import is_retry_intent, process_message_retry, retry_not_found_reply
 from services.tenant_context import resolve_tenant_for_console
 from services.usage_limiter import format_denial_reply, prepare_inbound_usage
 from services.usage_metering import usage_billing_scope
@@ -21,6 +27,7 @@ from services.message_handler import process_image_message, process_reply_edit, 
 logger = logging.getLogger(__name__)
 
 CONSOLE_REQUIRED_VARS = ['GEMINI_API_KEY']
+_CONSOLE_IMAGE_BYTES: dict[str, bytes] = {}
 
 
 def _configure_logging(debug: bool = False) -> None:
@@ -44,6 +51,10 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '--reply-to',
         help='Bot confirmation message ID to simulate reply-to-message flow',
+    )
+    parser.add_argument(
+        '--retry-to',
+        help='Bot error message ID to simulate reply-to-retry flow (use with --text retry)',
     )
     parser.add_argument(
         '--group-id',
@@ -76,12 +87,21 @@ def _read_image(path_str: str) -> bytes:
         raise OSError(f'Unable to read image file: {path}') from exc
 
 
-async def _run(args: argparse.Namespace) -> tuple[str, str | None]:
+async def _fetch_console_image_bytes(message_id: str) -> bytes:
+    cached = _CONSOLE_IMAGE_BYTES.get(message_id)
+    if cached is None:
+        raise FileNotFoundError(f'No console image cached for message_id={message_id}')
+    return cached
+
+
+async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
     gemini = create_gemini_client(api_key=os.getenv('GEMINI_API_KEY'))
     line_user_id = os.getenv('LOCAL_LINE_USER_ID', 'local-dev-user')
 
     if args.group_id and args.room_id:
         raise ValueError('Use only one of --group-id or --room-id')
+    if args.reply_to and args.retry_to:
+        raise ValueError('Use only one of --reply-to or --retry-to')
 
     tenant = resolve_tenant_for_console(
         line_user_id,
@@ -91,9 +111,64 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None]:
 
     source_message_id = str(uuid.uuid4())
 
+    if args.retry_to:
+        if not args.text:
+            raise ValueError('--retry-to requires --text')
+        if not is_retry_intent(args.text):
+            raise ValueError('--retry-to requires retry intent text (e.g. "retry")')
+        retry_context = RetryContext(
+            tenant=tenant,
+            retry_reply_message_id=source_message_id,
+            bot_error_message_id=args.retry_to,
+            reply_language='en',
+        )
+        usage_prep = prepare_inbound_usage(
+            tenant,
+            line_user_id,
+            source_message_id,
+            text=args.text,
+            skip_limits=args.skip_usage_limits,
+        )
+        if not usage_prep.allowed:
+            return format_denial_reply('en', usage_prep.reason), None, None
+        with usage_billing_scope(usage_prep.billing_context):
+            bot_reply = await process_message_retry(
+                retry_context,
+                gemini,
+                _fetch_console_image_bytes,
+            )
+        if bot_reply.text == retry_not_found_reply('en'):
+            return bot_reply.text, None, None
+        bot_message_id = None
+        error_message_id = None
+        if bot_reply.confirmation:
+            bot_message_id = f'console-{uuid.uuid4()}'
+            save_confirmation(
+                bot_message_id=bot_message_id,
+                tenant=bot_reply.confirmation.tenant,
+                confirmation_text=bot_reply.confirmation.confirmation_text,
+                items=list(bot_reply.confirmation.items),
+            )
+        if bot_reply.retryable_failure:
+            error_message_id = f'console-{uuid.uuid4()}'
+            from services.inbound_message_repository import get_failure_retry_anchor
+
+            anchor = get_failure_retry_anchor(args.retry_to, tenant)
+            if anchor is not None:
+                save_failure_retry_anchor(
+                    bot_error_message_id=error_message_id,
+                    original_message_id=anchor.original_message_id,
+                    original_line_user_id=anchor.original_line_user_id,
+                    tenant=tenant,
+                    failure_kind=bot_reply.retryable_failure,
+                )
+        return bot_reply.text, bot_message_id, error_message_id
+
     if args.reply_to:
         if not args.text:
             raise ValueError('--reply-to requires --text')
+        if get_confirmation_by_bot_message_id(args.reply_to, tenant) is None:
+            raise ValueError(f'No confirmation found for bot_message_id={args.reply_to}')
         reply_context = ReplyContext(
             tenant=tenant,
             user_reply_message_id=source_message_id,
@@ -107,10 +182,10 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None]:
             skip_limits=args.skip_usage_limits,
         )
         if not usage_prep.allowed:
-            return format_denial_reply('en', usage_prep.reason), None
+            return format_denial_reply('en', usage_prep.reason), None, None
         with usage_billing_scope(usage_prep.billing_context):
             edit_result = await process_reply_edit(args.text, reply_context, gemini)
-        return edit_result.text, None
+        return edit_result.text, None, None
 
     context = MessageContext(
         tenant=tenant,
@@ -118,6 +193,12 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None]:
     )
 
     if args.text is not None:
+        save_inbound_text_message(
+            message_id=source_message_id,
+            line_user_id=line_user_id,
+            tenant=tenant,
+            text_content=args.text,
+        )
         usage_prep = prepare_inbound_usage(
             tenant,
             line_user_id,
@@ -126,11 +207,17 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None]:
             skip_limits=args.skip_usage_limits,
         )
         if not usage_prep.allowed:
-            return format_denial_reply('en', usage_prep.reason), None
+            return format_denial_reply('en', usage_prep.reason), None, None
         with usage_billing_scope(usage_prep.billing_context):
             bot_reply = await process_text_message(args.text, gemini, context)
     else:
         image_bytes = _read_image(args.image)
+        save_inbound_image_message(
+            message_id=source_message_id,
+            line_user_id=line_user_id,
+            tenant=tenant,
+        )
+        _CONSOLE_IMAGE_BYTES[source_message_id] = image_bytes
         usage_prep = prepare_inbound_usage(
             tenant,
             line_user_id,
@@ -139,11 +226,12 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None]:
             skip_limits=args.skip_usage_limits,
         )
         if not usage_prep.allowed:
-            return format_denial_reply('en', usage_prep.reason), None
+            return format_denial_reply('en', usage_prep.reason), None, None
         with usage_billing_scope(usage_prep.billing_context):
             bot_reply = await process_image_message(image_bytes, gemini, context=context)
 
     bot_message_id = None
+    error_message_id = None
     if bot_reply.confirmation:
         bot_message_id = f'console-{uuid.uuid4()}'
         save_confirmation(
@@ -152,8 +240,17 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None]:
             confirmation_text=bot_reply.confirmation.confirmation_text,
             items=list(bot_reply.confirmation.items),
         )
+    if bot_reply.retryable_failure:
+        error_message_id = f'console-{uuid.uuid4()}'
+        save_failure_retry_anchor(
+            bot_error_message_id=error_message_id,
+            original_message_id=source_message_id,
+            original_line_user_id=line_user_id,
+            tenant=tenant,
+            failure_kind=bot_reply.retryable_failure,
+        )
 
-    return bot_reply.text, bot_message_id
+    return bot_reply.text, bot_message_id, error_message_id
 
 
 def main() -> int:
@@ -169,7 +266,7 @@ def main() -> int:
     _configure_logging(debug=args.debug)
 
     try:
-        reply, bot_message_id = asyncio.run(_run(args))
+        reply, bot_message_id, error_message_id = asyncio.run(_run(args))
     except FileNotFoundError as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -186,6 +283,8 @@ def main() -> int:
     print(reply)
     if bot_message_id:
         print(f'[confirmation] bot_message_id={bot_message_id} (use with --reply-to)')
+    if error_message_id:
+        print(f'[retry] bot_error_message_id={error_message_id} (use with --retry-to)')
     return 0
 
 

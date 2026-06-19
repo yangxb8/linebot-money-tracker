@@ -34,6 +34,20 @@ class ReplyContext:
 
 
 @dataclass(frozen=True)
+class RetryContext:
+    """Inbound reply-to-bot-error retry context."""
+
+    tenant: TenantContext
+    retry_reply_message_id: str
+    bot_error_message_id: str
+    reply_language: str = 'ja'
+
+    @property
+    def line_user_id(self) -> str:
+        return self.tenant.logged_by_line_user_id
+
+
+@dataclass(frozen=True)
 class ConfirmationItemSnapshot:
     line_item_index: int
     expense_id: str
@@ -59,6 +73,7 @@ class ConfirmationSavePayload:
 class BotReply:
     text: str
     confirmation: Optional[ConfirmationSavePayload] = None
+    retryable_failure: Optional[str] = None
 
 
 @dataclass(frozen=True)
