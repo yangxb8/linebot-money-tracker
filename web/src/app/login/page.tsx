@@ -1,4 +1,3 @@
-import { buildLineAuthorizeUrl, createOAuthState } from "@/lib/line/oauth";
 import { LanguageProvider } from "@/components/LanguageProvider";
 
 export default async function LoginPage({
@@ -7,8 +6,6 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const params = await searchParams;
-  const state = await createOAuthState();
-  const authorizeUrl = buildLineAuthorizeUrl(state);
   const authFailed = params.error === "auth_failed";
 
   return (
@@ -27,7 +24,7 @@ export default async function LoginPage({
             </p>
           )}
           <a
-            href={authorizeUrl}
+            href="/api/auth/line/login"
             className="inline-flex w-full items-center justify-center rounded-xl bg-[#06C755] px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#05b34c]"
           >
             LINEでログイン
