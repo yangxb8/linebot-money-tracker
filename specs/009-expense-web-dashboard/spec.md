@@ -150,7 +150,7 @@ A LINE bot user can open the expense dashboard from a rich menu item on the bot'
 ## Assumptions
 
 - Users already log expenses through the existing LINE bot; the dashboard is a read mirror, not a new logging channel.
-- LINE Login and Messaging API share the same LINE Developers channel (Login product enabled on that channel).
+- LINE Login uses a **dedicated LINE Login channel** (LIFF cannot be added to Messaging API channels); Messaging API bot channel is separate. Both must be under the **same provider** so user IDs match.
 - `tenant_chat_members` (maintained by the bot on inbound messages) is the authoritative list of which shared ledgers a user may access on the web.
 - JPY is the only currency shown in MVP; most household users log yen amounts.
 - Bot language preference in `user_language_preferences` is used when present; otherwise UI defaults to Japanese.

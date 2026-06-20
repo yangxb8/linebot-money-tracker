@@ -9,24 +9,30 @@
 
 ## 1. LINE Developers Console
 
-### Enable LINE Login (same channel as bot)
+### Create a LINE Login channel (LIFF cannot use Messaging API channel)
+
+Per [LINE's 2019 policy](https://developers.line.biz/en/news/2019/11/11/liff-cannot-be-used-with-messaging-api-channels/), LIFF apps must be added to a **LINE Login channel**, not your Messaging API bot channel.
 
 1. Open [LINE Developers Console](https://developers.line.biz/console/).
-2. Select your provider → select the **same channel** used for the expense bot.
-3. Open the **LINE Login** tab (enable Login product on the channel if prompted).
+2. Select the **same provider** as your expense bot's Messaging API channel (required so user IDs match).
+3. **Create a new channel** → type **LINE Login**.
 4. Under **Callback URL**, add:
    - `https://<your-vercel-app>.vercel.app/api/auth/line/callback`
    - `http://localhost:3000/api/auth/line/callback` (local dev)
-5. Note **Channel ID** and **Channel secret** (Login tab).
+5. Note **Channel ID** and **Channel secret** from this **Login channel** → use as `LINE_LOGIN_CHANNEL_ID` / `LINE_LOGIN_CHANNEL_SECRET` in Vercel.
 
-### Create LIFF app
+### Create LIFF app (on the Login channel)
 
-1. In the same channel, open the **LIFF** tab → **Add**.
+1. On the **LINE Login channel**, open the **LIFF** tab → **Add**.
 2. **LIFF app name**: `Expense Dashboard` (or similar).
 3. **Size**: Full.
-4. **Endpoint URL**: `https://<your-vercel-app>.vercel.app/dashboard` (or `/liff` redirect page).
+4. **Endpoint URL**: `https://<your-vercel-app>.vercel.app/dashboard`
 5. **Scopes**: `profile`, `openid`.
-6. Note the **LIFF ID** (`liff-xxxxxxxx`).
+6. Note the **LIFF ID** → `NEXT_PUBLIC_LINE_LIFF_ID`.
+
+### Bot channel (unchanged)
+
+Your existing **Messaging API** channel continues to run the bot webhook. Rich menu uses `LINE_CHANNEL_ACCESS_TOKEN` from this channel; the menu action URL points to the **Login channel** LIFF URL (`https://liff.line.me/<LIFF_ID>`).
 
 ### Supabase Auth redirect URLs
 
@@ -59,7 +65,7 @@ SELECT current_line_user_id(); -- Expected: NULL
 cd web
 cp .env.example .env.local
 # Fill: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
-#       SUPABASE_SERVICE_ROLE_KEY, LINE_CHANNEL_ID, LINE_CHANNEL_SECRET,
+#       SUPABASE_SERVICE_ROLE_KEY, LINE_LOGIN_CHANNEL_ID, LINE_LOGIN_CHANNEL_SECRET,
 #       NEXT_PUBLIC_LINE_LIFF_ID, NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 npm install
