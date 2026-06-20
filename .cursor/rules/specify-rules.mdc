@@ -5,12 +5,15 @@ alwaysApply: true
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan at
-`specs/007-llm-usage-limits/plan.md` and the developer quickstart at
-`specs/007-llm-usage-limits/quickstart.md`.
+`specs/009-expense-web-dashboard/plan.md` and the developer quickstart at
+`specs/009-expense-web-dashboard/quickstart.md`.
 
 Primary local dev workflow: `python local_run.py --text "..."` or
 `python local_run.py --image path/to/receipt.jpg` (requires GEMINI_API_KEY only;
 add SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY to persist expenses and LLM usage metering).
+
+Web dashboard (feature 009): `cd web && npm install && npm run dev` — see
+`specs/009-expense-web-dashboard/quickstart.md` for LINE Login, LIFF, and Vercel setup.
 
 Reply-edit testing: log an expense, note `bot_message_id`, then
 `python local_run.py --reply-to <bot_message_id> --text "3800円"`.
