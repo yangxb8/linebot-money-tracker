@@ -78,8 +78,11 @@ Open `http://localhost:3000/login` for browser LINE Login test.
 
 1. Import the GitHub repo in [Vercel](https://vercel.com/new).
 2. Set **Root Directory** to `web` (required — the Next.js app lives in `web/`, not repo root).
-3. Add environment variables from [environment-variables.md](./contracts/environment-variables.md).
-4. Deploy; update LINE callback URLs and LIFF endpoint to the production `*.vercel.app` URL.
+3. Confirm **Framework Preset** is **Next.js** (repo includes `web/vercel.json` to enforce this).
+4. Leave **Output Directory** empty (Next.js default).
+5. Add environment variables from [environment-variables.md](./contracts/environment-variables.md).
+6. Set `NEXT_PUBLIC_APP_URL=https://linebot-money-tracker.vercel.app` (your production URL).
+7. Deploy; update LINE callback URLs and LIFF endpoint to the production URL.
 
 Or use the Vercel CLI from `web/`:
 
@@ -89,6 +92,14 @@ vercel link
 vercel env pull .env.local
 vercel deploy
 ```
+
+### Troubleshooting 404 on `*.vercel.app`
+
+| Symptom | Fix |
+| ------- | --- |
+| `NOT_FOUND` on `/` | Root Directory must be `web`, not repo root |
+| Build succeeds but all routes 404 | Framework Preset must be **Next.js**; redeploy after setting |
+| Preview URLs ask for Vercel login | Disable **Deployment Protection** for Production (Settings → Deployment Protection) so LINE/LIFF can reach the app |
 
 ## 5. Rich menu (bot discovery)
 
@@ -141,6 +152,7 @@ SELECT * FROM tenant_chat_members WHERE line_user_id = '<LINE_USER_ID>';
 | Symptom | Check |
 | ------- | ----- |
 | OAuth redirect mismatch | LINE Console callback URL exactly matches Vercel route |
+| Site shows `NOT_FOUND` on `/` | Vercel Root Directory = `web`, Framework = Next.js, redeploy |
 | LIFF stuck on loading | LIFF endpoint URL matches deployed `/dashboard`; LIFF ID in env |
 | Empty list but bot has data | `line_user_id` in `line_auth_identities` matches `expenses.tenant_id` for personal ledger |
 | Group missing from switcher | User must have sent a bot-handled message in that group (`tenant_chat_members` row) |
