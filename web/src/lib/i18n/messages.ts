@@ -1,0 +1,59 @@
+export type Locale = "ja" | "en" | "zh";
+
+export const messages = {
+  ja: {
+    appTitle: "家計簿",
+    signInWithLine: "LINEでログイン",
+    signOut: "ログアウト",
+    personalLedger: "個人",
+    groupLedger: "グループ",
+    roomLedger: "ルーム",
+    loadMore: "もっと見る",
+    loading: "読み込み中…",
+    emptyExpenses: "まだ支出がありません。LINEボットで記録してください。",
+    emptyExpensesNewUser:
+      "まだ支出がありません。LINEボットで記録を始めましょう。",
+    retry: "再試行",
+    authFailed: "ログインに失敗しました。もう一度お試しください。",
+    errorGeneric: "データの読み込みに失敗しました。",
+    selectTenant: "台帳を選択",
+    unsupportedCurrency: "未対応の通貨",
+  },
+  en: {
+    appTitle: "Expenses",
+    signInWithLine: "Sign in with LINE",
+    signOut: "Sign out",
+    personalLedger: "Personal",
+    groupLedger: "Group",
+    roomLedger: "Room",
+    loadMore: "Load more",
+    loading: "Loading…",
+    emptyExpenses: "No expenses yet. Log them via the LINE bot.",
+    emptyExpensesNewUser:
+      "No expenses yet. Start logging via the LINE bot.",
+    retry: "Retry",
+    authFailed: "Sign-in failed. Please try again.",
+    errorGeneric: "Failed to load data.",
+    selectTenant: "Select ledger",
+    unsupportedCurrency: "Unsupported currency",
+  },
+  zh: {
+    appTitle: "家计簿",
+    signInWithLine: "使用 LINE 登录",
+    signOut: "退出登录",
+    personalLedger: "个人",
+    groupLedger: "群组",
+    roomLedger: "聊天室",
+    loadMore: "加载更多",
+    loading: "加载中…",
+    emptyExpenses: "暂无支出。请通过 LINE 机器人记录。",
+    emptyExpensesNewUser: "暂无支出。请通过 LINE 机器人开始记录。",
+    retry: "重试",
+    authFailed: "登录失败，请重试。",
+    errorGeneric: "数据加载失败。",
+    selectTenant: "选择账本",
+    unsupportedCurrency: "不支持的货币",
+  },
+} as const;
+
+export type MessageKey = keyof (typeof messages)["ja"];
