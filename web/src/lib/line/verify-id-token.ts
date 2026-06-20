@@ -7,7 +7,7 @@ export type LineProfile = {
 export async function verifyLineIdToken(idToken: string): Promise<LineProfile> {
   const body = new URLSearchParams({
     id_token: idToken,
-    client_id: process.env.LINE_LOGIN_CHANNEL_ID!,
+    client_id: process.env.LINE_LOGIN_CHANNEL_ID!.trim(),
   });
 
   const response = await fetch("https://api.line.me/oauth2/v2.1/verify", {
