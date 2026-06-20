@@ -14,8 +14,15 @@ export function buildLineAuthorizeUrl(state: string): string {
     redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/line/callback`,
     state,
     scope: "profile openid",
-    bot_prompt: "normal",
   });
+
+  // bot_prompt requires a linked LINE Official Account on the Login channel.
+  // Set LINE_LOGIN_BOT_PROMPT=normal only after linking in LINE Console.
+  const botPrompt = process.env.LINE_LOGIN_BOT_PROMPT;
+  if (botPrompt === "normal" || botPrompt === "aggressive") {
+    params.set("bot_prompt", botPrompt);
+  }
+
   return `https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`;
 }
 
@@ -59,7 +66,10 @@ export async function exchangeCodeForTokens(code: string): Promise<{
   });
 
   if (!response.ok) {
-    throw new Error(`LINE token exchange failed: ${response.status}`);
+    const detail = await response.text();
+    throw new Error(
+      `LINE token exchange failed: ${response.status} ${detail.slice(0, 200)}`,
+    );
   }
 
   return response.json();
