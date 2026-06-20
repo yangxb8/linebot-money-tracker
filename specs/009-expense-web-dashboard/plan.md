@@ -29,7 +29,7 @@ Add a **`web/`** Next.js application deployed to Vercel that authenticates LINE 
 - Read-only MVP — no expense mutations from web
 - RLS MUST enforce tenant isolation (FR-007)
 - JPY-only display filter in UI layer
-- Same LINE channel for Messaging API and Login
+- LINE Login channel (LIFF) + Messaging API bot channel under **same provider** (user IDs match)
 
 **Scale/Scope**: Household users (<10 groups per user); lists up to low thousands of rows per tenant; single Vercel preview/production deployment for MVP
 
@@ -44,7 +44,7 @@ Add a **`web/`** Next.js application deployed to Vercel that authenticates LINE 
 | User Experience Consistency | Reuse `ja`/`en`/`zh` language codes; mobile-first list layout; empty states match bot tone |
 | Performance & Reliability | Paginated queries; indexed tenant+date filters; graceful loading/error states |
 | Observability & Feedback | Client-side error boundaries; structured logs in Next.js auth routes; no PII in client logs |
-| Secrets | LINE channel secret + Supabase service role only in Vercel env / server routes |
+| Secrets | LINE Login channel secret + Supabase service role only in Vercel env / server routes |
 
 **Post-design re-check**: PASS
 

@@ -42,6 +42,8 @@ async function getOrCreateAuthUserId(
 export async function linkLineUserAndCreateSession(
   profile: LineProfile,
 ): Promise<void> {
+  // profile.sub comes from the LINE Login channel (LIFF/OAuth).
+  // It matches Messaging API webhook userId when both channels share the same provider.
   const lineUserId = profile.sub;
   const authUserId = await getOrCreateAuthUserId(lineUserId, profile);
   const admin = createAdminClient();

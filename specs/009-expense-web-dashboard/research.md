@@ -109,14 +109,17 @@ Shared rows: `tenant_type IN ('group','room')` AND `EXISTS` matching `tenant_cha
 
 ---
 
-## R9: Same LINE channel for Login and Messaging
+## R9: LINE Login channel separate from Messaging API bot channel
 
-**Decision**: Enable **LINE Login** on the existing Messaging API channel; create **one LIFF app** bound to that channel; register Vercel callback URLs.
+**Decision**: Use **two channels under the same provider**:
+- **LINE Login channel** — browser Login, LIFF app, OAuth credentials for `web/`
+- **Messaging API channel** — existing bot webhook, rich menu (`LINE_CHANNEL_ACCESS_TOKEN`)
 
-**Rationale**: User preference; fewer channels to manage. LINE Developers Console allows Login + Messaging on one channel when Login product is enabled.
+**Rationale**: LINE prohibits adding LIFF apps to Messaging API channels ([2019 announcement](https://developers.line.biz/en/news/2019/11/11/liff-cannot-be-used-with-messaging-api-channels/)). User IDs are **identical across channel types when the provider is the same** ([LINE docs](https://developers.line.biz/en/docs/messaging-api/getting-user-ids/)), so `sub` from Login/LIFF still maps to `expenses.line_user_id` from bot webhooks — no extra account-linking table needed.
 
 **Alternatives considered**:
-- **Separate Login channel** — more credential management without clear MVP benefit.
+- **LIFF on Messaging API channel** — deprecated/disallowed for new LIFF apps.
+- **Different providers** — would break user ID mapping; rejected.
 
 ---
 

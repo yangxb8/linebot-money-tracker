@@ -17,7 +17,7 @@ Two entry paths converge on the same server function `linkLineUserAndCreateSessi
 User → GET /login
      → redirect LINE authorize URL
        ?response_type=code
-       &client_id={LINE_CHANNEL_ID}
+       &client_id={LINE_LOGIN_CHANNEL_ID}
        &redirect_uri={APP_URL}/api/auth/line/callback
        &state={csrf}
        &scope=profile openid
@@ -38,8 +38,8 @@ User → GET /login
 | grant_type | `authorization_code` |
 | code | from callback |
 | redirect_uri | must match authorize request |
-| client_id | LINE Channel ID |
-| client_secret | LINE Channel secret (server only) |
+| client_id | LINE Login Channel ID |
+| client_secret | LINE Login Channel secret (server only) |
 
 ### ID token claims used
 
@@ -100,7 +100,7 @@ await fetch('/api/auth/line/liff', {
 
 ## Security requirements
 
-- **FR-012**: `LINE_CHANNEL_SECRET` and `SUPABASE_SERVICE_ROLE_KEY` only in Vercel server env.
+- **FR-012**: `LINE_LOGIN_CHANNEL_SECRET` and `SUPABASE_SERVICE_ROLE_KEY` only in Vercel server env.
 - Verify ID token signature before trusting `sub`.
 - Never accept raw `line_user_id` from client without token verification.
 

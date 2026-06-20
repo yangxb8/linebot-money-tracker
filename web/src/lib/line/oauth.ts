@@ -10,7 +10,7 @@ export function lineSyntheticEmail(lineUserId: string): string {
 export function buildLineAuthorizeUrl(state: string): string {
   const params = new URLSearchParams({
     response_type: "code",
-    client_id: process.env.LINE_CHANNEL_ID!,
+    client_id: process.env.LINE_LOGIN_CHANNEL_ID!,
     redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/line/callback`,
     state,
     scope: "profile openid",
@@ -48,8 +48,8 @@ export async function exchangeCodeForTokens(code: string): Promise<{
     grant_type: "authorization_code",
     code,
     redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/line/callback`,
-    client_id: process.env.LINE_CHANNEL_ID!,
-    client_secret: process.env.LINE_CHANNEL_SECRET!,
+    client_id: process.env.LINE_LOGIN_CHANNEL_ID!,
+    client_secret: process.env.LINE_LOGIN_CHANNEL_SECRET!,
   });
 
   const response = await fetch("https://api.line.me/oauth2/v2.1/token", {
