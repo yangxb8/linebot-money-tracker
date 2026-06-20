@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/components/LanguageProvider";
 import { fetchExpenses } from "@/lib/dashboard/expenses";
 import {
@@ -36,10 +36,17 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const loadingMoreRef = useRef(false);
 
   const loadPage = useCallback(
     async (nextOffset: number, append: boolean) => {
+      if (append && loadingMoreRef.current) {
+        return;
+      }
+
       if (append) {
+        loadingMoreRef.current = true;
         setLoadingMore(true);
       } else {
         setLoading(true);
@@ -56,6 +63,7 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
         setError(fetchError);
         setLoading(false);
         setLoadingMore(false);
+        loadingMoreRef.current = false;
         return;
       }
 
@@ -64,6 +72,7 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
       setHasMore(page.length === PAGE_SIZE);
       setLoading(false);
       setLoadingMore(false);
+      loadingMoreRef.current = false;
     },
     [tenant.tenantId, tenant.tenantType],
   );
@@ -74,6 +83,29 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
     setHasMore(true);
     void loadPage(0, false);
   }, [loadPage, tenant.tenantId, tenant.tenantType]);
+
+  useEffect(() => {
+    if (!hasMore || loading || loadingMore) {
+      return;
+    }
+
+    const sentinel = sentinelRef.current;
+    if (!sentinel) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          void loadPage(offset, true);
+        }
+      },
+      { rootMargin: "120px" },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore, loadPage, offset]);
 
   if (loading) {
     return (
@@ -129,14 +161,13 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
         ))}
       </ul>
       {hasMore && (
-        <button
-          type="button"
-          disabled={loadingMore}
-          className="w-full rounded-lg border border-gray-200 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          onClick={() => void loadPage(offset, true)}
+        <p
+          ref={sentinelRef}
+          className="text-center text-xs text-gray-400 py-4"
+          aria-live="polite"
         >
-          {loadingMore ? t("loading") : t("loadMore")}
-        </button>
+          {loadingMore ? t("loading") : t("pullToLoadMore")}
+        </p>
       )}
     </div>
   );
