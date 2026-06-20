@@ -44,6 +44,7 @@ from services.line_event import (
 from services.tenant_context import TenantContext, resolve_tenant_from_event
 from services.message_context import BotReply, MessageContext, ReplyContext, ReplyEditResult, RetryContext
 from services.line_profile import fetch_line_display_name, fetch_line_profile_language
+from services.line_chat import fetch_chat_display_name
 from services.message_retry import is_retry_intent, process_message_retry, retry_not_found_reply
 from services.reply_summary import format_duplicate_reply
 from services.usage_limiter import format_denial_reply, prepare_inbound_usage
@@ -254,8 +255,10 @@ async def handle_callback(request: Request):
         reply_language = await _resolve_reply_language(line_user_id, user_text)
 
         logged_by_display_name = None
+        chat_display_name = None
         if tenant and tenant.is_shared and line_user_id:
             logged_by_display_name = await fetch_line_display_name(line_bot_api, tenant, line_user_id)
+            chat_display_name = await fetch_chat_display_name(line_bot_api, tenant)
 
         message_context = None
         if tenant and source_message_id:
@@ -282,6 +285,7 @@ async def handle_callback(request: Request):
                         source_message_id,
                         reply_language=reply_language,
                         text=user_text,
+                        chat_display_name=chat_display_name,
                     )
                     if not usage_prep.allowed:
                         await _reply_text(
@@ -326,6 +330,7 @@ async def handle_callback(request: Request):
                         source_message_id,
                         reply_language=reply_language,
                         text=user_text,
+                        chat_display_name=chat_display_name,
                     )
                     if not usage_prep.allowed:
                         await _reply_text(
@@ -381,6 +386,7 @@ async def handle_callback(request: Request):
                     source_message_id,
                     reply_language=reply_language,
                     text=user_text,
+                    chat_display_name=chat_display_name,
                 )
                 if not usage_prep.allowed:
                     await _reply_text(
@@ -432,6 +438,7 @@ async def handle_callback(request: Request):
                     source_message_id,
                     reply_language=reply_language,
                     image_bytes=image_bytes,
+                    chat_display_name=chat_display_name,
                 )
                 if not usage_prep.allowed:
                     await _reply_text(

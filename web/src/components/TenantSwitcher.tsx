@@ -34,6 +34,7 @@ export function TenantSwitcher({
 
   function label(option: TenantOption): string {
     if (option.tenantType === "user") return t("personalLedger");
+    if (option.displayName) return option.displayName;
     const prefix =
       option.tenantType === "group" ? t("groupLedger") : t("roomLedger");
     return `${prefix} …${shortTenantId(option.tenantId)}`;

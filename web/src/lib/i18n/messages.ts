@@ -9,6 +9,7 @@ export const messages = {
     groupLedger: "グループ",
     roomLedger: "ルーム",
     loadMore: "もっと見る",
+    pullToLoadMore: "下にスクロールして続きを読み込み",
     loading: "読み込み中…",
     emptyExpenses: "まだ支出がありません。LINEボットで記録してください。",
     emptyExpensesNewUser:
@@ -27,6 +28,7 @@ export const messages = {
     groupLedger: "Group",
     roomLedger: "Room",
     loadMore: "Load more",
+    pullToLoadMore: "Scroll down for more",
     loading: "Loading…",
     emptyExpenses: "No expenses yet. Log them via the LINE bot.",
     emptyExpensesNewUser:
@@ -45,6 +47,7 @@ export const messages = {
     groupLedger: "群组",
     roomLedger: "聊天室",
     loadMore: "加载更多",
+    pullToLoadMore: "向下滚动加载更多",
     loading: "加载中…",
     emptyExpenses: "暂无支出。请通过 LINE 机器人记录。",
     emptyExpensesNewUser: "暂无支出。请通过 LINE 机器人开始记录。",

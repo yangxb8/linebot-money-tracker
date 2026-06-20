@@ -140,6 +140,7 @@ def prepare_inbound_usage(
     text: Optional[str] = None,
     image_bytes: Optional[bytes] = None,
     skip_limits: bool = False,
+    chat_display_name: Optional[str] = None,
 ) -> LimitCheckResult:
     if skip_limits or not is_usage_tracking_enabled():
         return LimitCheckResult(
@@ -156,7 +157,11 @@ def prepare_inbound_usage(
             ),
         )
 
-    upsert_tenant_chat_member(tenant, sender_line_user_id)
+    upsert_tenant_chat_member(
+        tenant,
+        sender_line_user_id,
+        display_name=chat_display_name,
+    )
 
     if text is not None:
         payload_reason = check_payload_text(text)

@@ -96,10 +96,40 @@ def has_quota_headroom(line_user_id: str, *, needs_receipt: bool) -> bool:
     return True
 
 
-def upsert_tenant_chat_member(tenant: TenantContext, line_user_id: str) -> None:
+def upsert_tenant_chat(tenant: TenantContext, display_name: Optional[str] = None) -> None:
     if not is_usage_tracking_enabled() or not tenant.is_shared:
         return
     try:
+        client = get_supabase_client()
+        now = datetime.now(timezone.utc).isoformat()
+        row: dict[str, str] = {
+            'tenant_type': tenant.tenant_type,
+            'tenant_id': tenant.tenant_id,
+            'updated_at': now,
+        }
+        if display_name:
+            row['display_name'] = display_name
+        client.table('tenant_chats').upsert(
+            row,
+            on_conflict='tenant_type,tenant_id',
+        ).execute()
+    except Exception:
+        logger.exception(
+            'upsert_tenant_chat failed tenant=%s',
+            tenant.tenant_id,
+        )
+
+
+def upsert_tenant_chat_member(
+    tenant: TenantContext,
+    line_user_id: str,
+    *,
+    display_name: Optional[str] = None,
+) -> None:
+    if not is_usage_tracking_enabled() or not tenant.is_shared:
+        return
+    try:
+        upsert_tenant_chat(tenant, display_name)
         client = get_supabase_client()
         now = datetime.now(timezone.utc).isoformat()
         client.table('tenant_chat_members').upsert(
