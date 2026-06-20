@@ -37,19 +37,21 @@ In Supabase Dashboard → Authentication → URL Configuration:
 
 ## 2. Supabase migration
 
-Apply the web dashboard migration (after implementation):
+Migration `20260619120000_web_dashboard_auth_rls.sql` adds `line_auth_identities`, `current_line_user_id()`, and RLS policies for the web dashboard.
 
 ```bash
-# From repo root — use Supabase CLI or MCP apply_migration
+# From repo root
 supabase db push
-# or apply supabase/migrations/20260619120000_web_dashboard_auth_rls.sql manually
+# or apply supabase/migrations/20260619120000_web_dashboard_auth_rls.sql via Supabase MCP/CLI
 ```
 
-Verify helper function:
+Verify helper function (SQL editor, unauthenticated):
 
 ```sql
-SELECT current_line_user_id(); -- NULL when not authenticated (expected in SQL editor)
+SELECT current_line_user_id(); -- Expected: NULL
 ```
+
+**Verified 2026-06-20**: `current_line_user_id()` returns `NULL` when unauthenticated in SQL editor.
 
 ## 3. Local web development
 
@@ -58,7 +60,7 @@ cd web
 cp .env.example .env.local
 # Fill: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
 #       SUPABASE_SERVICE_ROLE_KEY, LINE_CHANNEL_ID, LINE_CHANNEL_SECRET,
-#       LINE_LIFF_ID, NEXT_PUBLIC_APP_URL=http://localhost:3000
+#       NEXT_PUBLIC_LINE_LIFF_ID, NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 npm install
 npm run dev
@@ -68,10 +70,19 @@ Open `http://localhost:3000/login` for browser LINE Login test.
 
 ## 4. Vercel deployment
 
-1. Import the GitHub repo in Vercel.
-2. Set **Root Directory** to `web`.
+1. Import the GitHub repo in [Vercel](https://vercel.com/new).
+2. Set **Root Directory** to `web` (required — the Next.js app lives in `web/`, not repo root).
 3. Add environment variables from [environment-variables.md](./contracts/environment-variables.md).
 4. Deploy; update LINE callback URLs and LIFF endpoint to the production `*.vercel.app` URL.
+
+Or use the Vercel CLI from `web/`:
+
+```bash
+cd web
+vercel link
+vercel env pull .env.local
+vercel deploy
+```
 
 ## 5. Rich menu (bot discovery)
 
@@ -99,7 +110,9 @@ python scripts/setup_rich_menu.py
 
 ### Security spot check
 
-Sign in as user A; confirm user B's personal expenses are not visible. Attempt direct Supabase client query with another user's tenant filter — RLS should return zero rows.
+Sign in as user A; confirm user B's personal expenses are not visible. Attempt direct Supabase client query with another user's tenant filter — RLS should return zero rows. See `tests/web/rls_policies.test.sql` for policy documentation.
+
+**RLS verification (2026-06-20)**: Migration applied; `current_line_user_id()` returns NULL unauthenticated. Cross-tenant denial must be confirmed via authenticated Supabase JS client during pilot testing.
 
 ### Language
 
