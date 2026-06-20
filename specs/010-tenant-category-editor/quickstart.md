@@ -23,10 +23,10 @@ cd web && npm install && npm run dev
 ```
 
 1. Sign in at `http://localhost:3000/login`
-2. Open **Categories** tab (bottom bar)
+2. Open the side drawer (☰) and tap **Categories**
 3. Confirm default taxonomy appears (lazy copy on first visit)
 4. Add L2 under 食費, rename an L1, reorder siblings
-5. Switch to **Expenses** tab — existing expenses show updated names after remap
+5. Open drawer → **Expenses** — existing expenses show updated names after remap
 
 ## Delete with transfer
 

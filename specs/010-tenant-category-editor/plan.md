@@ -2,11 +2,11 @@
 
 **Branch**: `010-tenant-category-editor` | **Date**: 2026-06-20 | **Spec**: [spec.md](./spec.md)
 
-**Input**: Per-tenant editable L1–L2 category CRUD on web with delete-and-transfer, bottom-tab navigation, lazy default copy, and full bot taxonomy sync.
+**Input**: Per-tenant editable L1–L2 category CRUD on web with delete-and-transfer, side-drawer navigation, lazy default copy, and full bot taxonomy sync.
 
 ## Summary
 
-Extend `category_nodes` with tenant scope so each personal and group/room ledger owns an editable category tree. On first visit to `/categories`, copy the global template, remap existing expenses by `code`, and expose CRUD in a mobile-first UI with bottom tabs. Bot loads taxonomy per `TenantContext` from Supabase instead of the static YAML cache when tenant rows exist. Delete requires transferring expenses to any other L1 or L2 in the same tenant.
+Extend `category_nodes` with tenant scope so each personal and group/room ledger owns an editable category tree. On first visit to `/categories`, copy the global template, remap existing expenses by `code`, and expose CRUD in a mobile-first UI with a side drawer for navigation. Bot loads taxonomy per `TenantContext` from Supabase instead of the static YAML cache when tenant rows exist. Delete requires transferring expenses to any other L1 or L2 in the same tenant.
 
 ## Technical Context
 
@@ -36,7 +36,7 @@ Extend `category_nodes` with tenant scope so each personal and group/room ledger
 | --------- | ---------- |
 | Code Quality & Maintainability | Shared taxonomy service in bot; web `lib/categories/` module; SQL in migrations |
 | Test-First Delivery | Tests for lazy copy remap, delete-transfer, RLS deny cross-tenant, bot `resolve_code` per tenant |
-| User Experience Consistency | ja/en/zh UI strings; Japanese category names; mobile bottom tabs |
+| User Experience Consistency | ja/en/zh UI strings; Japanese category names; mobile side drawer nav |
 | Performance & Reliability | Transactional init/delete; LRU taxonomy cache in bot |
 | Observability | Structured logs on init/delete routes; no PII in client logs |
 
@@ -45,9 +45,9 @@ Extend `category_nodes` with tenant scope so each personal and group/room ledger
 ## Architecture
 
 ```text
-┌──────────────────┐     bottom tabs      ┌─────────────────────────┐
+┌──────────────────┐     side drawer      ┌─────────────────────────┐
 │  /dashboard      │ ◄──────────────────► │  /categories            │
-│  ExpenseList     │                      │  CategoryTree + CRUD    │
+│  ExpenseList     │   (hamburger menu)   │  CategoryTree + CRUD    │
 └────────┬─────────┘                      └───────────┬─────────────┘
          │                                            │
          │  Supabase JS (authenticated)               │  /api/categories/*
@@ -110,7 +110,7 @@ supabase/migrations/
 web/src/
   app/
     (app)/                                    # route group with AppShell
-      layout.tsx                              # bottom TabBar
+      layout.tsx                              # header + SideDrawer
       dashboard/page.tsx                      # moved from app/dashboard
       categories/page.tsx
     api/categories/
@@ -119,7 +119,8 @@ web/src/
       [id]/delete/route.ts                    # POST delete+transfer
       init/route.ts                           # optional explicit init
   components/
-    TabBar.tsx
+    SideDrawer.tsx
+    AppHeader.tsx                             # hamburger + tenant switcher
     TenantSwitcher.tsx                        # reused
     categories/
       CategoryTree.tsx
@@ -158,9 +159,11 @@ tests/
 
 ### Phase 3 — Web navigation shell
 
-1. Introduce `(app)` route group with `AppShell` + `TabBar` (Expenses | Categories).
-2. Move dashboard under `(app)/dashboard`; preserve auth middleware paths.
-3. Share tenant selection via URL search param `?t=group:abc123` or React context + localStorage.
+1. Introduce `(app)` route group with `AppShell` + `SideDrawer` (Expenses | Categories links).
+2. Add `AppHeader` with hamburger trigger, page title, and shared tenant switcher.
+3. Move dashboard under `(app)/dashboard`; preserve auth middleware paths.
+4. Share tenant selection via URL search param `?t=group:abc123` or React context + localStorage.
+5. Drawer closes on nav item tap, backdrop tap, or swipe; trap focus while open (a11y).
 
 ### Phase 4 — Categories UI
 

@@ -50,9 +50,9 @@
 
 ## Decision 6: Navigation shell
 
-**Decision**: Shared `AppShell` layout with bottom `TabBar` for `/dashboard` and `/categories`; tenant switcher in page header on both routes.
+**Decision**: Shared `AppShell` layout with a **side drawer** (`SideDrawer`) opened from a hamburger in `AppHeader`; nav links to `/dashboard` and `/categories`; tenant switcher stays in the header on both routes.
 
-**Rationale**: Matches option A; mobile-first LINE users.
+**Rationale**: User preference over bottom tabs; drawer scales if more settings pages are added later; common mobile pattern for LINE in-app browser.
 
 ## Decision 7: Write API surface
 

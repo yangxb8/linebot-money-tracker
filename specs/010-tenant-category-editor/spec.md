@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: Web UI to create, edit, and delete level-1 and level-2 expense categories per personal or group/room ledger. On delete, transfer logged expenses to another category. Bottom-tab navigation. Each tenant has its own taxonomy (lazy-copied from global default). Bot uses tenant taxonomy for categorization.
+**Input**: Web UI to create, edit, and delete level-1 and level-2 expense categories per personal or group/room ledger. On delete, transfer logged expenses to another category. Side-drawer navigation. Each tenant has its own taxonomy (lazy-copied from global default). Bot uses tenant taxonomy for categorization.
 
 ## Clarifications
 
@@ -15,7 +15,7 @@
 - Q: Bot integration when categories are customized? → A: **Full sync** — bot uses tenant taxonomy for LLM prompts, new expenses, reply-edits, and confirmations.
 - Q: What can users edit? → A: **Full CRUD** — add, rename, reorder, delete L1 and L2 categories with user-defined names.
 - Q: Delete + transfer behavior? → A: On any deletion, user picks **any other L1 or L2** category in the same tenant as the transfer target.
-- Q: Navigation pattern? → A: **Bottom tab bar** — Expenses | Categories (shared tenant switcher).
+- Q: Navigation pattern? → A: **Side drawer** — hamburger opens nav with Expenses | Categories (shared tenant switcher).
 - Q: Default copy timing? → A: **Lazy on first Categories page visit** — copy global taxonomy when user opens Categories for that tenant.
 
 ## Out of Scope (this feature)
@@ -33,7 +33,7 @@
 
 ### User Story 1 - View and initialize tenant categories (Priority: P1)
 
-A signed-in user opens the **Categories** tab for their personal ledger. On first visit, the system copies the global default taxonomy into a personal copy. The user sees an L1 → L2 tree matching the bot's default household categories.
+A signed-in user opens the **Categories** page (via the side drawer) for their personal ledger. On first visit, the system copies the global default taxonomy into a personal copy. The user sees an L1 → L2 tree matching the bot's default household categories.
 
 **Why this priority**: Without a tenant taxonomy instance, no edits are possible and bot sync cannot begin.
 
@@ -43,7 +43,7 @@ A signed-in user opens the **Categories** tab for their personal ledger. On firs
 
 1. **Given** a user with no prior tenant taxonomy, **When** they open Categories for personal ledger, **Then** L1/L2 nodes are created as a copy of the global template and displayed in sort order.
 2. **Given** taxonomy already exists for the tenant, **When** the user opens Categories again, **Then** the same nodes are shown (no duplicate copy).
-3. **Given** a user switches tenant in the tab bar context, **When** Categories loads, **Then** the tree reflects that tenant's taxonomy (initializing if needed).
+3. **Given** a user switches tenant via the shared header switcher, **When** Categories loads, **Then** the tree reflects that tenant's taxonomy (initializing if needed).
 
 ---
 
@@ -113,18 +113,19 @@ When a user logs an expense via the LINE bot (personal or group), categorization
 
 ---
 
-### User Story 6 - Bottom tab navigation (Priority: P2)
+### User Story 6 - Side drawer navigation (Priority: P2)
 
-Signed-in users navigate between **Expenses** and **Categories** via a persistent bottom tab bar. Tenant selection is consistent across tabs.
+Signed-in users open a **side drawer** (hamburger menu) to navigate between **Expenses** and **Categories**. Tenant selection via the header switcher is consistent across pages.
 
 **Why this priority**: Required navigation pattern; secondary to data correctness.
 
-**Independent Test**: On mobile viewport, tap both tabs; tenant switcher selection persists.
+**Independent Test**: On mobile viewport, open drawer, tap both nav items; tenant switcher selection persists.
 
 **Acceptance Scenarios**:
 
-1. **Given** a signed-in user on `/dashboard`, **When** they tap Categories, **Then** they land on `/categories` with the same selected tenant.
-2. **Given** a user on `/categories`, **When** they tap Expenses, **Then** they return to `/dashboard` without re-authenticating.
+1. **Given** a signed-in user on `/dashboard`, **When** they open the drawer and tap Categories, **Then** they land on `/categories` with the same selected tenant and the drawer closes.
+2. **Given** a user on `/categories`, **When** they open the drawer and tap Expenses, **Then** they return to `/dashboard` without re-authenticating.
+3. **Given** the drawer is open, **When** the user taps the backdrop or swipes closed, **Then** the drawer dismisses and the current page remains unchanged.
 
 ---
 
@@ -143,7 +144,7 @@ Signed-in users navigate between **Expenses** and **Categories** via a persisten
 - **FR-009**: Any member of a group/room per `tenant_chat_members` MUST have write access to that tenant's taxonomy; personal taxonomy writable only by owning `line_user_id`.
 - **FR-010**: Bot MUST resolve taxonomy by tenant: tenant copy if exists, else global template.
 - **FR-011**: Web dashboard expense list MUST display category names from tenant nodes after customization.
-- **FR-012**: Bottom tab bar MUST link `/dashboard` (Expenses) and `/categories` (Categories) for authenticated users.
+- **FR-012**: A side drawer MUST provide navigation links to `/dashboard` (Expenses) and `/categories` (Categories) for authenticated users; the active route MUST be highlighted in the drawer.
 - **FR-013**: New user-created categories MUST receive auto-generated unique `code` values scoped per tenant (e.g. `custom.<short-id>`).
 
 ### Edge Cases
