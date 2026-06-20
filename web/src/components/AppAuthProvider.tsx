@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import liff from "@line/liff";
 import { createClient } from "@/lib/supabase/client";
 import { LanguageProvider, useLanguage } from "@/components/LanguageProvider";
-import { ExpenseList } from "@/components/ExpenseList";
-import { TenantSwitcher } from "@/components/TenantSwitcher";
+import { TenantProvider } from "@/components/TenantProvider";
 import {
   fetchLineUserId,
   fetchSharedTenants,
@@ -16,14 +21,19 @@ import { normalizeLocale } from "@/lib/i18n/locale";
 
 type AuthPhase = "checking" | "liff" | "ready" | "unauthenticated";
 
-function DashboardContent() {
-  const { t, setLocale } = useLanguage();
+type AppAuthContextValue = {
+  lineUserId: string;
+  sharedTenants: TenantOption[];
+  signOut: () => Promise<void>;
+};
+
+const AppAuthContext = createContext<AppAuthContextValue | null>(null);
+
+function AppAuthBootstrap({ children }: { children: ReactNode }) {
+  const { setLocale } = useLanguage();
   const [phase, setPhase] = useState<AuthPhase>("checking");
   const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [sharedTenants, setSharedTenants] = useState<TenantOption[]>([]);
-  const [selectedTenant, setSelectedTenant] = useState<TenantOption | null>(
-    null,
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -42,7 +52,6 @@ function DashboardContent() {
           if (locale) setLocale(normalizeLocale(locale));
           setLineUserId(id);
           setSharedTenants(shared);
-          setSelectedTenant({ tenantType: "user", tenantId: id });
           setPhase("ready");
         }
         return;
@@ -82,7 +91,6 @@ function DashboardContent() {
             if (locale) setLocale(normalizeLocale(locale));
             setLineUserId(id);
             setSharedTenants(shared);
-            setSelectedTenant({ tenantType: "user", tenantId: id });
             setPhase("ready");
           }
         } catch {
@@ -98,14 +106,16 @@ function DashboardContent() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setLocale]);
 
-  async function handleSignOut() {
+  async function signOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
     await fetch("/api/auth/signout", { method: "POST" });
     window.location.href = "/login";
   }
+
+  const { t } = useLanguage();
 
   if (phase === "checking" || phase === "liff") {
     return (
@@ -118,42 +128,37 @@ function DashboardContent() {
     return null;
   }
 
-  if (!lineUserId || !selectedTenant) {
+  if (!lineUserId) {
     return (
       <p className="text-center text-sm text-gray-500 py-16">{t("loading")}</p>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <TenantSwitcher
-          personalTenantId={lineUserId}
-          sharedTenants={sharedTenants}
-          selected={selectedTenant}
-          onChange={setSelectedTenant}
-        />
-        <button
-          type="button"
-          onClick={() => void handleSignOut()}
-          className="shrink-0 text-xs text-gray-500 underline"
-        >
-          {t("signOut")}
-        </button>
-      </div>
-      <ExpenseList tenant={selectedTenant} isNewUser={sharedTenants.length === 0} />
-    </div>
+    <AppAuthContext.Provider value={{ lineUserId, sharedTenants, signOut }}>
+      <TenantProvider personalTenantId={lineUserId}>{children}</TenantProvider>
+    </AppAuthContext.Provider>
   );
 }
 
-export function DashboardClient({
+export function AppAuthProvider({
+  children,
   initialLocale,
 }: {
+  children: ReactNode;
   initialLocale?: string | null;
 }) {
   return (
     <LanguageProvider initialLocale={initialLocale}>
-      <DashboardContent />
+      <AppAuthBootstrap>{children}</AppAuthBootstrap>
     </LanguageProvider>
   );
+}
+
+export function useAppAuth() {
+  const context = useContext(AppAuthContext);
+  if (!context) {
+    throw new Error("useAppAuth must be used within AppAuthProvider");
+  }
+  return context;
 }

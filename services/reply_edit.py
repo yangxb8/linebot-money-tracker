@@ -838,7 +838,7 @@ async def _begin_category_bulk_flow(
             anchor_reply_to_sent_message=True,
         )
 
-    options = await map_category_from_text(category_query, gemini)
+    options = await map_category_from_text(category_query, gemini, tenant=confirmation.tenant)
     if not options:
         summary = format_edit_result(
             language,
@@ -857,7 +857,13 @@ async def _begin_category_bulk_flow(
         'target_line_item_indices': line_indices,
     }
     set_pending_state(confirmation.id, 'category_bulk', payload)
-    summary = format_category_options_prompt(language, category_query, options, target_labels)
+    summary = format_category_options_prompt(
+        language,
+        category_query,
+        options,
+        target_labels,
+        tenant=confirmation.tenant,
+    )
     return EditApplyResult(
         status='applied',
         summary=summary,
@@ -907,7 +913,11 @@ async def _apply_category_bulk_pick(
     updated_count = 0
     for item in target_items:
         expense_id = str(item['expense_id'])
-        result = update_expense_fields(expense_id, category_code=category_code)
+        result = update_expense_fields(
+            expense_id,
+            category_code=category_code,
+            tenant=confirmation.tenant,
+        )
         if not result.success:
             summary = format_edit_result(
                 language,
@@ -928,7 +938,7 @@ async def _apply_category_bulk_pick(
             status='applied',
             action='category_bulk',
             affected_count=updated_count,
-            changes=(FieldChange('category', '', category_path_for_code(category_code)),),
+            changes=(FieldChange('category', '', category_path_for_code(category_code, confirmation.tenant)),),
         ),
     )
     return EditApplyResult(status='applied', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
@@ -1272,6 +1282,7 @@ async def apply_edit_intent(
                 currency=currency,
                 expense_date=expense_date_val,
                 category_code=category_code,
+                tenant=confirmation.tenant,
             )
             if not result.success:
                 summary = format_edit_result(
@@ -1307,7 +1318,11 @@ async def apply_edit_intent(
                 if category_code is not None and before_row.category_node_id != after_row.category_node_id:
                     old_code = str(item.get('category_guess_code', 'unknown'))
                     changes.append(
-                        FieldChange('category', category_path_for_code(old_code), category_path_for_code(category_code))
+                        FieldChange(
+                            'category',
+                            category_path_for_code(old_code, confirmation.tenant),
+                            category_path_for_code(category_code, confirmation.tenant),
+                        )
                     )
 
             for snap in items_snapshot:

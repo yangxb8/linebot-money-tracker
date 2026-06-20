@@ -160,9 +160,12 @@ async def _enrich_and_persist_items(
     insert_rows = []
 
     for index, item in enumerate(items):
-        cat_result = await classify_expense(item, gemini)
-        guess_node = resolve_code(cat_result.guessed)
-        alt_paths = [format_category_path(resolve_code(code)) for code in cat_result.alternatives]
+        tenant = context.tenant if context is not None else None
+        cat_result = await classify_expense(item, gemini, tenant=tenant)
+        guess_node = resolve_code(cat_result.guessed, tenant)
+        alt_paths = [
+            format_category_path(resolve_code(code, tenant)) for code in cat_result.alternatives
+        ]
 
         enriched_item = dict(item)
         enriched_item['category_guess_path'] = format_category_path(guess_node)

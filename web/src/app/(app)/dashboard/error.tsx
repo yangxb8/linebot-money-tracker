@@ -7,7 +7,7 @@ export default function DashboardError({
   reset: () => void;
 }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center space-y-4">
+    <div className="flex flex-col items-center justify-center px-4 py-16 text-center space-y-4">
       <p className="text-sm text-gray-600">
         Something went wrong loading the dashboard.
       </p>
