@@ -7,8 +7,9 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
-from services.category_taxonomy import CategoryNode, load_category_taxonomy, resolve_code
+from services.category_taxonomy import CategoryNode, load_category_taxonomy_for_tenant, resolve_code
 from services.message_context import MessageContext
+from services.tenant_context import TenantContext
 from services.tenant_context import TenantContext
 from services.supabase_client import get_supabase_client, is_supabase_configured
 
@@ -72,9 +73,9 @@ class ExpenseRow:
     deleted_at: Optional[str] = None
 
 
-def load_category_taxonomy_from_repo():
+def load_category_taxonomy_from_repo(tenant: Optional[TenantContext] = None):
     """Re-export for expense-persistence contract."""
-    return load_category_taxonomy()
+    return load_category_taxonomy_for_tenant(tenant)
 
 
 def expense_date_for_item(item: Dict[str, Any]) -> date:
@@ -96,7 +97,7 @@ def build_insert_row(
     line_item_index: int,
     category_code: str,
 ) -> ExpenseInsertRow:
-    node = resolve_code(category_code)
+    node = resolve_code(category_code, context.tenant)
     amount_raw = item.get('amount', 0)
     amount = Decimal(str(amount_raw)).quantize(Decimal('0.01'))
     currency = str(item.get('currency') or 'JPY').strip().upper()[:3] or 'JPY'
@@ -334,6 +335,7 @@ def update_expense_fields(
     currency: Optional[str] = None,
     expense_date: Optional[date] = None,
     category_code: Optional[str] = None,
+    tenant: Optional[TenantContext] = None,
 ) -> UpdateResult:
     if not is_supabase_configured():
         return UpdateResult(success=False, error='Supabase not configured')
@@ -348,7 +350,7 @@ def update_expense_fields(
     if expense_date is not None:
         payload['expense_date'] = expense_date.isoformat()
     if category_code is not None:
-        node = resolve_code(category_code)
+        node = resolve_code(category_code, tenant)
         payload['category_node_id'] = node.id
         payload['assigned_level'] = node.level
         payload['category_l1_id'] = node.l1_id

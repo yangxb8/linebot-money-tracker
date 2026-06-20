@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from services.category_taxonomy import format_category_path, resolve_code
+from services.tenant_context import TenantContext
 
 _HIRAGANA = re.compile(r'[\u3040-\u309f\u30a0-\u30ff]')
 _CJK = re.compile(r'[\u4e00-\u9fff]')
@@ -179,9 +180,9 @@ def format_duplicate_reply(language: str) -> str:
     return 'この返信はすでに処理済みです。'
 
 
-def category_path_for_code(code: str) -> str:
+def category_path_for_code(code: str, tenant: Optional[TenantContext] = None) -> str:
     try:
-        return format_category_path(resolve_code(code))
+        return format_category_path(resolve_code(code, tenant))
     except Exception:
         return code
 
@@ -223,6 +224,7 @@ def format_category_options_prompt(
     category_query: str,
     option_codes: tuple[str, ...],
     item_labels: tuple[str, ...] = (),
+    tenant: Optional[TenantContext] = None,
 ) -> str:
     lines: List[str] = []
     if item_labels:
@@ -242,7 +244,7 @@ def format_category_options_prompt(
             lines.append(f'カテゴリを選んでください（「{category_query}」）：')
 
     for index, code in enumerate(option_codes, start=1):
-        path = category_path_for_code(code)
+        path = category_path_for_code(code, tenant)
         lines.append(f'{index}) {path}')
 
     if language == 'zh':

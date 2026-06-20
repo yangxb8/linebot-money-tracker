@@ -8,8 +8,9 @@ from typing import Any, Dict, List, Optional
 
 from jsonschema import Draft7Validator, ValidationError
 
-from services.category_taxonomy import UNKNOWN_CODE, load_category_taxonomy, resolve_code
+from services.category_taxonomy import UNKNOWN_CODE, load_category_taxonomy_for_tenant, resolve_code
 from services.gemini_client import GeminiClient
+from services.tenant_context import TenantContext
 from services.log_utils import truncate
 from services.usage_metering import llm_operation_scope
 
@@ -47,8 +48,8 @@ def _parse_json_object(response: str) -> Any:
     return json.loads(text)
 
 
-def _taxonomy_codes_for_prompt() -> str:
-    taxonomy = load_category_taxonomy()
+def _taxonomy_codes_for_prompt(tenant: Optional[TenantContext] = None) -> str:
+    taxonomy = load_category_taxonomy_for_tenant(tenant)
     lines = [f'- {code}: {node.name_ja}' for code, node in sorted(taxonomy.items())]
     return '\n'.join(lines)
 
@@ -79,15 +80,18 @@ def validate_categorize_response(data: Any, *, source: str = 'categorize') -> Op
     return CategoryResult(guessed=guess, alternatives=tuple(alts))
 
 
-def normalize_category_result(result: CategoryResult) -> CategoryResult:
-    taxonomy = load_category_taxonomy()
-    guess_node = resolve_code(result.guessed)
+def normalize_category_result(
+    result: CategoryResult,
+    tenant: Optional[TenantContext] = None,
+) -> CategoryResult:
+    taxonomy = load_category_taxonomy_for_tenant(tenant)
+    guess_node = resolve_code(result.guessed, tenant)
     guess_code = guess_node.code
 
     alts: List[str] = []
     seen = {guess_code}
     for alt in result.alternatives:
-        node = resolve_code(alt)
+        node = resolve_code(alt, tenant)
         if node.code == UNKNOWN_CODE and alt.strip() != UNKNOWN_CODE and alt.strip() not in taxonomy:
             continue
         if node.code not in seen:
@@ -115,7 +119,12 @@ CATEGORY_MAP_SCHEMA: Dict[str, Any] = {
 _category_map_validator = Draft7Validator(CATEGORY_MAP_SCHEMA)
 
 
-def validate_category_map_response(data: Any, *, source: str = 'category_map') -> tuple[str, ...]:
+def validate_category_map_response(
+    data: Any,
+    *,
+    source: str = 'category_map',
+    tenant: Optional[TenantContext] = None,
+) -> tuple[str, ...]:
     if not isinstance(data, dict):
         logger.warning('%s: expected JSON object, got %s', source, type(data).__name__)
         return ()
@@ -126,14 +135,14 @@ def validate_category_map_response(data: Any, *, source: str = 'category_map') -
         logger.warning('%s: schema validation failed: %s', source, exc.message)
         return ()
 
-    taxonomy = load_category_taxonomy()
+    taxonomy = load_category_taxonomy_for_tenant(tenant)
     options: List[str] = []
     seen: set[str] = set()
     for raw in data.get('options') or []:
         code = str(raw).strip()
         if not code:
             continue
-        node = resolve_code(code)
+        node = resolve_code(code, tenant)
         if node.code == UNKNOWN_CODE and code != UNKNOWN_CODE and code not in taxonomy:
             continue
         if node.code in seen:
@@ -145,7 +154,12 @@ def validate_category_map_response(data: Any, *, source: str = 'category_map') -
     return tuple(options)
 
 
-async def map_category_from_text(user_text: str, gemini: GeminiClient) -> tuple[str, ...]:
+async def map_category_from_text(
+    user_text: str,
+    gemini: GeminiClient,
+    *,
+    tenant: Optional[TenantContext] = None,
+) -> tuple[str, ...]:
     """Map free-text category phrase to up to 3 taxonomy codes."""
     query = (user_text or '').strip()
     if not query:
@@ -156,7 +170,7 @@ async def map_category_from_text(user_text: str, gemini: GeminiClient) -> tuple[
         'Return JSON only with key options (array of 0-3 distinct category codes).\n'
         'Order by best match first. Use only codes from the taxonomy list.\n\n'
         f'User category phrase: {query}\n\n'
-        f'Taxonomy codes:\n{_taxonomy_codes_for_prompt()}'
+        f'Taxonomy codes:\n{_taxonomy_codes_for_prompt(tenant)}'
     )
 
     try:
@@ -164,13 +178,22 @@ async def map_category_from_text(user_text: str, gemini: GeminiClient) -> tuple[
             response = await gemini.generate_reply(prompt)
         logger.debug('map_category_from_text raw response: %s', truncate(response or '', 500))
         parsed = _parse_json_object(response)
-        return validate_category_map_response(parsed, source='map_category_from_text')
+        return validate_category_map_response(
+            parsed,
+            source='map_category_from_text',
+            tenant=tenant,
+        )
     except Exception:
         logger.exception('map_category_from_text failed for %r', query)
         return ()
 
 
-async def classify_expense(item: Dict[str, Any], gemini: GeminiClient) -> CategoryResult:
+async def classify_expense(
+    item: Dict[str, Any],
+    gemini: GeminiClient,
+    *,
+    tenant: Optional[TenantContext] = None,
+) -> CategoryResult:
     """Ask Gemini for category JSON only; map invalid codes to unknown."""
     from services.receipt_parser import clean_receipt_description
 
@@ -185,7 +208,7 @@ async def classify_expense(item: Dict[str, Any], gemini: GeminiClient) -> Catego
         'distinct category codes excluding the guess).\n'
         'Use only codes from the taxonomy list. Use "unknown" when unsure.\n\n'
         f'Expense: {description} | amount={amount} | currency={currency}\n\n'
-        f'Taxonomy codes:\n{_taxonomy_codes_for_prompt()}'
+        f'Taxonomy codes:\n{_taxonomy_codes_for_prompt(tenant)}'
     )
 
     try:
@@ -197,7 +220,7 @@ async def classify_expense(item: Dict[str, Any], gemini: GeminiClient) -> Catego
         if validated is None:
             logger.warning('classify_expense: invalid response; using %s', UNKNOWN_CODE)
             return CategoryResult(guessed=UNKNOWN_CODE, alternatives=())
-        return normalize_category_result(validated)
+        return normalize_category_result(validated, tenant)
     except Exception:
         logger.exception('classify_expense failed for %r', description)
         return CategoryResult(guessed=UNKNOWN_CODE, alternatives=())
