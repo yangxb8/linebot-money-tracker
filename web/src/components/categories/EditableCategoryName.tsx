@@ -13,6 +13,7 @@ type Props = {
   onCancel: () => void;
   variant: "l1" | "l2";
   placeholder?: string;
+  tapToEdit?: boolean;
 };
 
 export function EditableCategoryName({
@@ -25,6 +26,7 @@ export function EditableCategoryName({
   onCancel,
   variant,
   placeholder,
+  tapToEdit = true,
 }: Props) {
   const { t } = useLanguage();
   const [draft, setDraft] = useState(name);
@@ -84,6 +86,28 @@ export function EditableCategoryName({
     );
   }
 
+  if (!tapToEdit) {
+    return (
+      <span
+        className={`group flex min-w-0 flex-1 items-center gap-2 text-left pointer-events-none ${
+          variant === "l1"
+            ? "text-base font-semibold text-gray-900"
+            : "text-sm text-gray-700"
+        }`}
+      >
+        <span className="truncate">{name}</span>
+        {showSaved ? (
+          <span className="shrink-0 text-green-600" aria-label={t("saved")}>
+            <CheckIcon />
+          </span>
+        ) : null}
+        {isSaving ? (
+          <span className="shrink-0 text-xs text-gray-400">{t("saving")}</span>
+        ) : null}
+      </span>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -96,10 +120,7 @@ export function EditableCategoryName({
     >
       <span className="truncate">{name}</span>
       {showSaved ? (
-        <span
-          className="shrink-0 text-green-600"
-          aria-label={t("saved")}
-        >
+        <span className="shrink-0 text-green-600" aria-label={t("saved")}>
           <CheckIcon />
         </span>
       ) : null}
