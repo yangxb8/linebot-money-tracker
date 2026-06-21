@@ -10,24 +10,46 @@ import {
   updateCategory,
 } from "@/lib/categories/client";
 import type { CategoryNode } from "@/lib/categories/types";
+import { CategoryRowAction } from "@/components/categories/CategoryRowAction";
 import { DeleteCategoryDialog } from "@/components/categories/DeleteCategoryDialog";
+import { EditableCategoryName } from "@/components/categories/EditableCategoryName";
+import { InlineCategoryDraft } from "@/components/categories/InlineCategoryDraft";
+
+const UNKNOWN_CODE = "unknown";
+type DraftAdd = { type: "l1" } | { type: "l2"; parentId: string };
+
+function isUnknown(node: CategoryNode) {
+  return node.code === UNKNOWN_CODE;
+}
+
+function patchNode(
+  nodes: CategoryNode[],
+  id: string,
+  patch: Partial<CategoryNode>,
+): CategoryNode[] {
+  return nodes.map((node) => (node.id === id ? { ...node, ...patch } : node));
+}
+
+function removeNodeAndChildren(nodes: CategoryNode[], id: string): CategoryNode[] {
+  return nodes.filter((node) => node.id !== id && node.parent_id !== id);
+}
 
 export function CategoryManager() {
   const { t } = useLanguage();
   const { selectedTenant } = useTenant();
   const [nodes, setNodes] = useState<CategoryNode[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [newL1Name, setNewL1Name] = useState("");
-  const [newL2ParentId, setNewL2ParentId] = useState<string | null>(null);
-  const [newL2Name, setNewL2Name] = useState("");
+  const [draftAdd, setDraftAdd] = useState<DraftAdd | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CategoryNode | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const loadInitial = useCallback(async () => {
     if (!selectedTenant) return;
-    setLoading(true);
+    setInitialLoading(true);
     setError(null);
     try {
       const data = await fetchCategories(selectedTenant);
@@ -35,13 +57,19 @@ export function CategoryManager() {
     } catch {
       setError(t("errorGeneric"));
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
     }
   }, [selectedTenant, t]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadInitial();
+  }, [loadInitial]);
+
+  useEffect(() => {
+    if (!savedId) return;
+    const timer = window.setTimeout(() => setSavedId(null), 1000);
+    return () => window.clearTimeout(timer);
+  }, [savedId]);
 
   const l1Nodes = useMemo(
     () =>
@@ -66,60 +94,85 @@ export function CategoryManager() {
     return map;
   }, [nodes]);
 
-  async function handleRename(node: CategoryNode) {
-    const name = editName.trim();
-    if (!name || name === node.name_ja) {
-      setEditingId(null);
-      return;
-    }
-    await updateCategory(node.id, { name_ja: name });
+  function startEdit(id: string) {
+    setDraftAdd(null);
+    setEditingId(id);
+    setActionError(null);
+  }
+
+  function cancelEdit() {
     setEditingId(null);
-    await load();
   }
 
-  async function handleReorder(node: CategoryNode, direction: "up" | "down") {
-    const siblings =
-      node.level === 1
-        ? l1Nodes
-        : (childrenByParent.get(node.parent_id ?? "") ?? []);
-    const index = siblings.findIndex((s) => s.id === node.id);
-    const swapIndex = direction === "up" ? index - 1 : index + 1;
-    if (swapIndex < 0 || swapIndex >= siblings.length) return;
-    const other = siblings[swapIndex];
-    await Promise.all([
-      updateCategory(node.id, { sort_order: other.sort_order }),
-      updateCategory(other.id, { sort_order: node.sort_order }),
-    ]);
-    await load();
+  async function handleRename(node: CategoryNode, name: string) {
+    const previous = node.name_ja;
+    setEditingId(null);
+    setNodes((current) => patchNode(current, node.id, { name_ja: name }));
+    setSavingId(node.id);
+    setActionError(null);
+    try {
+      await updateCategory(node.id, { name_ja: name });
+      setSavedId(node.id);
+    } catch {
+      setNodes((current) => patchNode(current, node.id, { name_ja: previous }));
+      setActionError(t("saveFailed"));
+    } finally {
+      setSavingId(null);
+    }
   }
 
-  async function handleCreateL1() {
-    if (!selectedTenant || !newL1Name.trim()) return;
-    await createCategory(selectedTenant, {
-      level: 1,
-      name_ja: newL1Name.trim(),
-    });
-    setNewL1Name("");
-    await load();
+  async function handleCreateL1(name: string) {
+    if (!selectedTenant) return;
+    setDraftAdd(null);
+    setSavingId("draft-l1");
+    setActionError(null);
+    try {
+      const created = await createCategory(selectedTenant, { level: 1, name_ja: name });
+      setNodes((current) => [...current, created]);
+      setSavedId(created.id);
+    } catch {
+      setActionError(t("saveFailed"));
+      setDraftAdd({ type: "l1" });
+    } finally {
+      setSavingId(null);
+    }
   }
 
-  async function handleCreateL2() {
-    if (!selectedTenant || !newL2ParentId || !newL2Name.trim()) return;
-    await createCategory(selectedTenant, {
-      level: 2,
-      parent_id: newL2ParentId,
-      name_ja: newL2Name.trim(),
-    });
-    setNewL2Name("");
-    setNewL2ParentId(null);
-    await load();
+  async function handleCreateL2(parentId: string, name: string) {
+    if (!selectedTenant) return;
+    setDraftAdd(null);
+    setSavingId("draft-l2");
+    setActionError(null);
+    try {
+      const created = await createCategory(selectedTenant, {
+        level: 2,
+        parent_id: parentId,
+        name_ja: name,
+      });
+      setNodes((current) => [...current, created]);
+      setSavedId(created.id);
+    } catch {
+      setActionError(t("saveFailed"));
+      setDraftAdd({ type: "l2", parentId });
+    } finally {
+      setSavingId(null);
+    }
   }
 
   async function handleDelete(transferToId?: string) {
     if (!selectedTenant || !deleteTarget) return;
-    await deleteCategory(deleteTarget.id, selectedTenant, transferToId);
+    const target = deleteTarget;
+    const previous = nodes;
     setDeleteTarget(null);
-    await load();
+    setNodes((current) => removeNodeAndChildren(current, target.id));
+    setActionError(null);
+    try {
+      await deleteCategory(target.id, selectedTenant, transferToId);
+    } catch {
+      setNodes(previous);
+      setActionError(t("deleteFailed"));
+      setDeleteTarget(target);
+    }
   }
 
   if (!selectedTenant) {
@@ -128,9 +181,13 @@ export function CategoryManager() {
     );
   }
 
-  if (loading) {
+  if (initialLoading) {
     return (
-      <p className="text-center text-sm text-gray-500 py-16">{t("loading")}</p>
+      <div className="space-y-4 animate-pulse">
+        {[1, 2, 3].map((key) => (
+          <div key={key} className="h-28 rounded-xl bg-gray-200" />
+        ))}
+      </div>
     );
   }
 
@@ -140,7 +197,7 @@ export function CategoryManager() {
         <p className="text-sm text-red-600">{error}</p>
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={() => void loadInitial()}
           className="text-sm underline text-gray-600"
         >
           {t("retry")}
@@ -151,180 +208,107 @@ export function CategoryManager() {
 
   return (
     <div className="space-y-4">
-      {l1Nodes.map((l1) => (
-        <section
-          key={l1.id}
-          className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
-        >
-          <div className="flex items-start gap-2">
-            {editingId === l1.id ? (
-              <input
-                className="flex-1 rounded border border-gray-200 px-2 py-1 text-sm"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void handleRename(l1);
-                  if (e.key === "Escape") setEditingId(null);
-                }}
-                autoFocus
-              />
-            ) : (
-              <h2 className="flex-1 text-base font-semibold text-gray-900">
-                {l1.name_ja}
-              </h2>
-            )}
-            <div className="flex shrink-0 gap-1">
-              <button
-                type="button"
-                className="text-xs text-gray-500"
-                onClick={() => void handleReorder(l1, "up")}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                className="text-xs text-gray-500"
-                onClick={() => void handleReorder(l1, "down")}
-              >
-                ↓
-              </button>
-              <button
-                type="button"
-                className="text-xs text-gray-600 underline"
-                onClick={() => {
-                  setEditingId(l1.id);
-                  setEditName(l1.name_ja);
-                }}
-              >
-                {t("edit")}
-              </button>
-              {l1.deletable ? (
-                <button
-                  type="button"
-                  className="text-xs text-red-600 underline"
-                  onClick={() => setDeleteTarget(l1)}
-                >
-                  {t("delete")}
-                </button>
-              ) : null}
-            </div>
-          </div>
+      {actionError ? (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+          {actionError}
+        </p>
+      ) : null}
 
-          <ul className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-            {(childrenByParent.get(l1.id) ?? []).map((l2) => (
-              <li key={l2.id} className="flex items-center gap-2 pl-2">
-                {editingId === l2.id ? (
-                  <input
-                    className="flex-1 rounded border border-gray-200 px-2 py-1 text-sm"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void handleRename(l2);
-                      if (e.key === "Escape") setEditingId(null);
-                    }}
-                    autoFocus
-                  />
-                ) : (
-                  <span className="flex-1 text-sm text-gray-700">{l2.name_ja}</span>
-                )}
-                <div className="flex shrink-0 gap-1">
-                  <button
-                    type="button"
-                    className="text-xs text-gray-500"
-                    onClick={() => void handleReorder(l2, "up")}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="text-xs text-gray-500"
-                    onClick={() => void handleReorder(l2, "down")}
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    className="text-xs text-gray-600 underline"
-                    onClick={() => {
-                      setEditingId(l2.id);
-                      setEditName(l2.name_ja);
-                    }}
-                  >
-                    {t("edit")}
-                  </button>
-                  {l2.deletable ? (
-                    <button
-                      type="button"
-                      className="text-xs text-red-600 underline"
-                      onClick={() => setDeleteTarget(l2)}
-                    >
-                      {t("delete")}
-                    </button>
-                  ) : null}
-                </div>
-              </li>
-            ))}
-          </ul>
+      {l1Nodes.map((l1) => {
+        const l2Children = childrenByParent.get(l1.id) ?? [];
+        const unknown = isUnknown(l1);
 
-          <button
-            type="button"
-            className="mt-3 text-xs text-blue-600 underline"
-            onClick={() => {
-              setNewL2ParentId(l1.id);
-              setNewL2Name("");
-            }}
+        return (
+          <section
+            key={l1.id}
+            className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
           >
-            {t("addL2")}
-          </button>
-        </section>
-      ))}
+            <div className="flex items-center gap-2">
+              <EditableCategoryName
+                name={l1.name_ja}
+                variant="l1"
+                isEditing={editingId === l1.id}
+                isSaving={savingId === l1.id}
+                showSaved={savedId === l1.id}
+                onStartEdit={() => startEdit(l1.id)}
+                onSave={(name) => handleRename(l1, name)}
+                onCancel={cancelEdit}
+              />
+              <CategoryRowAction
+                deletable={l1.deletable}
+                isUnknown={unknown}
+                onDelete={() => setDeleteTarget(l1)}
+              />
+            </div>
+
+            <ul className="mt-3 space-y-1 border-t border-gray-100 pt-3">
+              {l2Children.map((l2) => (
+                <li key={l2.id} className="flex items-center gap-2 pl-2">
+                  <EditableCategoryName
+                    name={l2.name_ja}
+                    variant="l2"
+                    isEditing={editingId === l2.id}
+                    isSaving={savingId === l2.id}
+                    showSaved={savedId === l2.id}
+                    onStartEdit={() => startEdit(l2.id)}
+                    onSave={(name) => handleRename(l2, name)}
+                    onCancel={cancelEdit}
+                  />
+                  <CategoryRowAction
+                    deletable={l2.deletable}
+                    isUnknown={false}
+                    onDelete={() => setDeleteTarget(l2)}
+                  />
+                </li>
+              ))}
+
+              {draftAdd?.type === "l2" && draftAdd.parentId === l1.id ? (
+                <li className="pl-2">
+                  <InlineCategoryDraft
+                    variant="l2"
+                    onCreate={(name) => handleCreateL2(l1.id, name)}
+                    onCancel={() => setDraftAdd(null)}
+                  />
+                </li>
+              ) : null}
+            </ul>
+
+            {!unknown && draftAdd?.type !== "l2" ? (
+              <button
+                type="button"
+                className="mt-3 text-sm text-blue-600 hover:underline"
+                onClick={() => {
+                  setEditingId(null);
+                  setDraftAdd({ type: "l2", parentId: l1.id });
+                }}
+              >
+                + {t("addL2")}
+              </button>
+            ) : null}
+          </section>
+        );
+      })}
 
       <div className="rounded-xl border border-dashed border-gray-300 bg-white p-4">
-        <p className="text-sm font-medium text-gray-700">{t("addL1")}</p>
-        <div className="mt-2 flex gap-2">
-          <input
-            className="flex-1 rounded border border-gray-200 px-2 py-1.5 text-sm"
-            value={newL1Name}
-            onChange={(e) => setNewL1Name(e.target.value)}
-            placeholder={t("categoryNamePlaceholder")}
+        {draftAdd?.type === "l1" ? (
+          <InlineCategoryDraft
+            variant="l1"
+            onCreate={handleCreateL1}
+            onCancel={() => setDraftAdd(null)}
           />
+        ) : (
           <button
             type="button"
-            onClick={() => void handleCreateL1()}
-            className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm text-white"
+            className="w-full text-left text-sm font-medium text-blue-600 hover:underline"
+            onClick={() => {
+              setEditingId(null);
+              setDraftAdd({ type: "l1" });
+            }}
           >
-            {t("add")}
+            + {t("addL1")}
           </button>
-        </div>
+        )}
       </div>
-
-      {newL2ParentId ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-sm font-medium text-gray-700">{t("addL2")}</p>
-          <div className="mt-2 flex gap-2">
-            <input
-              className="flex-1 rounded border border-gray-200 px-2 py-1.5 text-sm"
-              value={newL2Name}
-              onChange={(e) => setNewL2Name(e.target.value)}
-              placeholder={t("categoryNamePlaceholder")}
-            />
-            <button
-              type="button"
-              onClick={() => void handleCreateL2()}
-              className="rounded-lg bg-gray-900 px-3 py-1.5 text-sm text-white"
-            >
-              {t("add")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setNewL2ParentId(null)}
-              className="text-sm text-gray-500 underline"
-            >
-              {t("cancel")}
-            </button>
-          </div>
-        </div>
-      ) : null}
 
       {deleteTarget ? (
         <DeleteCategoryDialog
