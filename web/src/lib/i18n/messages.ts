@@ -42,6 +42,9 @@ export const messages = {
     saved: "保存しました",
     saveFailed: "保存に失敗しました。もう一度お試しください。",
     deleteFailed: "削除に失敗しました。もう一度お試しください。",
+    dragHint: "長押しでドラッグして移動できます",
+    promoteDropZone: "ここにドロップで大カテゴリに昇格",
+    moveFailed: "移動に失敗しました。もう一度お試しください。",
   },
   en: {
     appTitle: "Expenses",
@@ -84,6 +87,9 @@ export const messages = {
     saved: "Saved",
     saveFailed: "Could not save. Please try again.",
     deleteFailed: "Could not delete. Please try again.",
+    dragHint: "Press and hold to drag categories",
+    promoteDropZone: "Drop here to promote to top-level",
+    moveFailed: "Could not move category. Please try again.",
   },
   zh: {
     appTitle: "家计簿",
@@ -125,6 +131,9 @@ export const messages = {
     saved: "已保存",
     saveFailed: "保存失败，请重试。",
     deleteFailed: "删除失败，请重试。",
+    dragHint: "长按可拖动分类",
+    promoteDropZone: "拖放到此处升级为一级分类",
+    moveFailed: "移动失败，请重试。",
   },
 } as const;
 
