@@ -6,9 +6,16 @@ import {
 import { linkLineUserAndCreateSession } from "@/lib/line/session";
 import { verifyLineIdToken } from "@/lib/line/verify-id-token";
 
-function authFailedRedirect(request: Request) {
+function loginErrorRedirect(
+  request: Request,
+  error: string,
+  reason?: string,
+) {
   const url = new URL("/login", request.url);
-  url.searchParams.set("error", "auth_failed");
+  url.searchParams.set("error", error);
+  if (reason) {
+    url.searchParams.set("reason", reason.slice(0, 200));
+  }
   return NextResponse.redirect(url);
 }
 
@@ -16,16 +23,29 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
+  const lineError = url.searchParams.get("error");
+  const lineErrorDescription = url.searchParams.get("error_description");
+
+  if (lineError) {
+    console.error("[auth/line/callback] LINE OAuth error", {
+      error: lineError,
+      description: lineErrorDescription,
+    });
+    return loginErrorRedirect(
+      request,
+      "line_oauth",
+      lineErrorDescription ?? lineError,
+    );
+  }
 
   if (!code) {
     console.error("[auth/line/callback] missing authorization code");
-    return authFailedRedirect(request);
+    return loginErrorRedirect(request, "missing_code");
   }
 
-  const stateValid = await validateOAuthState(state);
-  if (!stateValid) {
+  if (!validateOAuthState(state)) {
     console.error("[auth/line/callback] invalid OAuth state");
-    return authFailedRedirect(request);
+    return loginErrorRedirect(request, "invalid_state");
   }
 
   try {
@@ -37,9 +57,8 @@ export async function GET(request: Request) {
     });
     return NextResponse.redirect(new URL("/dashboard", request.url));
   } catch (error) {
-    console.error("[auth/line/callback] auth failed", {
-      reason: error instanceof Error ? error.message : "unknown",
-    });
-    return authFailedRedirect(request);
+    const reason = error instanceof Error ? error.message : "unknown";
+    console.error("[auth/line/callback] auth failed", { reason });
+    return loginErrorRedirect(request, "auth_failed", reason);
   }
 }

@@ -1,12 +1,24 @@
 import { LanguageProvider } from "@/components/LanguageProvider";
 
+const ERROR_MESSAGES: Record<string, string> = {
+  auth_failed: "ログインに失敗しました。もう一度お試しください。",
+  invalid_state:
+    "ログインセッションの有効期限が切れました。もう一度お試しください。",
+  line_oauth: "LINEログインが拒否されました。",
+  missing_code: "LINEから認証情報を受け取れませんでした。",
+};
+
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; reason?: string }>;
 }) {
   const params = await searchParams;
-  const authFailed = params.error === "auth_failed";
+  const errorCode = params.error;
+  const errorMessage =
+    (errorCode && ERROR_MESSAGES[errorCode]) ||
+    (errorCode ? "ログインに失敗しました。もう一度お試しください。" : null);
+  const errorDetail = params.reason;
 
   return (
     <LanguageProvider>
@@ -18,10 +30,13 @@ export default async function LoginPage({
               LINEボットで記録した支出を確認
             </p>
           </div>
-          {authFailed && (
-            <p className="text-sm text-red-600 rounded-lg bg-red-50 px-3 py-2">
-              ログインに失敗しました。もう一度お試しください。
-            </p>
+          {errorMessage && (
+            <div className="text-sm text-red-600 rounded-lg bg-red-50 px-3 py-2 text-left space-y-1">
+              <p>{errorMessage}</p>
+              {errorDetail && (
+                <p className="text-xs text-red-500 break-all">{errorDetail}</p>
+              )}
+            </div>
           )}
           <a
             href="/api/auth/line/login"

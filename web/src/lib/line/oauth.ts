@@ -1,17 +1,32 @@
-import { cookies } from "next/headers";
-import { randomBytes } from "crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 
-const STATE_COOKIE = "line_oauth_state";
+const STATE_TTL_MS = 10 * 60 * 1000;
 
 export function lineSyntheticEmail(lineUserId: string): string {
   return `line-${lineUserId}@users.line.local`;
 }
 
+function appUrl(): string {
+  return process.env.NEXT_PUBLIC_APP_URL!.replace(/\/$/, "");
+}
+
+function lineLoginChannelId(): string {
+  return process.env.LINE_LOGIN_CHANNEL_ID!.trim();
+}
+
+function lineLoginChannelSecret(): string {
+  const secret = process.env.LINE_LOGIN_CHANNEL_SECRET?.trim();
+  if (!secret) {
+    throw new Error("LINE_LOGIN_CHANNEL_SECRET is not configured");
+  }
+  return secret;
+}
+
 export function buildLineAuthorizeUrl(state: string): string {
   const params = new URLSearchParams({
     response_type: "code",
-    client_id: process.env.LINE_LOGIN_CHANNEL_ID!,
-    redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/line/callback`,
+    client_id: lineLoginChannelId(),
+    redirect_uri: `${appUrl()}/api/auth/line/callback`,
     state,
     scope: "profile openid",
   });
@@ -26,25 +41,47 @@ export function buildLineAuthorizeUrl(state: string): string {
   return `https://access.line.me/oauth2/v2.1/authorize?${params.toString()}`;
 }
 
-export async function createOAuthState(): Promise<string> {
-  const state = randomBytes(24).toString("hex");
-  const cookieStore = await cookies();
-  cookieStore.set(STATE_COOKIE, state, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 600,
-    path: "/",
-  });
-  return state;
+export function createOAuthState(): string {
+  const nonce = randomBytes(16).toString("hex");
+  const issuedAt = Date.now().toString(36);
+  const payload = `${nonce}.${issuedAt}`;
+  const sig = createHmac("sha256", lineLoginChannelSecret())
+    .update(payload)
+    .digest("hex");
+  return `${payload}.${sig}`;
 }
 
-export async function validateOAuthState(state: string | null): Promise<boolean> {
+export function validateOAuthState(state: string | null): boolean {
   if (!state) return false;
-  const cookieStore = await cookies();
-  const stored = cookieStore.get(STATE_COOKIE)?.value;
-  cookieStore.delete(STATE_COOKIE);
-  return stored === state;
+
+  const parts = state.split(".");
+  if (parts.length !== 3) return false;
+
+  const [nonce, issuedAt, sig] = parts;
+  if (!nonce || !issuedAt || !sig) return false;
+
+  const payload = `${nonce}.${issuedAt}`;
+  const expected = createHmac("sha256", lineLoginChannelSecret())
+    .update(payload)
+    .digest("hex");
+
+  const expectedBuf = Buffer.from(expected, "hex");
+  let actualBuf: Buffer;
+  try {
+    actualBuf = Buffer.from(sig, "hex");
+  } catch {
+    return false;
+  }
+
+  if (
+    expectedBuf.length !== actualBuf.length ||
+    !timingSafeEqual(expectedBuf, actualBuf)
+  ) {
+    return false;
+  }
+
+  const age = Date.now() - Number.parseInt(issuedAt, 36);
+  return Number.isFinite(age) && age >= 0 && age <= STATE_TTL_MS;
 }
 
 export async function exchangeCodeForTokens(code: string): Promise<{
@@ -54,9 +91,9 @@ export async function exchangeCodeForTokens(code: string): Promise<{
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     code,
-    redirect_uri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/line/callback`,
-    client_id: process.env.LINE_LOGIN_CHANNEL_ID!,
-    client_secret: process.env.LINE_LOGIN_CHANNEL_SECRET!,
+    redirect_uri: `${appUrl()}/api/auth/line/callback`,
+    client_id: lineLoginChannelId(),
+    client_secret: lineLoginChannelSecret(),
   });
 
   const response = await fetch("https://api.line.me/oauth2/v2.1/token", {
