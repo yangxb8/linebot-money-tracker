@@ -54,6 +54,26 @@ export async function updateCategory(
   return response.json() as Promise<CategoryNode>;
 }
 
+export async function moveCategory(
+  id: string,
+  body: { level: 1 | 2; parent_id?: string | null },
+): Promise<{ id: string; level: number; parent_id: string | null }> {
+  const response = await fetch(`/api/categories/${id}/move`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? "Failed to move category");
+  }
+  return response.json() as Promise<{
+    id: string;
+    level: number;
+    parent_id: string | null;
+  }>;
+}
+
 export async function deleteCategory(
   id: string,
   tenant: TenantOption,
