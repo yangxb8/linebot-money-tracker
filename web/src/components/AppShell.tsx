@@ -16,7 +16,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { selectedTenant, setSelectedTenant } = useTenant();
 
   const title =
-    pathname === "/categories" ? t("navCategories") : t("navExpenses");
+    pathname === "/categories"
+      ? t("navCategories")
+      : pathname === "/periodic-expenses"
+        ? t("navPeriodicExpenses")
+        : t("navExpenses");
 
   return (
     <div className="min-h-screen bg-gray-50">
