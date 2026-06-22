@@ -1,5 +1,6 @@
 let lockCount = 0;
 let lockedScrollY = 0;
+let lockedMaxScroll = 0;
 
 type SavedStyles = {
   htmlOverflow: string;
@@ -27,6 +28,10 @@ export function lockDragScroll() {
   const body = document.body;
 
   lockedScrollY = window.scrollY;
+  lockedMaxScroll = Math.max(
+    0,
+    document.documentElement.scrollHeight - window.innerHeight,
+  );
 
   savedStyles = {
     htmlOverflow: html.style.overflow,
@@ -57,11 +62,7 @@ export function scrollDragLocked(deltaY: number) {
     return;
   }
 
-  const maxScroll = Math.max(
-    0,
-    document.documentElement.scrollHeight - window.innerHeight,
-  );
-  lockedScrollY = Math.max(0, Math.min(maxScroll, lockedScrollY + deltaY));
+  lockedScrollY = Math.max(0, Math.min(lockedMaxScroll, lockedScrollY + deltaY));
   document.body.style.top = `-${lockedScrollY}px`;
 }
 
@@ -88,5 +89,6 @@ export function unlockDragScroll() {
   }
 
   savedStyles = null;
+  lockedMaxScroll = 0;
   window.scrollTo(0, scrollY);
 }

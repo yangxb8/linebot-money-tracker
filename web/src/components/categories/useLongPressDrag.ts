@@ -3,11 +3,14 @@
 import { useCallback, useRef, useState } from "react";
 import {
   lockDragScroll,
+  scrollDragLocked,
   unlockDragScroll,
 } from "@/components/categories/dragScrollLock";
 
 const LONG_PRESS_MS = 450;
 const MOVE_THRESHOLD_PX = 10;
+const EDGE_ZONE_PX = 72;
+const MAX_SCROLL_PX = 16;
 
 type Position = { x: number; y: number };
 
@@ -18,6 +21,23 @@ type Options = {
   onDragMove: (position: Position) => void;
   onDragEnd: (position: Position) => void;
 };
+
+function edgeScrollDelta(y: number): number {
+  const { innerHeight } = window;
+
+  if (y < EDGE_ZONE_PX) {
+    const intensity = 1 - Math.max(0, y) / EDGE_ZONE_PX;
+    return -MAX_SCROLL_PX * intensity;
+  }
+
+  if (y > innerHeight - EDGE_ZONE_PX) {
+    const distanceFromBottom = innerHeight - y;
+    const intensity = 1 - Math.max(0, distanceFromBottom) / EDGE_ZONE_PX;
+    return MAX_SCROLL_PX * intensity;
+  }
+
+  return 0;
+}
 
 export function useLongPressDrag({
   enabled,
@@ -35,6 +55,7 @@ export function useLongPressDrag({
   const pointerIdRef = useRef<number | null>(null);
   const targetRef = useRef<HTMLElement | null>(null);
   const scrollLockedRef = useRef(false);
+  const autoScrollRafRef = useRef(0);
   const callbacksRef = useRef({ onTap, onDragStart, onDragMove, onDragEnd });
   callbacksRef.current = { onTap, onDragStart, onDragMove, onDragEnd };
 
@@ -46,6 +67,36 @@ export function useLongPressDrag({
       timerRef.current = null;
     }
   }, []);
+
+  const stopAutoScroll = useCallback(() => {
+    if (autoScrollRafRef.current) {
+      cancelAnimationFrame(autoScrollRafRef.current);
+      autoScrollRafRef.current = 0;
+    }
+  }, []);
+
+  const tickAutoScroll = useCallback(() => {
+    if (!draggingRef.current) {
+      autoScrollRafRef.current = 0;
+      return;
+    }
+
+    const pos = lastPositionRef.current;
+    if (pos && scrollLockedRef.current) {
+      const delta = edgeScrollDelta(pos.y);
+      if (delta !== 0) {
+        scrollDragLocked(delta);
+        callbacksRef.current.onDragMove(pos);
+      }
+    }
+
+    autoScrollRafRef.current = requestAnimationFrame(tickAutoScroll);
+  }, []);
+
+  const startAutoScroll = useCallback(() => {
+    stopAutoScroll();
+    autoScrollRafRef.current = requestAnimationFrame(tickAutoScroll);
+  }, [stopAutoScroll, tickAutoScroll]);
 
   const releasePointerCapture = useCallback(() => {
     const target = targetRef.current;
@@ -68,6 +119,7 @@ export function useLongPressDrag({
 
   const endInteraction = useCallback(() => {
     clearTimer();
+    stopAutoScroll();
     activeRef.current = false;
     cleanupDocumentListeners.current?.();
     cleanupDocumentListeners.current = null;
@@ -80,7 +132,7 @@ export function useLongPressDrag({
     lastPositionRef.current = null;
     pointerIdRef.current = null;
     targetRef.current = null;
-  }, [clearTimer, releasePointerCapture]);
+  }, [clearTimer, releasePointerCapture, stopAutoScroll]);
 
   const attachDocumentListeners = useCallback(() => {
     function currentPosition(event?: PointerEvent): Position | null {
@@ -188,6 +240,7 @@ export function useLongPressDrag({
 
         lockDragScroll();
         scrollLockedRef.current = true;
+        startAutoScroll();
 
         const target = targetRef.current;
         const pointerId = pointerIdRef.current;
@@ -211,7 +264,7 @@ export function useLongPressDrag({
         }
       }, LONG_PRESS_MS);
     },
-    [attachDocumentListeners, clearTimer, enabled],
+    [attachDocumentListeners, clearTimer, enabled, startAutoScroll],
   );
 
   return {

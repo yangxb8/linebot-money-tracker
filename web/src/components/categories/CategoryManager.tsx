@@ -19,7 +19,6 @@ import {
   PromoteDropZone,
 } from "@/components/categories/CategoryDragUI";
 import { DraggableCategoryRow } from "@/components/categories/DraggableCategoryRow";
-import { useDragAutoScroll } from "@/components/categories/useDragAutoScroll";
 import { findDropZone } from "@/components/categories/useLongPressDrag";
 
 const UNKNOWN_CODE = "unknown";
@@ -220,18 +219,10 @@ export function CategoryManager() {
   }
 
   function updateDropHighlight(position: { x: number; y: number }) {
+    dragPositionRef.current = position;
     setDragPosition(position);
     highlightDropZoneAt(position);
   }
-
-  useDragAutoScroll(
-    Boolean(draggingNode),
-    () => dragPositionRef.current,
-    () => {
-      const position = dragPositionRef.current;
-      if (position) highlightDropZoneAt(position);
-    },
-  );
 
   function clearDrag() {
     setDraggingNode(null);
