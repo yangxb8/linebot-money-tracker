@@ -59,7 +59,6 @@ export function useLongPressDrag({
         return;
       }
 
-      event.preventDefault();
       callbacksRef.current.onDragMove({ x: event.clientX, y: event.clientY });
     }
 
@@ -90,7 +89,7 @@ export function useLongPressDrag({
       endInteraction();
     }
 
-    document.addEventListener("pointermove", onMove, { passive: false });
+    document.addEventListener("pointermove", onMove, { passive: true });
     document.addEventListener("pointerup", onUp);
     document.addEventListener("pointercancel", onCancel);
     cleanupDocumentListeners.current = () => {

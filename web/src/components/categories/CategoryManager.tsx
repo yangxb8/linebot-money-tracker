@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/components/LanguageProvider";
 import { useTenant } from "@/components/TenantProvider";
 import {
@@ -19,6 +19,7 @@ import {
   PromoteDropZone,
 } from "@/components/categories/CategoryDragUI";
 import { DraggableCategoryRow } from "@/components/categories/DraggableCategoryRow";
+import { useDragAutoScroll } from "@/components/categories/useDragAutoScroll";
 import { findDropZone } from "@/components/categories/useLongPressDrag";
 
 const UNKNOWN_CODE = "unknown";
@@ -77,6 +78,8 @@ export function CategoryManager() {
     null,
   );
   const [activeDropZone, setActiveDropZone] = useState<string | null>(null);
+  const dragPositionRef = useRef(dragPosition);
+  dragPositionRef.current = dragPosition;
 
   const loadInitial = useCallback(async () => {
     if (!selectedTenant) return;
@@ -207,8 +210,7 @@ export function CategoryManager() {
     }
   }
 
-  function updateDropHighlight(position: { x: number; y: number }) {
-    setDragPosition(position);
+  function highlightDropZoneAt(position: { x: number; y: number }) {
     const zone = findDropZone(position);
     if (!zone) {
       setActiveDropZone(null);
@@ -216,6 +218,29 @@ export function CategoryManager() {
     }
     setActiveDropZone(zone.type === "promote" ? "promote" : `l1:${zone.id}`);
   }
+
+  function updateDropHighlight(position: { x: number; y: number }) {
+    setDragPosition(position);
+    highlightDropZoneAt(position);
+  }
+
+  useDragAutoScroll(
+    Boolean(draggingNode),
+    () => dragPositionRef.current,
+    () => {
+      const position = dragPositionRef.current;
+      if (position) highlightDropZoneAt(position);
+    },
+  );
+
+  useEffect(() => {
+    if (!draggingNode) return;
+    const previous = document.body.style.touchAction;
+    document.body.style.touchAction = "pan-y";
+    return () => {
+      document.body.style.touchAction = previous;
+    };
+  }, [draggingNode]);
 
   function clearDrag() {
     setDraggingNode(null);

@@ -52,9 +52,9 @@ export function DraggableCategoryRow({
 
   return (
     <div
-      className={`flex items-center gap-2 touch-none select-none ${
-        isDimmed ? "opacity-40" : ""
-      } ${isDragging ? "opacity-60" : ""}`}
+      className={`flex items-center gap-2 select-none ${
+        canDrag && !isEditing ? "touch-pan-y" : ""
+      } ${isDimmed ? "opacity-40" : ""} ${isDragging ? "opacity-60" : ""}`}
       {...(canDrag && !isEditing ? dragHandlers : {})}
     >
       <EditableCategoryName
