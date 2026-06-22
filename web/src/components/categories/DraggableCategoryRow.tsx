@@ -15,11 +15,12 @@ type Props = {
   showSaved: boolean;
   isDragging: boolean;
   isDimmed: boolean;
+  dragSessionActive: boolean;
   onStartEdit: () => void;
   onSave: (name: string) => Promise<void>;
   onCancelEdit: () => void;
   onDelete: () => void;
-  onDragStart: (node: CategoryNode) => void;
+  onDragStart: (node: CategoryNode, position: { x: number; y: number }) => void;
   onDragMove: (position: { x: number; y: number }) => void;
   onDragEnd: (node: CategoryNode, position: { x: number; y: number }) => void;
 };
@@ -34,6 +35,7 @@ export function DraggableCategoryRow({
   showSaved,
   isDragging,
   isDimmed,
+  dragSessionActive,
   onStartEdit,
   onSave,
   onCancelEdit,
@@ -45,7 +47,7 @@ export function DraggableCategoryRow({
   const { dragHandlers } = useLongPressDrag({
     enabled: canDrag && !isEditing,
     onTap: onStartEdit,
-    onDragStart: () => onDragStart(node),
+    onDragStart: (position) => onDragStart(node, position),
     onDragMove,
     onDragEnd: (position) => onDragEnd(node, position),
   });
@@ -53,7 +55,7 @@ export function DraggableCategoryRow({
   return (
     <div
       className={`flex items-center gap-2 select-none ${
-        canDrag && !isEditing ? "touch-pan-y" : ""
+        dragSessionActive ? "touch-none" : canDrag && !isEditing ? "touch-pan-y" : ""
       } ${isDimmed ? "opacity-40" : ""} ${isDragging ? "opacity-60" : ""}`}
       {...(canDrag && !isEditing ? dragHandlers : {})}
     >

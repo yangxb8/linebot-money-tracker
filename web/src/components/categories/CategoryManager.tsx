@@ -233,15 +233,6 @@ export function CategoryManager() {
     },
   );
 
-  useEffect(() => {
-    if (!draggingNode) return;
-    const previous = document.body.style.touchAction;
-    document.body.style.touchAction = "pan-y";
-    return () => {
-      document.body.style.touchAction = previous;
-    };
-  }, [draggingNode]);
-
   function clearDrag() {
     setDraggingNode(null);
     setDragPosition(null);
@@ -299,6 +290,8 @@ export function CategoryManager() {
     }
   }
 
+  const dragSessionActive = Boolean(draggingNode);
+
   if (!selectedTenant) {
     return (
       <p className="text-center text-sm text-gray-500 py-16">{t("loading")}</p>
@@ -346,8 +339,10 @@ export function CategoryManager() {
         const zoneKey = `l1:${l1.id}`;
 
         return (
-          <section
+          <CategoryDropZone
             key={l1.id}
+            zone={zoneKey}
+            active={activeDropZone === zoneKey}
             className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
           >
             <DraggableCategoryRow
@@ -360,23 +355,21 @@ export function CategoryManager() {
               showSaved={savedId === l1.id}
               isDragging={draggingNode?.id === l1.id}
               isDimmed={Boolean(draggingNode && draggingNode.id !== l1.id)}
+              dragSessionActive={dragSessionActive}
               onStartEdit={() => startEdit(l1.id)}
               onSave={(name) => handleRename(l1, name)}
               onCancelEdit={cancelEdit}
               onDelete={() => setDeleteTarget(l1)}
-              onDragStart={(n) => {
+              onDragStart={(n, position) => {
                 setEditingId(null);
                 setDraggingNode(n);
+                setDragPosition(position);
               }}
               onDragMove={updateDropHighlight}
               onDragEnd={handleDragEnd}
             />
 
-            <CategoryDropZone
-              zone={zoneKey}
-              active={activeDropZone === zoneKey}
-              className="mt-3 min-h-[2rem] border-t border-gray-100 pt-3"
-            >
+            <div className="mt-3 min-h-[2rem] border-t border-gray-100 pt-3">
               <ul className="space-y-1">
                 {l2Children.map((l2) => (
                   <li key={l2.id} className="pl-2">
@@ -390,13 +383,15 @@ export function CategoryManager() {
                       showSaved={savedId === l2.id}
                       isDragging={draggingNode?.id === l2.id}
                       isDimmed={Boolean(draggingNode && draggingNode.id !== l2.id)}
+                      dragSessionActive={dragSessionActive}
                       onStartEdit={() => startEdit(l2.id)}
                       onSave={(name) => handleRename(l2, name)}
                       onCancelEdit={cancelEdit}
                       onDelete={() => setDeleteTarget(l2)}
-                      onDragStart={(n) => {
+                      onDragStart={(n, position) => {
                         setEditingId(null);
                         setDraggingNode(n);
+                        setDragPosition(position);
                       }}
                       onDragMove={updateDropHighlight}
                       onDragEnd={handleDragEnd}
@@ -414,7 +409,7 @@ export function CategoryManager() {
                   </li>
                 ) : null}
               </ul>
-            </CategoryDropZone>
+            </div>
 
             {!unknown && draftAdd?.type !== "l2" ? (
               <button
@@ -428,7 +423,7 @@ export function CategoryManager() {
                 + {t("addL2")}
               </button>
             ) : null}
-          </section>
+          </CategoryDropZone>
         );
       })}
 

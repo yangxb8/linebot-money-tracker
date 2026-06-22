@@ -2,8 +2,9 @@
 
 import { useEffect, useRef } from "react";
 
-const EDGE_ZONE_PX = 80;
-const MAX_SCROLL_PX = 16;
+/** Only scroll when the pointer is within this distance of the viewport edge. */
+const EDGE_ZONE_PX = 48;
+const MAX_SCROLL_PX = 12;
 
 export function useDragAutoScroll(
   active: boolean,
@@ -26,10 +27,10 @@ export function useDragAutoScroll(
         const { innerHeight } = window;
         let delta = 0;
 
-        if (pos.y < EDGE_ZONE_PX) {
+        if (pos.y <= EDGE_ZONE_PX) {
           const intensity = 1 - Math.max(0, pos.y) / EDGE_ZONE_PX;
           delta = -MAX_SCROLL_PX * intensity;
-        } else if (pos.y > innerHeight - EDGE_ZONE_PX) {
+        } else if (pos.y >= innerHeight - EDGE_ZONE_PX) {
           const distanceFromBottom = innerHeight - pos.y;
           const intensity = 1 - Math.max(0, distanceFromBottom) / EDGE_ZONE_PX;
           delta = MAX_SCROLL_PX * intensity;
