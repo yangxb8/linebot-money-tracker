@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import {
+  lockDragScroll,
+  unlockDragScroll,
+} from "@/components/categories/dragScrollLock";
 
 const LONG_PRESS_MS = 450;
 const MOVE_THRESHOLD_PX = 10;
@@ -30,6 +34,7 @@ export function useLongPressDrag({
   const activeRef = useRef(false);
   const pointerIdRef = useRef<number | null>(null);
   const targetRef = useRef<HTMLElement | null>(null);
+  const scrollLockedRef = useRef(false);
   const callbacksRef = useRef({ onTap, onDragStart, onDragMove, onDragEnd });
   callbacksRef.current = { onTap, onDragStart, onDragMove, onDragEnd };
 
@@ -67,6 +72,10 @@ export function useLongPressDrag({
     cleanupDocumentListeners.current?.();
     cleanupDocumentListeners.current = null;
     releasePointerCapture();
+    if (scrollLockedRef.current) {
+      unlockDragScroll();
+      scrollLockedRef.current = false;
+    }
     startRef.current = null;
     lastPositionRef.current = null;
     pointerIdRef.current = null;
@@ -131,16 +140,32 @@ export function useLongPressDrag({
       endInteraction();
     }
 
+    function onTouchMove(event: TouchEvent) {
+      if (draggingRef.current) {
+        event.preventDefault();
+      }
+    }
+
+    function onWheel(event: WheelEvent) {
+      if (draggingRef.current) {
+        event.preventDefault();
+      }
+    }
+
     document.addEventListener("pointermove", onMove, { passive: false });
     document.addEventListener("pointerup", onUp);
     document.addEventListener("pointercancel", onCancel);
     document.addEventListener("lostpointercapture", onLostCapture);
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+    document.addEventListener("wheel", onWheel, { passive: false });
 
     cleanupDocumentListeners.current = () => {
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
       document.removeEventListener("pointercancel", onCancel);
       document.removeEventListener("lostpointercapture", onLostCapture);
+      document.removeEventListener("touchmove", onTouchMove);
+      document.removeEventListener("wheel", onWheel);
     };
   }, [clearTimer, endInteraction, finishDrag]);
 
@@ -160,6 +185,9 @@ export function useLongPressDrag({
       timerRef.current = window.setTimeout(() => {
         draggingRef.current = true;
         setIsDragging(true);
+
+        lockDragScroll();
+        scrollLockedRef.current = true;
 
         const target = targetRef.current;
         const pointerId = pointerIdRef.current;
