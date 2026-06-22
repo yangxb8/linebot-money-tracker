@@ -2,46 +2,49 @@
 
 **Feature**: 011-periodic-expense-scheduler
 
-## Route
+## Runtime
 
-`GET /api/cron/process-periodic-expenses`
+**Supabase Edge Function** `process-periodic-expenses`, scheduled hourly by **pg_cron** + **pg_net** (migration `20260623130000_periodic_expenses_cron.sql`).
 
-Vercel Cron invokes this path on the schedule defined in `web/vercel.json`.
+Vercel Hobby limits cron to once per day, so production scheduling lives in Supabase—not Vercel.
+
+The Next.js route `GET /api/cron/process-periodic-expenses` remains for **local manual testing** only.
 
 ## Authentication
 
-Request MUST include header:
+Edge Function accepts either:
 
 ```http
 Authorization: Bearer <CRON_SECRET>
 ```
 
-Compare to `process.env.CRON_SECRET`. Return **401** if missing or mismatch.
+or (used by pg_cron):
 
-Vercel also sends `x-vercel-cron: 1` — log but do not rely on it alone for auth.
-
-## vercel.json
-
-```json
-{
-  "crons": [
-    {
-      "path": "/api/cron/process-periodic-expenses",
-      "schedule": "0 * * * *"
-    }
-  ]
-}
+```http
+apikey: <SUPABASE_SERVICE_ROLE_KEY>
 ```
 
-Runs at minute 0 every hour UTC. Due schedules evaluated against each row's `timezone`.
+Store the service role key in Supabase Vault as `supabase_service_role_key` (see quickstart). Optional: set `CRON_SECRET` in Edge Function secrets for manual curl.
+
+`verify_jwt = false` on the function; auth is enforced in handler code.
+
+## pg_cron schedule
+
+```sql
+-- 0 * * * * — minute 0 every hour UTC
+SELECT cron.schedule('process-periodic-expenses-hourly', '0 * * * *', ...);
+```
+
+Due schedules are evaluated against each row's `timezone`.
 
 ## Handler behavior
 
-1. Validate `CRON_SECRET`.
-2. Create Supabase client with `SUPABASE_SERVICE_ROLE_KEY`.
-3. Call `rpc('process_due_periodic_schedules', { p_as_of: new Date().toISOString() })`.
-4. Log result counts (no schedule names or user IDs in production logs).
-5. Return **200** with JSON body from RPC.
+1. Validate `CRON_SECRET` or service-role `apikey`.
+2. Create Supabase client with `SUPABASE_SERVICE_ROLE_KEY` (auto-injected in Edge Functions).
+3. Load active schedules, compute due actions in TypeScript (recurrence engine).
+4. Call `rpc('process_due_periodic_schedules', { p_actions })`.
+5. Log aggregate counts (no schedule names or user IDs).
+6. Return **200** with JSON body.
 
 **Response 200**:
 
@@ -54,22 +57,38 @@ Runs at minute 0 every hour UTC. Due schedules evaluated against each row's `tim
 }
 ```
 
-**Response 500**: RPC or DB failure; Vercel retries next hour.
+**Response 500**: RPC or DB failure; pg_cron retries next hour.
 
 ## Idempotency
 
 - Unique `(periodic_schedule_id, expense_date)` on expenses prevents duplicate rows.
-- RPC should use row lock or `INSERT ... ON CONFLICT DO NOTHING` on expenses.
+- RPC uses row lock and idempotent insert.
 - Re-running cron same hour: `skipped` increments, no duplicate expenses.
 
 ## Local manual trigger
+
+**Next.js (local dev)**:
 
 ```bash
 curl -s -H "Authorization: Bearer $CRON_SECRET" \
   "http://localhost:3000/api/cron/process-periodic-expenses"
 ```
 
-Requires `CRON_SECRET` and `SUPABASE_SERVICE_ROLE_KEY` in `web/.env.local`.
+**Edge Function (deployed or `supabase functions serve`)**:
+
+```bash
+curl -s -X POST \
+  -H "Authorization: Bearer $CRON_SECRET" \
+  "https://<project-ref>.supabase.co/functions/v1/process-periodic-expenses"
+```
+
+Or with service role:
+
+```bash
+curl -s -X POST \
+  -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+  "https://<project-ref>.supabase.co/functions/v1/process-periodic-expenses"
+```
 
 ## Expense row shape (cron insert)
 
@@ -93,8 +112,9 @@ Requires `CRON_SECRET` and `SUPABASE_SERVICE_ROLE_KEY` in `web/.env.local`.
 
 ## Monitoring
 
+- Edge Function logs: Supabase Dashboard → Edge Functions → `process-periodic-expenses`
+- pg_cron history: `SELECT * FROM cron.job_run_details WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = 'process-periodic-expenses-hourly') ORDER BY start_time DESC LIMIT 10;`
 - Log aggregate counts per run.
-- Alert if `inserted = 0` and `processed > 0` with all `skipped` for 24h (optional ops).
 
 ## Out of scope
 
