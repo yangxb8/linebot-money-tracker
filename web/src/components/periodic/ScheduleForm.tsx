@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useLanguage } from "@/components/LanguageProvider";
+import { IsoDateInput } from "@/components/IsoDateInput";
 import { fetchCategories } from "@/lib/categories/client";
 import type { CategoryNode } from "@/lib/categories/types";
 import type { TenantOption } from "@/lib/dashboard/tenants";
@@ -13,6 +14,10 @@ import {
   updatePeriodicSchedule,
   type ScheduleFormValues,
 } from "@/lib/periodic/client";
+import {
+  parseRecurrenceForm,
+  type RecurrenceFormErrors,
+} from "@/lib/periodic/form";
 import type { PeriodicScheduleResponse } from "@/lib/periodic/types";
 import { EndConditionFields } from "@/components/periodic/EndConditionFields";
 import { RecurrenceFields } from "@/components/periodic/RecurrenceFields";
@@ -24,6 +29,25 @@ type Props = {
   onSaved: () => void;
 };
 
+type FieldErrors = {
+  name?: boolean;
+  amount?: boolean;
+  category?: boolean;
+  start_date?: boolean;
+  end_date?: boolean;
+  end_amount_cap?: boolean;
+  end_repeat_limit?: boolean;
+  recurrence?: RecurrenceFormErrors;
+};
+
+function fieldClass(invalid?: boolean) {
+  return `mt-1 w-full rounded-lg border px-3 py-2 text-sm ${
+    invalid
+      ? "border-red-500 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+      : "border-gray-200"
+  }`;
+}
+
 export function ScheduleForm({ tenant, schedule, onClose, onSaved }: Props) {
   const { t } = useLanguage();
   const [values, setValues] = useState<ScheduleFormValues>(() =>
@@ -31,6 +55,7 @@ export function ScheduleForm({ tenant, schedule, onClose, onSaved }: Props) {
   );
   const [categories, setCategories] = useState<CategoryNode[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
   const [nextPreview, setNextPreview] = useState<string | null>(null);
 
@@ -50,8 +75,16 @@ export function ScheduleForm({ tenant, schedule, onClose, onSaved }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    const parsed = parseRecurrenceForm(values.recurrence);
+    if (!parsed.ok || !values.start_date) {
+      setNextPreview(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     void previewNextRun({
-      recurrence: values.recurrence,
+      recurrence: parsed.rule,
       start_date: values.start_date,
       timezone: values.timezone,
       after: values.start_date,
@@ -68,18 +101,40 @@ export function ScheduleForm({ tenant, schedule, onClose, onSaved }: Props) {
   }, [values.recurrence, values.start_date, values.timezone]);
 
   function validateClient(): string | null {
-    if (!values.name.trim()) return t("periodicErrorName");
+    const nextErrors: FieldErrors = {};
+
+    if (!values.name.trim()) nextErrors.name = true;
     const amount = Number(values.amount);
-    if (!Number.isFinite(amount) || amount <= 0) return t("periodicErrorAmount");
-    if (!values.category_node_id) return t("periodicErrorCategory");
+    if (!Number.isFinite(amount) || amount <= 0) nextErrors.amount = true;
+    if (!values.category_node_id) nextErrors.category = true;
+    if (!values.start_date) nextErrors.start_date = true;
+
     if (values.end_kind === "on_date" && !values.end_date) {
-      return t("periodicErrorEndDate");
+      nextErrors.end_date = true;
     }
     if (values.end_kind === "amount_cap" && !Number(values.end_amount_cap)) {
-      return t("periodicErrorEndAmount");
+      nextErrors.end_amount_cap = true;
     }
     if (values.end_kind === "repeat_count" && !Number(values.end_repeat_limit)) {
-      return t("periodicErrorEndRepeat");
+      nextErrors.end_repeat_limit = true;
+    }
+
+    const parsedRecurrence = parseRecurrenceForm(values.recurrence);
+    if (!parsedRecurrence.ok) {
+      nextErrors.recurrence = parsedRecurrence.fields;
+    }
+
+    setFieldErrors(nextErrors);
+
+    if (nextErrors.name) return t("periodicErrorName");
+    if (nextErrors.amount) return t("periodicErrorAmount");
+    if (nextErrors.category) return t("periodicErrorCategory");
+    if (nextErrors.start_date) return t("periodicErrorStartDate");
+    if (nextErrors.end_date) return t("periodicErrorEndDate");
+    if (nextErrors.end_amount_cap) return t("periodicErrorEndAmount");
+    if (nextErrors.end_repeat_limit) return t("periodicErrorEndRepeat");
+    if (!parsedRecurrence.ok) {
+      return t(parsedRecurrence.errorKey as never);
     }
     return null;
   }
@@ -89,6 +144,12 @@ export function ScheduleForm({ tenant, schedule, onClose, onSaved }: Props) {
     const clientError = validateClient();
     if (clientError) {
       setError(clientError);
+      return;
+    }
+
+    const parsedRecurrence = parseRecurrenceForm(values.recurrence);
+    if (!parsedRecurrence.ok) {
+      setError(t(parsedRecurrence.errorKey as never));
       return;
     }
 
@@ -102,7 +163,7 @@ export function ScheduleForm({ tenant, schedule, onClose, onSaved }: Props) {
       amount: Number(values.amount),
       assigned_level: values.assigned_level,
       category_node_id: values.category_node_id,
-      recurrence: values.recurrence,
+      recurrence: parsedRecurrence.rule,
       start_date: values.start_date,
       timezone: values.timezone,
       end_kind: values.end_kind,
@@ -152,7 +213,7 @@ export function ScheduleForm({ tenant, schedule, onClose, onSaved }: Props) {
           <div>
             <label className="text-sm font-medium text-gray-700">{t("periodicName")}</label>
             <input
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className={fieldClass(fieldErrors.name)}
               value={values.name}
               onChange={(e) => setValues({ ...values, name: e.target.value })}
               placeholder={t("periodicNamePlaceholder")}
@@ -162,9 +223,9 @@ export function ScheduleForm({ tenant, schedule, onClose, onSaved }: Props) {
           <div>
             <label className="text-sm font-medium text-gray-700">{t("periodicAmount")}</label>
             <input
-              type="number"
-              min={1}
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              type="text"
+              inputMode="numeric"
+              className={fieldClass(fieldErrors.amount)}
               value={values.amount}
               onChange={(e) => setValues({ ...values, amount: e.target.value })}
             />
@@ -173,7 +234,7 @@ export function ScheduleForm({ tenant, schedule, onClose, onSaved }: Props) {
           <div>
             <label className="text-sm font-medium text-gray-700">{t("periodicCategory")}</label>
             <select
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className={fieldClass(fieldErrors.category)}
               value={values.category_node_id}
               onChange={(e) => {
                 const id = e.target.value;
@@ -203,16 +264,17 @@ export function ScheduleForm({ tenant, schedule, onClose, onSaved }: Props) {
 
           <RecurrenceFields
             value={values.recurrence}
+            fieldErrors={fieldErrors.recurrence}
             onChange={(recurrence) => setValues({ ...values, recurrence })}
           />
 
           <div>
             <label className="text-sm font-medium text-gray-700">{t("periodicStartDate")}</label>
-            <input
-              type="date"
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            <IsoDateInput
+              className="mt-1"
               value={values.start_date}
-              onChange={(e) => setValues({ ...values, start_date: e.target.value })}
+              invalid={fieldErrors.start_date}
+              onChange={(start_date) => setValues({ ...values, start_date })}
             />
           </div>
 
@@ -221,6 +283,9 @@ export function ScheduleForm({ tenant, schedule, onClose, onSaved }: Props) {
             endDate={values.end_date}
             endAmountCap={values.end_amount_cap}
             endRepeatLimit={values.end_repeat_limit}
+            endDateInvalid={fieldErrors.end_date}
+            endAmountCapInvalid={fieldErrors.end_amount_cap}
+            endRepeatLimitInvalid={fieldErrors.end_repeat_limit}
             onChange={(patch) => setValues({ ...values, ...patch })}
           />
 

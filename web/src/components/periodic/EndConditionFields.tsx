@@ -2,6 +2,7 @@
 
 import type { EndKind } from "@/lib/periodic/types";
 import { useLanguage } from "@/components/LanguageProvider";
+import { IsoDateInput } from "@/components/IsoDateInput";
 
 type Props = {
   endKind: EndKind;
@@ -14,9 +15,20 @@ type Props = {
     end_amount_cap?: string;
     end_repeat_limit?: string;
   }) => void;
+  endDateInvalid?: boolean;
+  endAmountCapInvalid?: boolean;
+  endRepeatLimitInvalid?: boolean;
 };
 
 const END_KINDS: EndKind[] = ["never", "on_date", "amount_cap", "repeat_count"];
+
+function fieldClass(invalid?: boolean) {
+  return `mt-1 w-full rounded-lg border px-3 py-2 text-sm ${
+    invalid
+      ? "border-red-500 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200"
+      : "border-gray-200"
+  }`;
+}
 
 export function EndConditionFields({
   endKind,
@@ -24,6 +36,9 @@ export function EndConditionFields({
   endAmountCap,
   endRepeatLimit,
   onChange,
+  endDateInvalid = false,
+  endAmountCapInvalid = false,
+  endRepeatLimitInvalid = false,
 }: Props) {
   const { t } = useLanguage();
 
@@ -47,11 +62,11 @@ export function EndConditionFields({
       {endKind === "on_date" ? (
         <div>
           <label className="text-xs text-gray-500">{t("periodicEndDate")}</label>
-          <input
-            type="date"
-            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+          <IsoDateInput
+            className="mt-1"
             value={endDate}
-            onChange={(e) => onChange({ end_date: e.target.value })}
+            invalid={endDateInvalid}
+            onChange={(value) => onChange({ end_date: value })}
           />
         </div>
       ) : null}
@@ -60,9 +75,9 @@ export function EndConditionFields({
         <div>
           <label className="text-xs text-gray-500">{t("periodicEndAmountCap")}</label>
           <input
-            type="number"
-            min={1}
-            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            type="text"
+            inputMode="numeric"
+            className={fieldClass(endAmountCapInvalid)}
             value={endAmountCap}
             onChange={(e) => onChange({ end_amount_cap: e.target.value })}
           />
@@ -73,9 +88,9 @@ export function EndConditionFields({
         <div>
           <label className="text-xs text-gray-500">{t("periodicEndRepeatLimit")}</label>
           <input
-            type="number"
-            min={1}
-            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            type="text"
+            inputMode="numeric"
+            className={fieldClass(endRepeatLimitInvalid)}
             value={endRepeatLimit}
             onChange={(e) => onChange({ end_repeat_limit: e.target.value })}
           />
