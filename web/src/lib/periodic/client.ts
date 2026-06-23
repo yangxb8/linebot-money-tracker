@@ -1,5 +1,10 @@
 import type { EndKind, PeriodicScheduleResponse, RecurrenceRule } from "@/lib/periodic/types";
 import type { TenantOption } from "@/lib/dashboard/tenants";
+import {
+  defaultRecurrenceForm,
+  recurrenceToForm,
+  type RecurrenceFormRule,
+} from "@/lib/periodic/form";
 
 export async function fetchPeriodicSchedules(
   tenant: TenantOption,
@@ -107,7 +112,7 @@ export type ScheduleFormValues = {
   amount: string;
   category_node_id: string;
   assigned_level: 1 | 2;
-  recurrence: RecurrenceRule;
+  recurrence: RecurrenceFormRule;
   start_date: string;
   timezone: string;
   end_kind: EndKind;
@@ -116,6 +121,8 @@ export type ScheduleFormValues = {
   end_repeat_limit: string;
 };
 
+export type { RecurrenceFormRule };
+
 export function defaultFormValues(): ScheduleFormValues {
   const today = new Date().toISOString().slice(0, 10);
   return {
@@ -123,7 +130,7 @@ export function defaultFormValues(): ScheduleFormValues {
     amount: "",
     category_node_id: "",
     assigned_level: 2,
-    recurrence: { kind: "monthly_days", days: [1] },
+    recurrence: defaultRecurrenceForm(),
     start_date: today,
     timezone: "Asia/Tokyo",
     end_kind: "never",
@@ -141,7 +148,7 @@ export function scheduleToFormValues(
     amount: String(schedule.amount),
     category_node_id: schedule.category_node_id,
     assigned_level: schedule.assigned_level as 1 | 2,
-    recurrence: schedule.recurrence,
+    recurrence: recurrenceToForm(schedule.recurrence),
     start_date: schedule.start_date,
     timezone: schedule.timezone,
     end_kind: schedule.end_kind,
