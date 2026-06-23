@@ -1,7 +1,57 @@
+import type { User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { lineSyntheticEmail } from "@/lib/line/oauth";
 import type { LineProfile } from "@/lib/line/verify-id-token";
+
+function isDuplicateEmailError(error: { message?: string } | null): boolean {
+  const message = error?.message?.toLowerCase() ?? "";
+  return message.includes("already been registered") || message.includes("already exists");
+}
+
+async function findAuthUserIdByLineUserId(
+  lineUserId: string,
+): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("line_auth_identities")
+    .select("auth_user_id")
+    .eq("line_user_id", lineUserId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data?.auth_user_id ?? null;
+}
+
+async function findAuthUserByEmail(email: string): Promise<User | null> {
+  const admin = createAdminClient();
+  let page = 1;
+
+  while (true) {
+    const { data, error } = await admin.auth.admin.listUsers({
+      page,
+      perPage: 1000,
+    });
+    if (error) {
+      throw error;
+    }
+
+    const existing = data.users.find((user) => user.email === email);
+    if (existing) {
+      return existing;
+    }
+
+    if (data.users.length < 1000) {
+      break;
+    }
+    page += 1;
+  }
+
+  return null;
+}
 
 async function getOrCreateAuthUserId(
   lineUserId: string,
@@ -9,6 +59,11 @@ async function getOrCreateAuthUserId(
 ): Promise<string> {
   const admin = createAdminClient();
   const email = lineSyntheticEmail(lineUserId);
+
+  const linkedAuthUserId = await findAuthUserIdByLineUserId(lineUserId);
+  if (linkedAuthUserId) {
+    return linkedAuthUserId;
+  }
 
   const { data: created, error: createError } =
     await admin.auth.admin.createUser({
@@ -25,18 +80,14 @@ async function getOrCreateAuthUserId(
     return created.user.id;
   }
 
-  const { data: listed, error: listError } =
-    await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  if (listError) {
-    throw listError;
+  if (isDuplicateEmailError(createError)) {
+    const existing = await findAuthUserByEmail(email);
+    if (existing) {
+      return existing.id;
+    }
   }
 
-  const existing = listed.users.find((user) => user.email === email);
-  if (!existing) {
-    throw createError ?? new Error("Failed to resolve Supabase auth user");
-  }
-
-  return existing.id;
+  throw createError ?? new Error("Failed to resolve Supabase auth user");
 }
 
 export async function linkLineUserAndCreateSession(
