@@ -5,8 +5,8 @@ alwaysApply: true
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan at
-`specs/009-expense-web-dashboard/plan.md` and the developer quickstart at
-`specs/009-expense-web-dashboard/quickstart.md`.
+`specs/011-periodic-expense-scheduler/plan.md` and the developer quickstart at
+`specs/011-periodic-expense-scheduler/quickstart.md`.
 
 Primary local dev workflow: `python local_run.py --text "..."` or
 `python local_run.py --image path/to/receipt.jpg` (requires GEMINI_API_KEY only;
