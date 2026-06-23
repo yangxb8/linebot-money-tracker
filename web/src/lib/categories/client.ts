@@ -33,8 +33,11 @@ export async function createCategory(
     }),
   });
   if (!response.ok) {
-    const data = (await response.json().catch(() => ({}))) as { message?: string };
-    throw new Error(data.message ?? "Failed to create category");
+    const data = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      message?: string;
+    };
+    throw new Error(data.message ?? data.error ?? "Failed to create category");
   }
   return response.json() as Promise<CategoryNode>;
 }
