@@ -454,7 +454,7 @@ export function CategoryManager() {
       {deleteTarget ? (
         <DeleteCategoryDialog
           target={deleteTarget}
-          candidates={nodes.filter((n) => n.id !== deleteTarget.id)}
+          nodes={nodes}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={(transferId) => void handleDelete(transferId)}
         />
