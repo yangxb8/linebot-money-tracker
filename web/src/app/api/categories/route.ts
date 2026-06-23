@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  assertTenantL1Parent,
   ensureTenantTaxonomy,
   generateCustomCode,
   loadCategoryNodes,
@@ -61,6 +62,10 @@ export async function POST(request: Request) {
     }
 
     const supabase = await ensureTenantTaxonomy(tenantType, tenantId);
+
+    if (level === 2 && parentId) {
+      await assertTenantL1Parent(supabase, tenantType, tenantId, parentId);
+    }
 
     let siblingQuery = supabase
       .from("category_nodes")

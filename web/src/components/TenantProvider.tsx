@@ -16,6 +16,7 @@ const STORAGE_KEY = "expense_selected_tenant";
 type TenantContextValue = {
   selectedTenant: TenantOption | null;
   setSelectedTenant: (tenant: TenantOption) => void;
+  isTenantReady: boolean;
 };
 
 const TenantContext = createContext<TenantContextValue | null>(null);
@@ -42,6 +43,7 @@ export function TenantProvider({
     tenantType: "user",
     tenantId: personalTenantId,
   }));
+  const [isTenantReady, setIsTenantReady] = useState(false);
 
   useEffect(() => {
     const stored = parseStoredTenant(localStorage.getItem(STORAGE_KEY));
@@ -56,6 +58,7 @@ export function TenantProvider({
         tenantId: personalTenantId,
       });
     }
+    setIsTenantReady(true);
   }, [personalTenantId]);
 
   const setSelectedTenant = useCallback((tenant: TenantOption) => {
@@ -64,8 +67,8 @@ export function TenantProvider({
   }, []);
 
   const value = useMemo(
-    () => ({ selectedTenant, setSelectedTenant }),
-    [selectedTenant, setSelectedTenant],
+    () => ({ selectedTenant, setSelectedTenant, isTenantReady }),
+    [selectedTenant, setSelectedTenant, isTenantReady],
   );
 
   return (
