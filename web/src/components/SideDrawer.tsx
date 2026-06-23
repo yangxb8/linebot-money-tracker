@@ -6,11 +6,12 @@ import { useLanguage } from "@/components/LanguageProvider";
 
 type NavItem = {
   href: string;
-  labelKey: "navExpenses" | "navCategories" | "navPeriodicExpenses";
+  labelKey: "navExpenses" | "navCategories" | "navPeriodicExpenses" | "navBudget";
 };
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", labelKey: "navExpenses" },
+  { href: "/budget", labelKey: "navBudget" },
   { href: "/periodic-expenses", labelKey: "navPeriodicExpenses" },
   { href: "/categories", labelKey: "navCategories" },
 ];
