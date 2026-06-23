@@ -20,7 +20,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       ? t("navCategories")
       : pathname === "/periodic-expenses"
         ? t("navPeriodicExpenses")
-        : t("navExpenses");
+        : pathname === "/budget"
+          ? t("navBudget")
+          : t("navExpenses");
 
   return (
     <div className="min-h-screen bg-gray-50">
