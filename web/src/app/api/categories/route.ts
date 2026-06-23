@@ -82,6 +82,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabase
       .from("category_nodes")
       .insert({
+        id: crypto.randomUUID(),
         code: generateCustomCode(),
         name_ja: nameJa,
         level,
