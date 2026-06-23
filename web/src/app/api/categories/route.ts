@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   ensureTenantTaxonomy,
   generateCustomCode,
+  hasCategoryNameConflict,
   loadCategoryNodes,
   requireUser,
 } from "@/lib/categories/server";
@@ -61,6 +62,12 @@ export async function POST(request: Request) {
     }
 
     const supabase = await ensureTenantTaxonomy(tenantType, tenantId);
+
+    if (
+      await hasCategoryNameConflict(supabase, tenantType, tenantId, nameJa)
+    ) {
+      return NextResponse.json({ error: "duplicate_name" }, { status: 409 });
+    }
 
     let siblingQuery = supabase
       .from("category_nodes")

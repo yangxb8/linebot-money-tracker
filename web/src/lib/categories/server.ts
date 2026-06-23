@@ -98,3 +98,27 @@ export function generateCustomCode(): string {
   const hex = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
   return `custom.${hex}`;
 }
+
+export async function hasCategoryNameConflict(
+  supabase: Awaited<ReturnType<typeof requireUser>>,
+  tenantType: string,
+  tenantId: string,
+  nameJa: string,
+  excludeId?: string,
+): Promise<boolean> {
+  const normalized = nameJa.trim();
+  const { data, error } = await supabase
+    .from("category_nodes")
+    .select("id, name_ja")
+    .eq("tenant_type", tenantType)
+    .eq("tenant_id", tenantId);
+
+  if (error) {
+    throw new Response(error.message, { status: 400 });
+  }
+
+  return (data ?? []).some(
+    (row) =>
+      row.id !== excludeId && String(row.name_ja).trim() === normalized,
+  );
+}
