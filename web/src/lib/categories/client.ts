@@ -37,7 +37,11 @@ export async function createCategory(
       error?: string;
       message?: string;
     };
-    throw new Error(data.message ?? data.error ?? "Failed to create category");
+    const err = new Error(
+      data.message ?? data.error ?? "Failed to create category",
+    ) as Error & { code?: string };
+    err.code = data.error;
+    throw err;
   }
   return response.json() as Promise<CategoryNode>;
 }
@@ -52,7 +56,15 @@ export async function updateCategory(
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new Error("Failed to update category");
+    const data = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      message?: string;
+    };
+    const err = new Error(
+      data.message ?? data.error ?? "Failed to update category",
+    ) as Error & { code?: string };
+    err.code = data.error;
+    throw err;
   }
   return response.json() as Promise<CategoryNode>;
 }
