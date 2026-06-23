@@ -24,3 +24,8 @@ The update script installs both dependency sets (`pip install -r requirements.tx
 - `web/.env.local` is gitignored and is NOT created by the update script — recreate it from `web/.env.example` before running the dev server.
 - The Next.js middleware calls Supabase on **every** request, so `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` must be set or all pages (including `/login`) error. The anon/publishable keys are public and retrievable from the Supabase project.
 - Authenticated dashboard flows additionally require `SUPABASE_SERVICE_ROLE_KEY` (admin client) and a LINE Login channel: `LINE_LOGIN_CHANNEL_ID`, `LINE_LOGIN_CHANNEL_SECRET`, `NEXT_PUBLIC_LINE_LIFF_ID`. Without these, `/login` renders but the LINE sign-in flow cannot complete, and protected pages bounce back to `/login`.
+
+### Spec Kit (`/speckit-*` commands)
+- This project was initialized with Spec Kit `0.8.18` using PowerShell scripts (`.specify/init-options.json` → `"script": "ps"`). The `/speckit-plan`, `/speckit-tasks`, `/speckit-implement`, etc. skills invoke `.specify/scripts/powershell/*.ps1`, so **PowerShell Core (`pwsh`) must be present** on this Linux box — the update script installs it (the `.ps1` scripts are cross-platform and run fine under `pwsh`).
+- The `specify` CLI is installed via `uv` (`uv tool install specify-cli --from git+https://github.com/github/spec-kit.git`); both land in `~/.local/bin` (already on PATH via `~/.bashrc`). Verify with `specify check`.
+- Sanity-check the command path without a slash command: `pwsh .specify/scripts/powershell/check-prerequisites.ps1 -Json -PathsOnly` from the repo root. Downstream commands resolve the active feature from `.specify/feature.json`, not the git branch name.
