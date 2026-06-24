@@ -20,25 +20,49 @@ import type {
 } from "@/lib/budget/types";
 import {
   currentBudgetMonthJst,
+  formatBudgetPeriodLabel,
   isCurrentBudgetMonth,
   shiftBudgetMonth,
 } from "@/lib/budget/format";
 import { formatYen } from "@/lib/budget/format";
 import type { Locale } from "@/lib/i18n/messages";
+import { fetchTenantSettings } from "@/lib/settings/client";
 
 export function BudgetPage() {
   const { t, locale } = useLanguage();
   const { selectedTenant } = useTenant();
   const [summary, setSummary] = useState<BudgetSummary | null>(null);
-  const [budgetMonth, setBudgetMonth] = useState(currentBudgetMonthJst());
+  const [fiscalStartDay, setFiscalStartDay] = useState(1);
+  const [budgetMonth, setBudgetMonth] = useState(() => currentBudgetMonthJst());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [focusNode, setFocusNode] = useState<BudgetCategoryNode | null>(null);
   const [copyDraft, setCopyDraft] = useState<BudgetUpsertItem[] | undefined>();
 
-  const editable = isCurrentBudgetMonth(budgetMonth);
+  const editable = isCurrentBudgetMonth(budgetMonth, fiscalStartDay);
+  const currentMonth = currentBudgetMonthJst(fiscalStartDay);
   const fmt = (n: number) => formatYen(n, locale as Locale);
+
+  useEffect(() => {
+    if (!selectedTenant) return;
+    let cancelled = false;
+    void fetchTenantSettings(selectedTenant)
+      .then((settings) => {
+        if (cancelled) return;
+        setFiscalStartDay(settings.fiscal_start_day);
+        setBudgetMonth(currentBudgetMonthJst(settings.fiscal_start_day));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFiscalStartDay(1);
+          setBudgetMonth(currentBudgetMonthJst());
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTenant]);
 
   const load = useCallback(async () => {
     if (!selectedTenant) return;
@@ -47,6 +71,9 @@ export function BudgetPage() {
     try {
       const data = await fetchBudgetSummary(selectedTenant, budgetMonth);
       setSummary(data);
+      if (data.fiscal_start_day) {
+        setFiscalStartDay(data.fiscal_start_day);
+      }
     } catch {
       setError("fetch_failed");
     } finally {
@@ -124,13 +151,17 @@ export function BudgetPage() {
             ‹
           </button>
           <span className="text-sm font-medium text-gray-800">
-            {summary.budget_month.slice(0, 7)}
+            {formatBudgetPeriodLabel(
+              summary.budget_month,
+              summary.fiscal_period_end,
+              fiscalStartDay,
+            )}
           </span>
           <button
             type="button"
             aria-label="Next month"
             className="rounded border border-gray-200 px-2 py-1 text-sm"
-            disabled={budgetMonth >= currentBudgetMonthJst()}
+            disabled={budgetMonth >= currentMonth}
             onClick={() => setBudgetMonth((m) => shiftBudgetMonth(m, 1))}
           >
             ›

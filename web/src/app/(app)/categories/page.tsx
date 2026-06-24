@@ -1,5 +1,5 @@
-import { CategoryManager } from "@/components/categories/CategoryManager";
+import { redirect } from "next/navigation";
 
 export default function CategoriesPage() {
-  return <CategoryManager />;
+  redirect("/settings/categories");
 }

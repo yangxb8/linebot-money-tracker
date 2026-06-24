@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { currentBudgetMonthJst, isCurrentBudgetMonth } from "@/lib/budget/format";
+import {
+  currentBudgetMonthJst,
+  isCurrentBudgetMonth,
+} from "@/lib/budget/format";
 import {
   fetchBudgetSummary,
   parseTenantParams,
   upsertBudgetRows,
 } from "@/lib/budget/server";
 import { validatePutBudgetPayload } from "@/lib/budget/validation";
+import { fetchTenantSettings } from "@/lib/settings/server";
 
 export async function GET(request: Request) {
   try {
@@ -14,8 +18,10 @@ export async function GET(request: Request) {
       url.searchParams.get("tenant_type"),
       url.searchParams.get("tenant_id"),
     );
+    const settings = await fetchTenantSettings(tenantType, tenantId);
     const budgetMonth =
-      url.searchParams.get("budget_month") ?? currentBudgetMonthJst();
+      url.searchParams.get("budget_month") ??
+      currentBudgetMonthJst(settings.fiscal_start_day);
 
     const summary = await fetchBudgetSummary(
       tenantType,
@@ -38,8 +44,12 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json();
     const payload = validatePutBudgetPayload(body);
+    const settings = await fetchTenantSettings(
+      payload.tenant_type,
+      payload.tenant_id,
+    );
 
-    if (!isCurrentBudgetMonth(payload.budget_month)) {
+    if (!isCurrentBudgetMonth(payload.budget_month, settings.fiscal_start_day)) {
       return NextResponse.json(
         { error: "only_current_month_editable" },
         { status: 400 },

@@ -6,14 +6,14 @@ import { useLanguage } from "@/components/LanguageProvider";
 
 type NavItem = {
   href: string;
-  labelKey: "navExpenses" | "navCategories" | "navPeriodicExpenses" | "navBudget";
+  labelKey: "navExpenses" | "navPeriodicExpenses" | "navBudget" | "navSettings";
 };
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", labelKey: "navExpenses" },
   { href: "/budget", labelKey: "navBudget" },
   { href: "/periodic-expenses", labelKey: "navPeriodicExpenses" },
-  { href: "/categories", labelKey: "navCategories" },
+  { href: "/settings", labelKey: "navSettings" },
 ];
 
 type Props = {
@@ -47,7 +47,9 @@ export function SideDrawer({ open, onClose, onSignOut }: Props) {
           </div>
           <nav className="flex-1 px-2 py-3">
             {NAV_ITEMS.map((item) => {
-              const active = pathname === item.href;
+              const active =
+                pathname === item.href ||
+                (item.href === "/settings" && pathname.startsWith("/settings"));
               return (
                 <Link
                   key={item.href}
