@@ -7,6 +7,16 @@ import { useLanguage } from "@/components/LanguageProvider";
 import { SideDrawer } from "@/components/SideDrawer";
 import { TenantSwitcher } from "@/components/TenantSwitcher";
 import { useTenant } from "@/components/TenantProvider";
+import type { MessageKey } from "@/lib/i18n/messages";
+
+function pageTitleKey(pathname: string): MessageKey {
+  if (pathname === "/settings/categories") return "navCategories";
+  if (pathname === "/settings/fiscal-month") return "settingsFiscalMonth";
+  if (pathname.startsWith("/settings")) return "navSettings";
+  if (pathname === "/periodic-expenses") return "navPeriodicExpenses";
+  if (pathname === "/budget") return "navBudget";
+  return "navExpenses";
+}
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -15,14 +25,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { lineUserId, sharedTenants, signOut } = useAppAuth();
   const { selectedTenant, setSelectedTenant } = useTenant();
 
-  const title =
-    pathname === "/categories"
-      ? t("navCategories")
-      : pathname === "/periodic-expenses"
-        ? t("navPeriodicExpenses")
-        : pathname === "/budget"
-          ? t("navBudget")
-          : t("navExpenses");
+  const title = t(pageTitleKey(pathname));
 
   return (
     <div className="min-h-screen bg-gray-50">

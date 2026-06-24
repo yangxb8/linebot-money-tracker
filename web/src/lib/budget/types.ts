@@ -37,6 +37,8 @@ export type BudgetCategoryNode = {
 
 export type BudgetSummary = {
   budget_month: string;
+  fiscal_period_end?: string;
+  fiscal_start_day?: number;
   days_in_month: number;
   elapsed_days: number;
   currency: string;
@@ -82,6 +84,8 @@ export type PutBudgetPayload = {
 
 export type RpcBudgetSummary = {
   budget_month: string;
+  fiscal_period_end?: string;
+  fiscal_start_day?: number;
   days_in_month: number;
   elapsed_days: number;
   currency: string;
