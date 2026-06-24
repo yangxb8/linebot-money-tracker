@@ -5,8 +5,8 @@ alwaysApply: true
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan at
-`specs/012-monthly-budget-manager/plan.md` and the developer quickstart at
-`specs/012-monthly-budget-manager/quickstart.md`.
+`specs/013-tenant-category-memory/plan.md` and the developer quickstart at
+`specs/013-tenant-category-memory/quickstart.md`.
 
 Primary local dev workflow: `python local_run.py --text "..."` or
 `python local_run.py --image path/to/receipt.jpg` (requires GEMINI_API_KEY only;
