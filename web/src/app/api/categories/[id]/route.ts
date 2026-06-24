@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/categories/server";
+import { hasCategoryNameConflict, requireUser } from "@/lib/categories/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -25,6 +25,31 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const supabase = await requireUser();
+
+    if (payload.name_ja !== undefined) {
+      const { data: existing, error: fetchError } = await supabase
+        .from("category_nodes")
+        .select("tenant_type, tenant_id")
+        .eq("id", id)
+        .single();
+
+      if (fetchError || !existing?.tenant_type || !existing?.tenant_id) {
+        return NextResponse.json({ error: "not_found" }, { status: 404 });
+      }
+
+      if (
+        await hasCategoryNameConflict(
+          supabase,
+          existing.tenant_type,
+          existing.tenant_id,
+          String(payload.name_ja),
+          id,
+        )
+      ) {
+        return NextResponse.json({ error: "duplicate_name" }, { status: 409 });
+      }
+    }
+
     const { data, error } = await supabase
       .from("category_nodes")
       .update(payload)

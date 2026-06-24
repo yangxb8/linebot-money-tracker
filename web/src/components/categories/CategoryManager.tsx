@@ -11,6 +11,7 @@ import {
   updateCategory,
 } from "@/lib/categories/client";
 import type { CategoryNode } from "@/lib/categories/types";
+import { isDuplicateCategoryName } from "@/lib/categories/validation";
 import { DeleteCategoryDialog } from "@/components/categories/DeleteCategoryDialog";
 import { InlineCategoryDraft } from "@/components/categories/InlineCategoryDraft";
 import {
@@ -147,7 +148,15 @@ export function CategoryManager() {
     setEditingId(null);
   }
 
+  function duplicateNameError() {
+    setActionError(t("categoryDuplicateName"));
+  }
+
   async function handleRename(node: CategoryNode, name: string) {
+    if (isDuplicateCategoryName(nodes, name, node.id)) {
+      duplicateNameError();
+      return;
+    }
     const previous = node.name_ja;
     setEditingId(null);
     setNodes((current) => patchNode(current, node.id, { name_ja: name }));
@@ -156,9 +165,13 @@ export function CategoryManager() {
     try {
       await updateCategory(node.id, { name_ja: name });
       setSavedId(node.id);
-    } catch {
+    } catch (error) {
       setNodes((current) => patchNode(current, node.id, { name_ja: previous }));
-      setActionError(t("saveFailed"));
+      if ((error as Error & { code?: string }).code === "duplicate_name") {
+        duplicateNameError();
+      } else {
+        setActionError(t("saveFailed"));
+      }
     } finally {
       setSavingId(null);
     }
@@ -166,6 +179,10 @@ export function CategoryManager() {
 
   async function handleCreateL1(name: string) {
     if (!selectedTenant) return;
+    if (isDuplicateCategoryName(nodes, name)) {
+      duplicateNameError();
+      return;
+    }
     setDraftAdd(null);
     setSavingId("draft-l1");
     setActionError(null);
@@ -173,8 +190,12 @@ export function CategoryManager() {
       const created = await createCategory(selectedTenant, { level: 1, name_ja: name });
       setNodes((current) => [...current, created]);
       setSavedId(created.id);
-    } catch {
-      setActionError(t("saveFailed"));
+    } catch (error) {
+      if ((error as Error & { code?: string }).code === "duplicate_name") {
+        duplicateNameError();
+      } else {
+        setActionError(t("saveFailed"));
+      }
       setDraftAdd({ type: "l1" });
     } finally {
       setSavingId(null);
@@ -183,6 +204,10 @@ export function CategoryManager() {
 
   async function handleCreateL2(parentId: string, name: string) {
     if (!selectedTenant) return;
+    if (isDuplicateCategoryName(nodes, name)) {
+      duplicateNameError();
+      return;
+    }
     setDraftAdd(null);
     setSavingId("draft-l2");
     setActionError(null);
@@ -194,8 +219,12 @@ export function CategoryManager() {
       });
       setNodes((current) => [...current, created]);
       setSavedId(created.id);
-    } catch {
-      setActionError(t("saveFailed"));
+    } catch (error) {
+      if ((error as Error & { code?: string }).code === "duplicate_name") {
+        duplicateNameError();
+      } else {
+        setActionError(t("saveFailed"));
+      }
       setDraftAdd({ type: "l2", parentId });
     } finally {
       setSavingId(null);
@@ -463,7 +492,7 @@ export function CategoryManager() {
       {deleteTarget ? (
         <DeleteCategoryDialog
           target={deleteTarget}
-          candidates={nodes.filter((n) => n.id !== deleteTarget.id)}
+          nodes={nodes}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={(transferId) => void handleDelete(transferId)}
         />

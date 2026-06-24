@@ -3,6 +3,7 @@ import {
   assertTenantL1Parent,
   ensureTenantTaxonomy,
   generateCustomCode,
+  hasCategoryNameConflict,
   loadCategoryNodes,
   requireUser,
 } from "@/lib/categories/server";
@@ -65,6 +66,12 @@ export async function POST(request: Request) {
 
     if (level === 2 && parentId) {
       await assertTenantL1Parent(supabase, tenantType, tenantId, parentId);
+    }
+
+    if (
+      await hasCategoryNameConflict(supabase, tenantType, tenantId, nameJa)
+    ) {
+      return NextResponse.json({ error: "duplicate_name" }, { status: 409 });
     }
 
     let siblingQuery = supabase

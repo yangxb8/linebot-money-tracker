@@ -104,6 +104,8 @@ export function enrichBudgetSummary(
 
   return {
     budget_month: rpc.budget_month,
+    fiscal_period_end: rpc.fiscal_period_end,
+    fiscal_start_day: rpc.fiscal_start_day,
     days_in_month: rpc.days_in_month,
     elapsed_days: rpc.elapsed_days,
     currency: rpc.currency,
