@@ -4,7 +4,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from services.ai_assist import ReceiptImageParseResult
-from services.categorize import CategoryResult
+from services.categorize import CategoryResult, CategoryResultWithProvenance
 from services.gemini_client import GeminiClient, GeminiUsageLimitError
 from services.message_context import MessageContext
 from services.message_handler import (
@@ -40,8 +40,14 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
 
     def _patch_categorize(self):
         return patch(
-            'services.message_handler.classify_expense',
-            AsyncMock(return_value=CategoryResult(guessed='unknown', alternatives=())),
+            'services.message_handler.classify_expense_with_memory',
+            AsyncMock(
+                return_value=CategoryResultWithProvenance(
+                    guessed='unknown',
+                    alternatives=(),
+                    source='llm',
+                )
+            ),
         )
 
     def _valid_llm_parse(self, items, total):

@@ -35,6 +35,8 @@ class ExpenseInsertRow:
     category_l1_id: str
     category_l2_id: Optional[str]
     category_l3_id: Optional[str]
+    category_guess_code: Optional[str] = None
+    category_source: Optional[str] = None
 
 
 @dataclass
@@ -96,6 +98,8 @@ def build_insert_row(
     item: Dict[str, Any],
     line_item_index: int,
     category_code: str,
+    category_guess_code: Optional[str] = None,
+    category_source: Optional[str] = None,
 ) -> ExpenseInsertRow:
     node = resolve_code(category_code, context.tenant)
     amount_raw = item.get('amount', 0)
@@ -120,6 +124,8 @@ def build_insert_row(
         category_l1_id=node.l1_id,
         category_l2_id=node.l2_id,
         category_l3_id=node.l3_id,
+        category_guess_code=category_guess_code or category_code,
+        category_source=category_source,
     )
 
 

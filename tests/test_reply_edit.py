@@ -246,10 +246,11 @@ class TestParseEditIntent(unittest.IsolatedAsyncioTestCase):
 
 
 class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
+    @patch('services.reply_edit.record_user_correction_from_description', new_callable=AsyncMock)
     @patch('services.reply_edit.update_items_snapshot')
     @patch('services.reply_edit.get_expenses_by_ids')
     @patch('services.reply_edit.update_expense_fields')
-    async def test_apply_category_update(self, update_fields, get_by_ids, _update_snap):
+    async def test_apply_category_update(self, update_fields, get_by_ids, _update_snap, record_memory):
         update_fields.return_value = UpdateResult(success=True)
         expense_row_before = ExpenseRow(
             id='e1',
@@ -309,6 +310,7 @@ class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
         result = await apply_edit_intent(intent, confirmation, '1', gemini)
         self.assertEqual(result.status, 'applied')
         update_fields.assert_called_once()
+        record_memory.assert_awaited_once()
 
     @patch('services.reply_edit.update_items_snapshot')
     @patch('services.reply_edit.get_expenses_by_ids')

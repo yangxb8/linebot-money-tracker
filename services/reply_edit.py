@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from jsonschema import Draft7Validator, ValidationError
 
 from services.categorize import map_category_from_text
+from services.category_memory import record_user_correction_from_description
 from services.confirmation_repository import (
     ConfirmationRecord,
     clear_pending_state,
@@ -41,6 +42,22 @@ from services.reply_summary import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def _record_category_memory_correction(
+    confirmation: ConfirmationRecord,
+    *,
+    description: str,
+    category_code: str,
+    gemini: GeminiClient,
+) -> None:
+    await record_user_correction_from_description(
+        confirmation.tenant,
+        description=description,
+        category_code=category_code,
+        gemini=gemini,
+        corrected_by=confirmation.tenant.logged_by_line_user_id,
+    )
 
 EDIT_INTENT_SCHEMA: Dict[str, Any] = {
     'type': 'object',
@@ -880,6 +897,7 @@ async def _apply_category_bulk_pick(
     items_snapshot: List[Dict[str, Any]],
     expenses: Dict[str, ExpenseRow],
     payload: Dict[str, Any],
+    gemini: GeminiClient,
 ) -> EditApplyResult:
     language = detect_reply_language(user_text)
     alt_num = (intent.get('updates') or {}).get('category_alternative_number')
@@ -925,6 +943,14 @@ async def _apply_category_bulk_pick(
             )
             return EditApplyResult(status='error', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
         updated_count += 1
+        expense_row = expenses.get(expense_id)
+        description = expense_row.description if expense_row else str(item.get('description', ''))
+        await _record_category_memory_correction(
+            confirmation,
+            description=description,
+            category_code=category_code,
+            gemini=gemini,
+        )
         for snap in items_snapshot:
             if str(snap.get('expense_id')) == expense_id:
                 snap['category_guess_code'] = category_code
@@ -1022,7 +1048,9 @@ async def apply_edit_intent(
             return EditApplyResult(status='applied', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
 
     if action == 'confirm_pending' and confirmation.pending_action == 'category_bulk':
-        return await _apply_category_bulk_pick(intent, confirmation, user_text, items_snapshot, expenses, pending_payload)
+        return await _apply_category_bulk_pick(
+            intent, confirmation, user_text, items_snapshot, expenses, pending_payload, gemini
+        )
 
     if action == 'soft_delete_all':
         if not intent.get('skip_intent_confirm'):
@@ -1293,6 +1321,18 @@ async def apply_edit_intent(
 
             after_rows = get_expenses_by_ids([expense_id])
             after_row = after_rows[0] if after_rows else None
+            if (
+                category_code is not None
+                and before_row
+                and after_row
+                and before_row.category_node_id != after_row.category_node_id
+            ):
+                await _record_category_memory_correction(
+                    confirmation,
+                    description=before_row.description,
+                    category_code=category_code,
+                    gemini=gemini,
+                )
             changes: List[FieldChange] = []
             if before_row and after_row:
                 if description is not None and before_row.description != after_row.description:
