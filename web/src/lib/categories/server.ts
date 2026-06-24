@@ -99,6 +99,30 @@ export function generateCustomCode(): string {
   return `custom.${hex}`;
 }
 
+export async function assertTenantL1Parent(
+  supabase: Awaited<ReturnType<typeof requireUser>>,
+  tenantType: string,
+  tenantId: string,
+  parentId: string,
+) {
+  const { data: parent, error } = await supabase
+    .from("category_nodes")
+    .select("id, level, tenant_type, tenant_id")
+    .eq("id", parentId)
+    .single();
+
+  if (error || !parent) {
+    throw new Response("parent_not_found", { status: 400 });
+  }
+  if (
+    parent.level !== 1 ||
+    parent.tenant_type !== tenantType ||
+    parent.tenant_id !== tenantId
+  ) {
+    throw new Response("invalid_parent", { status: 400 });
+  }
+}
+
 export async function hasCategoryNameConflict(
   supabase: Awaited<ReturnType<typeof requireUser>>,
   tenantType: string,

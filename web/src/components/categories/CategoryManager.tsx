@@ -63,7 +63,7 @@ function canDragNode(
 
 export function CategoryManager() {
   const { t } = useLanguage();
-  const { selectedTenant } = useTenant();
+  const { selectedTenant, isTenantReady } = useTenant();
   const [nodes, setNodes] = useState<CategoryNode[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,20 +80,29 @@ export function CategoryManager() {
   const [activeDropZone, setActiveDropZone] = useState<string | null>(null);
   const dragPositionRef = useRef(dragPosition);
   dragPositionRef.current = dragPosition;
+  const loadSeqRef = useRef(0);
 
   const loadInitial = useCallback(async () => {
-    if (!selectedTenant) return;
+    if (!selectedTenant || !isTenantReady) return;
+    const seq = ++loadSeqRef.current;
     setInitialLoading(true);
     setError(null);
+    setNodes([]);
+    setDraftAdd(null);
+    setEditingId(null);
     try {
       const data = await fetchCategories(selectedTenant);
+      if (seq !== loadSeqRef.current) return;
       setNodes(data.nodes);
     } catch {
+      if (seq !== loadSeqRef.current) return;
       setError(t("errorGeneric"));
     } finally {
-      setInitialLoading(false);
+      if (seq === loadSeqRef.current) {
+        setInitialLoading(false);
+      }
     }
-  }, [selectedTenant, t]);
+  }, [selectedTenant, isTenantReady, t]);
 
   useEffect(() => {
     void loadInitial();
@@ -312,7 +321,7 @@ export function CategoryManager() {
 
   const dragSessionActive = Boolean(draggingNode);
 
-  if (!selectedTenant) {
+  if (!selectedTenant || !isTenantReady) {
     return (
       <p className="text-center text-sm text-gray-500 py-16">{t("loading")}</p>
     );

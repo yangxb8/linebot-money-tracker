@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  assertTenantL1Parent,
   ensureTenantTaxonomy,
   generateCustomCode,
   hasCategoryNameConflict,
@@ -62,6 +63,10 @@ export async function POST(request: Request) {
     }
 
     const supabase = await ensureTenantTaxonomy(tenantType, tenantId);
+
+    if (level === 2 && parentId) {
+      await assertTenantL1Parent(supabase, tenantType, tenantId, parentId);
+    }
 
     if (
       await hasCategoryNameConflict(supabase, tenantType, tenantId, nameJa)
