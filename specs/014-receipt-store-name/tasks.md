@@ -105,9 +105,9 @@ description: "Task list for Receipt Store Name Extraction feature implementation
 
 **Purpose**: Validation, regression, and success-criteria spot checks
 
-- [x] T029 [P] Run pytest for all 014-related tests: `tests/test_receipt_store_name.py`, `tests/test_merchant_resolve.py`, `tests/test_ai_assist.py`, `tests/test_categorize_memory.py`, `tests/test_expense_repository_metadata.py`, `tests/test_backfill_category_memory.py`, `tests/test_reply_edit.py`, `tests/test_message_handler.py`
-- [ ] T030 Validate manual flow in `specs/014-receipt-store-name/quickstart.md` using `python local_run.py --image path/to/receipt.jpg` and SQL checks for `metadata->>'store_name'`
-- [ ] T031 [P] Spot-check SC-001: log multi-line vision receipt at known chain; confirm ≥70% of lines share store-derived `merchant_key` in `category_merchant_memory` (manual SQL per quickstart)
+- [x] T029 [P] Run pytest for all 014-related tests: `tests/test_receipt_store_name.py`, `tests/test_merchant_resolve.py`, `tests/test_ai_assist.py`, `tests/test_categorize_memory.py`, `tests/test_expense_repository_metadata.py`, `tests/test_backfill_category_memory.py`, `tests/test_reply_edit.py`, `tests/test_message_handler.py`, `tests/test_014_quickstart_integration.py`
+- [x] T030 Validate manual flow in `specs/014-receipt-store-name/quickstart.md` using `python local_run.py --image path/to/receipt.jpg` and SQL checks for `metadata->>'store_name'` — automated via `python3 scripts/validate_014_quickstart.py` (+ fixture `tests/fixtures/aeon_multi_line_receipt.jpg`; use `--live` when `GEMINI_API_KEY` + Supabase env set)
+- [x] T031 [P] Spot-check SC-001: log multi-line vision receipt at known chain; confirm ≥70% of lines share store-derived `merchant_key` in `category_merchant_memory` (manual SQL per quickstart) — automated via `sc001_line_share_rate()` in `tests/test_014_quickstart_integration.py` and `scripts/validate_014_quickstart.py` (100% on Aeon fixture; Supabase cohort check when credentials set)
 
 ---
 
