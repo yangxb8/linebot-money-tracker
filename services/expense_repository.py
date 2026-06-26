@@ -35,6 +35,9 @@ class ExpenseInsertRow:
     category_l1_id: str
     category_l2_id: Optional[str]
     category_l3_id: Optional[str]
+    category_guess_code: Optional[str] = None
+    category_source: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -71,6 +74,7 @@ class ExpenseRow:
     category_l2_id: Optional[str]
     category_l3_id: Optional[str]
     deleted_at: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 def load_category_taxonomy_from_repo(tenant: Optional[TenantContext] = None):
@@ -90,12 +94,21 @@ def expense_date_for_item(item: Dict[str, Any]) -> date:
     return datetime.now(JST).date()
 
 
+def _metadata_for_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    store_name = item.get('store_name')
+    if store_name is not None and str(store_name).strip():
+        return {'store_name': str(store_name).strip()}
+    return {}
+
+
 def build_insert_row(
     *,
     context: MessageContext,
     item: Dict[str, Any],
     line_item_index: int,
     category_code: str,
+    category_guess_code: Optional[str] = None,
+    category_source: Optional[str] = None,
 ) -> ExpenseInsertRow:
     node = resolve_code(category_code, context.tenant)
     amount_raw = item.get('amount', 0)
@@ -120,6 +133,9 @@ def build_insert_row(
         category_l1_id=node.l1_id,
         category_l2_id=node.l2_id,
         category_l3_id=node.l3_id,
+        category_guess_code=category_guess_code or category_code,
+        category_source=category_source,
+        metadata=_metadata_for_item(item),
     )
 
 
@@ -127,6 +143,7 @@ def _row_to_dict(row: ExpenseInsertRow) -> Dict[str, Any]:
     data = asdict(row)
     data['amount'] = float(row.amount)
     data['expense_date'] = row.expense_date.isoformat()
+    data['metadata'] = row.metadata if row.metadata is not None else {}
     return data
 
 
@@ -306,6 +323,7 @@ def _row_from_db(raw: Dict[str, Any]) -> ExpenseRow:
         category_l2_id=raw.get('category_l2_id'),
         category_l3_id=raw.get('category_l3_id'),
         deleted_at=raw.get('deleted_at'),
+        metadata=raw.get('metadata') if isinstance(raw.get('metadata'), dict) else {},
     )
 
 

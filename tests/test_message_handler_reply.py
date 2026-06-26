@@ -74,9 +74,9 @@ class TestMessageHandlerReply(unittest.IsolatedAsyncioTestCase):
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
         ), patch(
-            'services.message_handler.classify_expense',
-            AsyncMock(return_value=__import__('services.categorize', fromlist=['CategoryResult']).CategoryResult(
-                guessed='unknown', alternatives=('food.dining',)
+            'services.message_handler.classify_expense_with_memory',
+            AsyncMock(return_value=__import__('services.categorize', fromlist=['CategoryResultWithProvenance']).CategoryResultWithProvenance(
+                guessed='unknown', alternatives=('food.dining',), source='llm'
             )),
         ), patch(
             'services.message_handler.insert_expenses',

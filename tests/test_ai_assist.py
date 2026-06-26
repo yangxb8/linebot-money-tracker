@@ -41,6 +41,30 @@ class TestAiAssist(unittest.TestCase):
         self.assertEqual(result.total, Decimal('450'))
         self.assertEqual(result.currency, 'JPY')
 
+    def test_validate_receipt_image_parse_accepts_store_name(self):
+        result = validate_receipt_image_parse(
+            {
+                'store_name': 'イオン',
+                'items': [{'description': '牛乳', 'amount': 198, 'currency': 'JPY'}],
+                'total': 198,
+                'currency': 'JPY',
+            }
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(result.store_name, 'イオン')
+
+    def test_validate_receipt_image_parse_accepts_null_store_name(self):
+        result = validate_receipt_image_parse(
+            {
+                'store_name': None,
+                'items': [{'description': 'Coffee', 'amount': 450, 'currency': 'JPY'}],
+                'total': 450,
+                'currency': 'JPY',
+            }
+        )
+        self.assertIsNotNone(result)
+        self.assertIsNone(result.store_name)
+
     def test_validate_receipt_image_parse_rejects_missing_total(self):
         result = validate_receipt_image_parse(
             {

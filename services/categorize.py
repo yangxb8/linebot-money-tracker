@@ -4,7 +4,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from jsonschema import Draft7Validator, ValidationError
 
@@ -38,6 +38,15 @@ _JSON_FENCE_RE = re.compile(r'^```(?:json)?\s*(.*?)\s*```$', re.DOTALL | re.IGNO
 class CategoryResult:
     guessed: str
     alternatives: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CategoryResultWithProvenance:
+    guessed: str
+    alternatives: tuple[str, ...]
+    source: Literal['memory', 'llm']
+    merchant_key: Optional[str] = None
+    display_merchant: Optional[str] = None
 
 
 def _parse_json_object(response: str) -> Any:
@@ -186,6 +195,82 @@ async def map_category_from_text(
     except Exception:
         logger.exception('map_category_from_text failed for %r', query)
         return ()
+
+
+async def classify_expense_with_memory(
+    item: Dict[str, Any],
+    gemini: GeminiClient,
+    *,
+    tenant: Optional[TenantContext] = None,
+    exclude_source_message_id: Optional[str] = None,
+) -> CategoryResultWithProvenance:
+    from services.category_memory import (
+        MEMORY_SKIP_WEIGHT_THRESHOLD,
+        apply_silent_confirm,
+        find_prior_expense_for_merchant,
+        lookup_memory,
+        memory_category_is_valid,
+        upsert_llm_seed,
+        expense_category_code,
+        expense_guess_unchanged,
+    )
+    from services.merchant_resolve import resolve_raw_merchant
+    from services.receipt_parser import clean_receipt_description
+
+    raw_description = str(item.get('description', 'Expense')).strip()
+    description = clean_receipt_description(raw_description) if raw_description else 'Expense'
+
+    raw_merchant, merchant_key = await resolve_raw_merchant(item, gemini)
+
+    if merchant_key and tenant is not None:
+        prior = find_prior_expense_for_merchant(
+            tenant,
+            merchant_key,
+            exclude_source_message_id=exclude_source_message_id,
+        )
+        if prior is not None and expense_guess_unchanged(prior, tenant):
+            prior_code = expense_category_code(prior, tenant)
+            if prior_code:
+                apply_silent_confirm(
+                    tenant,
+                    merchant_key=merchant_key,
+                    category_code=prior_code,
+                    display_merchant=raw_merchant,
+                    sample_description=description,
+                )
+
+        memory = lookup_memory(tenant, merchant_key)
+        if (
+            memory is not None
+            and memory.weight >= MEMORY_SKIP_WEIGHT_THRESHOLD
+            and memory_category_is_valid(memory.category_code, tenant)
+        ):
+            return CategoryResultWithProvenance(
+                guessed=memory.category_code,
+                alternatives=(),
+                source='memory',
+                merchant_key=merchant_key,
+                display_merchant=raw_merchant or memory.display_merchant,
+            )
+
+    llm_result = await classify_expense(item, gemini, tenant=tenant)
+
+    if merchant_key and tenant is not None:
+        upsert_llm_seed(
+            tenant,
+            merchant_key=merchant_key,
+            category_code=llm_result.guessed,
+            display_merchant=raw_merchant,
+            sample_description=description,
+        )
+
+    return CategoryResultWithProvenance(
+        guessed=llm_result.guessed,
+        alternatives=llm_result.alternatives,
+        source='llm',
+        merchant_key=merchant_key,
+        display_merchant=raw_merchant,
+    )
 
 
 async def classify_expense(

@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import List, Dict, Any, Optional
 
 from services.ai_assist import assist_parse_image, assist_parse_ocr, assist_parse_text
-from services.categorize import classify_expense
+from services.categorize import classify_expense_with_memory
 from services.category_taxonomy import format_category_path, resolve_code
 from services.confirmation_repository import (
     get_confirmation_by_bot_message_id,
@@ -30,6 +30,7 @@ from services.message_context import (
 from services.ocr import extract_text_from_image_bytes, _guess_mime_type
 from services.receipt_image_preprocess import preprocess_receipt_image
 from services.receipt_parser import parse_text_for_expenses
+from services.receipt_store_name import propagate_receipt_store_name
 from services.receipt_normalize import normalize_receipt_items
 from services.receipt_validate import validate_receipt_items
 from services.confirmation_i18n import format_expense_confirmation, t
@@ -161,7 +162,12 @@ async def _enrich_and_persist_items(
 
     for index, item in enumerate(items):
         tenant = context.tenant if context is not None else None
-        cat_result = await classify_expense(item, gemini, tenant=tenant)
+        cat_result = await classify_expense_with_memory(
+            item,
+            gemini,
+            tenant=tenant,
+            exclude_source_message_id=context.source_message_id if context is not None else None,
+        )
         guess_node = resolve_code(cat_result.guessed, tenant)
         alt_paths = [
             format_category_path(resolve_code(code, tenant)) for code in cat_result.alternatives
@@ -181,6 +187,8 @@ async def _enrich_and_persist_items(
                     item=item,
                     line_item_index=index,
                     category_code=guess_node.code,
+                    category_guess_code=cat_result.guessed,
+                    category_source=cat_result.source,
                 )
             )
 
@@ -374,11 +382,13 @@ async def _extract_expense_items_from_image(
 
     prepared = _prepare_llm_receipt_items(parse_result.items, parse_result.total)
     if prepared:
+        prepared = propagate_receipt_store_name(prepared, parse_result.store_name)
         logger.info(
-            'Image pipeline: LLM returned %d item(s), total=%s %s',
+            'Image pipeline: LLM returned %d item(s), total=%s %s store_name=%r',
             len(prepared),
             parse_result.total,
             parse_result.currency,
+            parse_result.store_name,
         )
         return prepared
 

@@ -33,7 +33,9 @@ _RECEIPT_ITEM_PROMPT = (
 )
 
 _RECEIPT_IMAGE_PROMPT = (
-    'Parse this receipt image into a JSON object with three fields:\n'
+    'Parse this receipt image into a JSON object with four fields:\n'
+    '- "store_name": the store/merchant/chain name from the receipt header or register '
+    'banner (string or null). NOT a product name. Examples: イオン, セブン-イレブン, マツモトキヨシ.\n'
     '- "items": array of product/service line items only. Each item has '
     'description (string), amount (number), currency (3-letter code).\n'
     '- "total": the receipt final cash total (合計 / amount paid), as a number.\n'
@@ -67,6 +69,12 @@ RECEIPT_IMAGE_PARSE_SCHEMA: Dict[str, Any] = {
     'type': 'object',
     'required': ['items', 'total', 'currency'],
     'properties': {
+        'store_name': {
+            'anyOf': [
+                {'type': 'string', 'minLength': 1},
+                {'type': 'null'},
+            ],
+        },
         'items': EXPENSE_ITEMS_SCHEMA,
         'total': {'type': 'number'},
         'currency': {'type': 'string', 'minLength': 1},
@@ -85,6 +93,7 @@ class ReceiptImageParseResult:
     items: List[Dict[str, Any]]
     total: Decimal
     currency: str
+    store_name: Optional[str] = None
 
 
 def _strip_json_fence(response: str) -> str:
@@ -170,14 +179,27 @@ def validate_receipt_image_parse(
         logger.warning('%s: missing currency on receipt parse', source)
         return None
 
+    store_name: Optional[str] = None
+    raw_store = parsed.get('store_name')
+    if raw_store is not None:
+        stripped = str(raw_store).strip()
+        if stripped:
+            store_name = stripped
+
     logger.info(
-        '%s: validated %d item(s) total=%s %s',
+        '%s: validated %d item(s) total=%s %s store_name=%r',
         source,
         len(items),
         total,
         currency,
+        store_name,
     )
-    return ReceiptImageParseResult(items=items, total=total, currency=currency)
+    return ReceiptImageParseResult(
+        items=items,
+        total=total,
+        currency=currency,
+        store_name=store_name,
+    )
 
 
 async def assist_parse_text(text: str, gemini: GeminiClient) -> List[Dict[str, Any]]:

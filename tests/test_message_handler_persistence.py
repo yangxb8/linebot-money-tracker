@@ -2,7 +2,7 @@ import unittest
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from services.categorize import CategoryResult
+from services.categorize import CategoryResult, CategoryResultWithProvenance
 from services.expense_repository import PersistResult
 from services.gemini_client import GeminiClient
 from services.message_context import MessageContext
@@ -11,7 +11,11 @@ from services.message_handler import format_expense_items, process_text_message
 
 
 def _unknown_category():
-    return CategoryResult(guessed='unknown', alternatives=())
+    return CategoryResultWithProvenance(guessed='unknown', alternatives=(), source='llm')
+
+
+def _memory_category():
+    return CategoryResultWithProvenance(guessed='food.dining', alternatives=(), source='memory')
 
 
 class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
@@ -26,7 +30,7 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
         ), patch(
-            'services.message_handler.classify_expense',
+            'services.message_handler.classify_expense_with_memory',
             AsyncMock(return_value=_unknown_category()),
         ), patch(
             'services.message_handler.insert_expenses',
@@ -43,7 +47,7 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
         ), patch(
-            'services.message_handler.classify_expense',
+            'services.message_handler.classify_expense_with_memory',
             AsyncMock(return_value=_unknown_category()),
         ), patch('services.message_handler.insert_expenses') as insert_mock:
             reply = await process_text_message('Lunch 120 THB', gemini)
@@ -61,7 +65,7 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
         ), patch(
-            'services.message_handler.classify_expense',
+            'services.message_handler.classify_expense_with_memory',
             AsyncMock(return_value=_unknown_category()),
         ), patch(
             'services.message_handler.insert_expenses',
@@ -69,6 +73,28 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
         ):
             reply = await process_text_message('Lunch 120 THB', gemini, context)
         self.assertIn('Detected expense(s):', reply.text)
+
+    async def test_memory_path_sets_category_source(self):
+        gemini = MagicMock(spec=GeminiClient)
+        context = MessageContext(
+            tenant=TenantContext.personal('u1'),
+            source_message_id='msg-2',
+            reply_language='en',
+        )
+        with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
+            'services.message_handler.parse_text_for_expenses',
+            return_value=[{'description': 'Starbucks latte', 'amount': 580.0, 'currency': 'JPY'}],
+        ), patch(
+            'services.message_handler.classify_expense_with_memory',
+            AsyncMock(return_value=_memory_category()),
+        ), patch(
+            'services.message_handler.insert_expenses',
+            return_value=PersistResult(inserted=1, skipped=0),
+        ) as insert_mock:
+            await process_text_message('Starbucks 580', gemini, context)
+        row = insert_mock.call_args.args[0][0]
+        self.assertEqual(row.category_source, 'memory')
+        self.assertEqual(row.category_guess_code, 'food.dining')
 
 
 class TestEnrichedReplyFormat(unittest.TestCase):
