@@ -312,6 +312,80 @@ class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
         update_fields.assert_called_once()
         record_memory.assert_awaited_once()
 
+    @patch('services.reply_edit.record_user_correction_from_description', new_callable=AsyncMock)
+    @patch('services.reply_edit.update_items_snapshot')
+    @patch('services.reply_edit.get_expenses_by_ids')
+    @patch('services.reply_edit.update_expense_fields')
+    async def test_apply_category_update_passes_store_name_from_metadata(
+        self,
+        update_fields,
+        get_by_ids,
+        _update_snap,
+        record_memory,
+    ):
+        update_fields.return_value = UpdateResult(success=True)
+        expense_row_before = ExpenseRow(
+            id='e1',
+            line_user_id='u1',
+            description='牛乳',
+            amount=Decimal('198'),
+            currency='JPY',
+            expense_date=__import__('datetime').date.today(),
+            category_node_id='old',
+            assigned_level=1,
+            category_l1_id='old',
+            category_l2_id=None,
+            category_l3_id=None,
+            metadata={'store_name': 'イオン'},
+        )
+        expense_row_after = ExpenseRow(
+            id='e1',
+            line_user_id='u1',
+            description='牛乳',
+            amount=Decimal('198'),
+            currency='JPY',
+            expense_date=__import__('datetime').date.today(),
+            category_node_id='new',
+            assigned_level=1,
+            category_l1_id='new',
+            category_l2_id=None,
+            category_l3_id=None,
+            metadata={'store_name': 'イオン'},
+        )
+        get_by_ids.side_effect = [
+            [expense_row_before],
+            [expense_row_before],
+            [expense_row_after],
+        ]
+        confirmation = ConfirmationRecord(
+            id='c1',
+            bot_message_id='bot-1',
+            tenant=TenantContext.personal('u1'),
+            confirmation_text='text',
+            items_snapshot=(
+                {
+                    'line_item_index': 0,
+                    'expense_id': 'e1',
+                    'description': '牛乳',
+                    'amount': 198,
+                    'currency': 'JPY',
+                    'category_guess_code': 'unknown',
+                    'category_alternatives': ['food.grocery'],
+                },
+            ),
+            pending_action=None,
+        )
+        intent = {
+            'action': 'update',
+            'target': {'mode': 'single', 'line_item_index': 0},
+            'updates': {'category_alternative_number': 1},
+        }
+        gemini = MagicMock(spec=GeminiClient)
+        result = await apply_edit_intent(intent, confirmation, '1', gemini)
+        self.assertEqual(result.status, 'applied')
+        record_memory.assert_awaited_once()
+        self.assertEqual(record_memory.await_args.kwargs.get('store_name'), 'イオン')
+
     @patch('services.reply_edit.update_items_snapshot')
     @patch('services.reply_edit.get_expenses_by_ids')
     @patch('services.reply_edit.soft_delete_expenses')

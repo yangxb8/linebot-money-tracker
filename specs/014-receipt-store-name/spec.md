@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-24
 
-**Status**: Draft (deferred — not in 013 scope)
+**Status**: Implemented (014 v1)
 
 **Input**: Receipt parser and LLM vision pipeline should expose a `store_name` field distinct from line-item descriptions, so category memory (013) can key on the store for multi-line grocery receipts instead of each product line.
 

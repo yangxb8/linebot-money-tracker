@@ -30,6 +30,7 @@ from services.message_context import (
 from services.ocr import extract_text_from_image_bytes, _guess_mime_type
 from services.receipt_image_preprocess import preprocess_receipt_image
 from services.receipt_parser import parse_text_for_expenses
+from services.receipt_store_name import propagate_receipt_store_name
 from services.receipt_normalize import normalize_receipt_items
 from services.receipt_validate import validate_receipt_items
 from services.confirmation_i18n import format_expense_confirmation, t
@@ -381,11 +382,13 @@ async def _extract_expense_items_from_image(
 
     prepared = _prepare_llm_receipt_items(parse_result.items, parse_result.total)
     if prepared:
+        prepared = propagate_receipt_store_name(prepared, parse_result.store_name)
         logger.info(
-            'Image pipeline: LLM returned %d item(s), total=%s %s',
+            'Image pipeline: LLM returned %d item(s), total=%s %s store_name=%r',
             len(prepared),
             parse_result.total,
             parse_result.currency,
+            parse_result.store_name,
         )
         return prepared
 
