@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { IsoDateInput } from "@/components/IsoDateInput";
 import { useLanguage } from "@/components/LanguageProvider";
+import { CategoryNodeSelect } from "@/components/expenses/CategoryNodeSelect";
 import { fetchCategories } from "@/lib/categories/client";
 import type { CategoryNode } from "@/lib/categories/types";
 import type { TenantOption } from "@/lib/dashboard/tenants";
@@ -118,8 +119,6 @@ export function ExpenseForm({
     }
   }
 
-  const l1Nodes = categories.filter((node) => node.level === 1);
-  const l2Nodes = categories.filter((node) => node.level === 2);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
@@ -187,30 +186,18 @@ export function ExpenseForm({
             <label className="text-sm font-medium text-gray-700">
               {t("periodicCategory")}
             </label>
-            <select
+            <CategoryNodeSelect
+              categories={categories}
               value={values.category_node_id}
-              onChange={(event) =>
+              placeholder={t("selectTransferTarget")}
+              onChange={(category_node_id) =>
                 setValues((prev) => ({
                   ...prev,
-                  category_node_id: event.target.value,
+                  category_node_id,
                 }))
               }
               className={fieldClass(fieldErrors.category)}
-            >
-              <option value="">{t("selectTransferTarget")}</option>
-              {l1Nodes.map((l1) => (
-                <optgroup key={l1.id} label={l1.name_ja}>
-                  <option value={l1.id}>{l1.name_ja}</option>
-                  {l2Nodes
-                    .filter((l2) => l2.parent_id === l1.id)
-                    .map((l2) => (
-                      <option key={l2.id} value={l2.id}>
-                        {l2.name_ja}
-                      </option>
-                    ))}
-                </optgroup>
-              ))}
-            </select>
+            />
           </div>
         </div>
 

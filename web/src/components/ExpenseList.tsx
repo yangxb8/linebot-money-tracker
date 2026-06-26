@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLanguage } from "@/components/LanguageProvider";
+import { ExpenseCategoryTag } from "@/components/expenses/ExpenseCategoryTag";
 import { ExpenseForm } from "@/components/expenses/ExpenseForm";
 import { FiscalMonthNavigator } from "@/components/expenses/FiscalMonthNavigator";
-import { PAGE_SIZE, categoryLabel } from "@/lib/dashboard/format";
+import { PAGE_SIZE } from "@/lib/dashboard/format";
 import type { TenantOption } from "@/lib/dashboard/tenants";
+import { fetchCategories } from "@/lib/categories/client";
+import type { CategoryNode } from "@/lib/categories/types";
 import {
   currentBudgetMonthJst,
   fiscalPeriodEnd,
@@ -47,6 +50,7 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
   const [hasMore, setHasMore] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
+  const [categories, setCategories] = useState<CategoryNode[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingMoreRef = useRef(false);
@@ -119,6 +123,20 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
   }, [tenant]);
 
   useEffect(() => {
+    let cancelled = false;
+    void fetchCategories(tenant)
+      .then((data) => {
+        if (!cancelled) setCategories(data.nodes);
+      })
+      .catch(() => {
+        if (!cancelled) setCategories([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenant]);
+
+  useEffect(() => {
     setRows([]);
     setOffset(0);
     setHasMore(true);
@@ -149,6 +167,11 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [hasMore, loading, loadingMore, loadPage, offset]);
+
+  function openEdit(expense: ExpenseRecord) {
+    setEditing(expense);
+    setFormOpen(true);
+  }
 
   async function handleDelete(expense: ExpenseRecord) {
     if (!window.confirm(t("expenseDeleteConfirm"))) return;
@@ -216,7 +239,23 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
         <div className="space-y-3">
           <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100 bg-white shadow-sm">
             {rows.map((row) => (
-              <li key={row.id} className="px-4 py-3">
+              <li
+                key={row.id}
+                role="button"
+                tabIndex={busyId === row.id ? -1 : 0}
+                onClick={() => {
+                  if (busyId === row.id) return;
+                  openEdit(row);
+                }}
+                onKeyDown={(event) => {
+                  if (busyId === row.id) return;
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openEdit(row);
+                  }
+                }}
+                className="px-4 py-3 text-left transition-colors hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-400 disabled:opacity-60"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-gray-900 break-words line-clamp-3">
@@ -231,30 +270,24 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
                   </p>
                 </div>
                 <div className="mt-2 flex items-center justify-between gap-2">
-                  <span className="inline-block text-xs rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">
-                    {categoryLabel(row)}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={busyId === row.id}
-                      onClick={() => {
-                        setEditing(row);
-                        setFormOpen(true);
-                      }}
-                      className="text-xs text-gray-600 underline"
-                    >
-                      {t("edit")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busyId === row.id}
-                      onClick={() => void handleDelete(row)}
-                      className="text-xs text-red-600 underline"
-                    >
-                      {t("delete")}
-                    </button>
-                  </div>
+                  <ExpenseCategoryTag
+                    expense={row}
+                    categories={categories}
+                    disabled={busyId === row.id}
+                    onUpdated={() => void refresh()}
+                    onError={() => setError("action_failed")}
+                  />
+                  <button
+                    type="button"
+                    disabled={busyId === row.id}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleDelete(row);
+                    }}
+                    className="text-xs text-red-600 underline"
+                  >
+                    {t("delete")}
+                  </button>
                 </div>
               </li>
             ))}

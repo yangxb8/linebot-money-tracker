@@ -15,10 +15,9 @@ export type ExpenseRow = {
 };
 
 export function categoryLabel(row: ExpenseRow): string {
-  return (
-    row.category_l2_name ??
-    row.category_l1_name ??
-    row.category_name_ja ??
-    "—"
-  );
+  if (row.category_l2_name) {
+    const l1 = row.category_l1_name ?? "";
+    return l1 ? `${l1} › ${row.category_l2_name}` : row.category_l2_name;
+  }
+  return row.category_l1_name ?? row.category_name_ja ?? "—";
 }
