@@ -50,14 +50,25 @@ async def _record_category_memory_correction(
     description: str,
     category_code: str,
     gemini: GeminiClient,
+    store_name: Optional[str] = None,
 ) -> None:
     await record_user_correction_from_description(
         confirmation.tenant,
         description=description,
         category_code=category_code,
         gemini=gemini,
+        store_name=store_name,
         corrected_by=confirmation.tenant.logged_by_line_user_id,
     )
+
+
+def _store_name_from_expense_row(expense_row: Optional[ExpenseRow]) -> Optional[str]:
+    if expense_row is None or not expense_row.metadata:
+        return None
+    store = expense_row.metadata.get('store_name')
+    if store is not None and str(store).strip():
+        return str(store).strip()
+    return None
 
 EDIT_INTENT_SCHEMA: Dict[str, Any] = {
     'type': 'object',
@@ -950,6 +961,7 @@ async def _apply_category_bulk_pick(
             description=description,
             category_code=category_code,
             gemini=gemini,
+            store_name=_store_name_from_expense_row(expense_row),
         )
         for snap in items_snapshot:
             if str(snap.get('expense_id')) == expense_id:
@@ -1332,6 +1344,7 @@ async def apply_edit_intent(
                     description=before_row.description,
                     category_code=category_code,
                     gemini=gemini,
+                    store_name=_store_name_from_expense_row(before_row),
                 )
             changes: List[FieldChange] = []
             if before_row and after_row:

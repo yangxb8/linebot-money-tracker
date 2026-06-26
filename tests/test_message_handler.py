@@ -50,8 +50,13 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             ),
         )
 
-    def _valid_llm_parse(self, items, total):
-        return ReceiptImageParseResult(items=items, total=Decimal(str(total)), currency='JPY')
+    def _valid_llm_parse(self, items, total, store_name=None):
+        return ReceiptImageParseResult(
+            items=items,
+            total=Decimal(str(total)),
+            currency='JPY',
+            store_name=store_name,
+        )
 
     async def test_process_text_expense_with_parser(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -117,6 +122,39 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
         preprocess_mock.assert_called_once_with(b'fake-image')
         parse_mock.assert_awaited_once_with(b'processed-jpeg', gemini, 'image/jpeg')
         self.assertIn('Detected expense(s):', reply.text)
+
+    async def test_process_image_propagates_store_name_to_items(self):
+        gemini = MagicMock(spec=GeminiClient)
+        llm_result = self._valid_llm_parse(
+            [
+                {'description': '牛乳', 'amount': 198.0, 'currency': 'JPY'},
+                {'description': '食パン', 'amount': 128.0, 'currency': 'JPY'},
+            ],
+            326.0,
+            store_name='イオン',
+        )
+        captured_items = []
+
+        async def capture_enrich(items, _gemini, context=None):
+            captured_items.extend(items)
+            return items, None
+
+        with patch(
+            'services.message_handler.preprocess_receipt_image',
+            return_value=(b'processed-jpeg', 'image/jpeg'),
+        ), patch(
+            'services.message_handler.assist_parse_image',
+            AsyncMock(return_value=llm_result),
+        ), patch(
+            'services.message_handler._enrich_and_persist_items',
+            side_effect=capture_enrich,
+        ):
+            reply = await process_image_message(b'fake-image', gemini, context=self._english_context())
+
+        self.assertIn('Detected expense(s):', reply.text)
+        self.assertEqual(len(captured_items), 2)
+        self.assertEqual(captured_items[0].get('store_name'), 'イオン')
+        self.assertEqual(captured_items[1].get('store_name'), 'イオン')
 
     async def test_process_image_non_receipt_returns_parse_error(self):
         gemini = MagicMock(spec=GeminiClient)

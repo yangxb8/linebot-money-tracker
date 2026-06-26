@@ -22,8 +22,8 @@ description: "Task list for Receipt Store Name Extraction feature implementation
 
 **Purpose**: Confirm dependencies and feature context before schema work
 
-- [ ] T001 Verify features **013** and **004** are deployed locally per `specs/014-receipt-store-name/quickstart.md` prerequisites (`category_merchant_memory`, expense insert pipeline)
-- [ ] T002 [P] Confirm `data/merchant_aliases_ja.yaml` includes supermarket keys used in SC-001 spot checks (e.g. `aeon`, `seven_eleven`) in `data/merchant_aliases_ja.yaml`
+- [x] T001 Verify features **013** and **004** are deployed locally per `specs/014-receipt-store-name/quickstart.md` prerequisites (`category_merchant_memory`, expense insert pipeline)
+- [x] T002 [P] Confirm `data/merchant_aliases_ja.yaml` includes supermarket keys used in SC-001 spot checks (e.g. `aeon`, `seven_eleven`) in `data/merchant_aliases_ja.yaml`
 
 ---
 
@@ -33,10 +33,10 @@ description: "Task list for Receipt Store Name Extraction feature implementation
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 Create Supabase migration `supabase/migrations/20260629120000_expense_metadata.sql` per `specs/014-receipt-store-name/contracts/supabase-schema-delta.md` (`metadata jsonb NOT NULL DEFAULT '{}'`)
-- [ ] T004 [P] Add `metadata: dict` field to `ExpenseInsertRow` dataclass in `services/expense_repository.py`
-- [ ] T005 [P] Update `_row_to_dict()` in `services/expense_repository.py` to serialize `metadata` for Supabase jsonb insert
-- [ ] T006 Extend `build_insert_row()` in `services/expense_repository.py` to default `metadata={}` when item has no `store_name`
+- [x] T003 Create Supabase migration `supabase/migrations/20260629120000_expense_metadata.sql` per `specs/014-receipt-store-name/contracts/supabase-schema-delta.md` (`metadata jsonb NOT NULL DEFAULT '{}'`)
+- [x] T004 [P] Add `metadata: dict` field to `ExpenseInsertRow` dataclass in `services/expense_repository.py`
+- [x] T005 [P] Update `_row_to_dict()` in `services/expense_repository.py` to serialize `metadata` for Supabase jsonb insert
+- [x] T006 Extend `build_insert_row()` in `services/expense_repository.py` to default `metadata={}` when item has no `store_name`
 
 **Checkpoint**: Foundation ready — migration defined, expense rows accept metadata dict
 
@@ -50,40 +50,40 @@ description: "Task list for Receipt Store Name Extraction feature implementation
 
 ### Tests for User Story 1
 
-- [ ] T007 [P] [US1] Create `tests/test_receipt_store_name.py` for `propagate_receipt_store_name()` (unify all lines, null when absent, null when inconsistent)
-- [ ] T008 [P] [US1] Extend `tests/test_ai_assist.py` to validate vision parse accepts optional top-level `store_name` in `services/ai_assist.py`
-- [ ] T009 [P] [US1] Create `tests/test_merchant_resolve.py` asserting `resolve_raw_merchant()` skips `extract_merchant_name` when store normalizes and falls back when normalize returns null
-- [ ] T010 [P] [US1] Extend `tests/test_categorize_memory.py` for store_name path through `classify_expense_with_memory()` in `services/categorize.py`
+- [x] T007 [P] [US1] Create `tests/test_receipt_store_name.py` for `propagate_receipt_store_name()` (unify all lines, null when absent, null when inconsistent)
+- [x] T008 [P] [US1] Extend `tests/test_ai_assist.py` to validate vision parse accepts optional top-level `store_name` in `services/ai_assist.py`
+- [x] T009 [P] [US1] Create `tests/test_merchant_resolve.py` asserting `resolve_raw_merchant()` skips `extract_merchant_name` when store normalizes and falls back when normalize returns null
+- [x] T010 [P] [US1] Extend `tests/test_categorize_memory.py` for store_name path through `classify_expense_with_memory()` in `services/categorize.py`
 
 ### Implementation for User Story 1 — Vision parse & propagate
 
-- [ ] T011 [P] [US1] Implement `propagate_receipt_store_name()` in `services/receipt_store_name.py` per `specs/014-receipt-store-name/contracts/receipt-vision-parse.md`
-- [ ] T012 [US1] Extend `_RECEIPT_IMAGE_PROMPT`, `RECEIPT_IMAGE_PARSE_SCHEMA`, and `ReceiptImageParseResult` with optional `store_name` in `services/ai_assist.py`
-- [ ] T013 [US1] Update `validate_receipt_image_parse()` in `services/ai_assist.py` to pass through `store_name` on `ReceiptImageParseResult`
-- [ ] T014 [US1] Wire `propagate_receipt_store_name()` in `services/message_handler.py` `_extract_expense_items_from_image()` after `_prepare_llm_receipt_items()`
+- [x] T011 [P] [US1] Implement `propagate_receipt_store_name()` in `services/receipt_store_name.py` per `specs/014-receipt-store-name/contracts/receipt-vision-parse.md`
+- [x] T012 [US1] Extend `_RECEIPT_IMAGE_PROMPT`, `RECEIPT_IMAGE_PARSE_SCHEMA`, and `ReceiptImageParseResult` with optional `store_name` in `services/ai_assist.py`
+- [x] T013 [US1] Update `validate_receipt_image_parse()` in `services/ai_assist.py` to pass through `store_name` on `ReceiptImageParseResult`
+- [x] T014 [US1] Wire `propagate_receipt_store_name()` in `services/message_handler.py` `_extract_expense_items_from_image()` after `_prepare_llm_receipt_items()`
 
 ### Implementation for User Story 1 — Merchant resolution
 
-- [ ] T015 [P] [US1] Implement `resolve_raw_merchant()` in `services/merchant_resolve.py` per `specs/014-receipt-store-name/contracts/merchant-resolution.md`
-- [ ] T016 [US1] Replace inline `extract_merchant_name` call with `resolve_raw_merchant()` in `classify_expense_with_memory()` in `services/categorize.py`
-- [ ] T017 [P] [US1] Add INFO logging for `store_name` vs `description` merchant source in `services/merchant_resolve.py`
+- [x] T015 [P] [US1] Implement `resolve_raw_merchant()` in `services/merchant_resolve.py` per `specs/014-receipt-store-name/contracts/merchant-resolution.md`
+- [x] T016 [US1] Replace inline `extract_merchant_name` call with `resolve_raw_merchant()` in `classify_expense_with_memory()` in `services/categorize.py`
+- [x] T017 [P] [US1] Add INFO logging for `store_name` vs `description` merchant source in `services/merchant_resolve.py`
 
 ### Implementation for User Story 1 — Persistence & handler integration
 
-- [ ] T018 [US1] Set `metadata={"store_name": item["store_name"]}` in `build_insert_row()` when item has non-empty `store_name` in `services/expense_repository.py`
-- [ ] T019 [P] [US1] Create `tests/test_expense_repository_metadata.py` asserting insert row includes `metadata.store_name` when item dict has store_name
-- [ ] T020 [US1] Extend `tests/test_message_handler.py` to assert image pipeline items carry unified `store_name` after mocked `assist_parse_image`
-- [ ] T021 [US1] Verify text path in `services/message_handler.py` `_extract_expense_items_from_text()` leaves items without `store_name` (acceptance scenario 3)
+- [x] T018 [US1] Set `metadata={"store_name": item["store_name"]}` in `build_insert_row()` when item has non-empty `store_name` in `services/expense_repository.py`
+- [x] T019 [P] [US1] Create `tests/test_expense_repository_metadata.py` asserting insert row includes `metadata.store_name` when item dict has store_name
+- [x] T020 [US1] Extend `tests/test_message_handler.py` to assert image pipeline items carry unified `store_name` after mocked `assist_parse_image`
+- [x] T021 [US1] Verify text path in `services/message_handler.py` `_extract_expense_items_from_text()` leaves items without `store_name` (acceptance scenario 3)
 
 ### Implementation for User Story 1 — Backfill & reply-edit (FR-006)
 
-- [ ] T022 [P] [US1] Implement `merchant_key_from_expense_row()` preferring `metadata.store_name` in `services/merchant_resolve.py`
-- [ ] T023 [US1] Update `scripts/backfill_category_memory.py` to select `metadata` column and use `merchant_key_from_expense_row()` for grouping
-- [ ] T024 [P] [US1] Create `tests/test_backfill_category_memory.py` asserting backfill prefers `metadata.store_name` over product description
-- [ ] T025 [US1] Add optional `store_name` parameter to `record_user_correction_from_description()` in `services/category_memory.py` using `resolve_raw_merchant()` rules
-- [ ] T026 [US1] Load expense `metadata.store_name` and pass to correction hook in `services/reply_edit.py` `_record_category_memory_correction()`
-- [ ] T027 [P] [US1] Extend `tests/test_reply_edit.py` to assert category correction uses store_name from expense metadata when present
-- [ ] T028 [US1] Update `find_prior_expense_for_merchant()` in `services/category_memory.py` to match rows using `metadata.store_name` via `merchant_key_from_expense_row()`
+- [x] T022 [P] [US1] Implement `merchant_key_from_expense_row()` preferring `metadata.store_name` in `services/merchant_resolve.py`
+- [x] T023 [US1] Update `scripts/backfill_category_memory.py` to select `metadata` column and use `merchant_key_from_expense_row()` for grouping
+- [x] T024 [P] [US1] Create `tests/test_backfill_category_memory.py` asserting backfill prefers `metadata.store_name` over product description
+- [x] T025 [US1] Add optional `store_name` parameter to `record_user_correction_from_description()` in `services/category_memory.py` using `resolve_raw_merchant()` rules
+- [x] T026 [US1] Load expense `metadata.store_name` and pass to correction hook in `services/reply_edit.py` `_record_category_memory_correction()`
+- [x] T027 [P] [US1] Extend `tests/test_reply_edit.py` to assert category correction uses store_name from expense metadata when present
+- [x] T028 [US1] Update `find_prior_expense_for_merchant()` in `services/category_memory.py` to match rows using `metadata.store_name` via `merchant_key_from_expense_row()`
 
 **Checkpoint**: User Story 1 complete — vision receipts share store merchant_key, metadata persisted, backfill/reply-edit prefer store_name, text path unchanged
 
@@ -105,7 +105,7 @@ description: "Task list for Receipt Store Name Extraction feature implementation
 
 **Purpose**: Validation, regression, and success-criteria spot checks
 
-- [ ] T029 [P] Run pytest for all 014-related tests: `tests/test_receipt_store_name.py`, `tests/test_merchant_resolve.py`, `tests/test_ai_assist.py`, `tests/test_categorize_memory.py`, `tests/test_expense_repository_metadata.py`, `tests/test_backfill_category_memory.py`, `tests/test_reply_edit.py`, `tests/test_message_handler.py`
+- [x] T029 [P] Run pytest for all 014-related tests: `tests/test_receipt_store_name.py`, `tests/test_merchant_resolve.py`, `tests/test_ai_assist.py`, `tests/test_categorize_memory.py`, `tests/test_expense_repository_metadata.py`, `tests/test_backfill_category_memory.py`, `tests/test_reply_edit.py`, `tests/test_message_handler.py`
 - [ ] T030 Validate manual flow in `specs/014-receipt-store-name/quickstart.md` using `python local_run.py --image path/to/receipt.jpg` and SQL checks for `metadata->>'store_name'`
 - [ ] T031 [P] Spot-check SC-001: log multi-line vision receipt at known chain; confirm ≥70% of lines share store-derived `merchant_key` in `category_merchant_memory` (manual SQL per quickstart)
 

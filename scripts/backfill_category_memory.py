@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Dict, List, Tuple
 
 from services.category_taxonomy import load_category_taxonomy_for_tenant, resolve_code
-from services.merchant_normalize import heuristic_merchant_from_description
+from services.merchant_resolve import merchant_key_from_expense_row
 from services.supabase_client import get_supabase_client, is_supabase_configured
 from services.tenant_context import TenantContext
 
@@ -43,7 +43,7 @@ def collect_backfill_rows() -> Dict[Tuple[str, str, str], dict]:
         client.table('expenses')
         .select(
             'tenant_type, tenant_id, logged_by_line_user_id, description, '
-            'category_node_id, created_at'
+            'category_node_id, created_at, metadata'
         )
         .is_('deleted_at', 'null')
         .order('created_at')
@@ -53,7 +53,7 @@ def collect_backfill_rows() -> Dict[Tuple[str, str, str], dict]:
 
     grouped: Dict[Tuple[str, str, str], List[dict]] = defaultdict(list)
     for row in rows:
-        merchant_key = heuristic_merchant_from_description(str(row.get('description', '')))
+        merchant_key = merchant_key_from_expense_row(row)
         if not merchant_key:
             continue
         category_code = _category_code_for_expense(row)

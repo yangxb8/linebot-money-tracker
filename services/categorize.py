@@ -214,17 +214,13 @@ async def classify_expense_with_memory(
         expense_category_code,
         expense_guess_unchanged,
     )
-    from services.merchant_extract import extract_merchant_name
-    from services.merchant_normalize import normalize_merchant_key
+    from services.merchant_resolve import resolve_raw_merchant
     from services.receipt_parser import clean_receipt_description
 
     raw_description = str(item.get('description', 'Expense')).strip()
     description = clean_receipt_description(raw_description) if raw_description else 'Expense'
-    amount = item.get('amount', '')
-    currency = item.get('currency', '')
 
-    raw_merchant = await extract_merchant_name(description, gemini, amount=amount, currency=currency)
-    merchant_key = normalize_merchant_key(raw_merchant)
+    raw_merchant, merchant_key = await resolve_raw_merchant(item, gemini)
 
     if merchant_key and tenant is not None:
         prior = find_prior_expense_for_merchant(

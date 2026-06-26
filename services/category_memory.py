@@ -9,7 +9,6 @@ from zoneinfo import ZoneInfo
 
 from services.category_taxonomy import load_category_taxonomy_for_tenant, resolve_code
 from services.gemini_client import GeminiClient
-from services.merchant_extract import extract_merchant_name
 from services.merchant_normalize import heuristic_merchant_from_description, normalize_merchant_key
 from services.supabase_client import get_supabase_client, is_supabase_configured
 from services.tenant_context import TenantContext
@@ -207,10 +206,18 @@ async def record_user_correction_from_description(
     description: str,
     category_code: str,
     gemini: GeminiClient,
+    store_name: Optional[str] = None,
     corrected_by: Optional[str] = None,
 ) -> None:
-    raw = await extract_merchant_name(description, gemini)
-    key = normalize_merchant_key(raw)
+    from services.merchant_resolve import resolve_raw_merchant
+
+    item = {
+        'description': description,
+        'store_name': store_name,
+        'amount': '',
+        'currency': '',
+    }
+    raw, key = await resolve_raw_merchant(item, gemini)
     if not key:
         return
     record_user_correction(
@@ -237,7 +244,7 @@ def find_prior_expense_for_merchant(
             client.table('expenses')
             .select(
                 'id, description, category_node_id, category_guess_code, '
-                'source_message_id, created_at'
+                'source_message_id, created_at, metadata'
             )
             .eq('tenant_type', tenant.tenant_type)
             .eq('tenant_id', tenant.tenant_id)
@@ -248,8 +255,10 @@ def find_prior_expense_for_merchant(
         if exclude_source_message_id:
             query = query.neq('source_message_id', exclude_source_message_id)
         rows = query.execute().data or []
+        from services.merchant_resolve import merchant_key_from_expense_row
+
         for row in rows:
-            key = heuristic_merchant_from_description(str(row.get('description', '')))
+            key = merchant_key_from_expense_row(row)
             if key == merchant_key:
                 return row
         return None
