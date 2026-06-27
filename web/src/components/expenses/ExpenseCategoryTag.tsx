@@ -12,7 +12,7 @@ type Props = {
   expense: ExpenseRecord;
   categories: CategoryNode[];
   disabled?: boolean;
-  onUpdated: () => void;
+  onUpdated: (expense: ExpenseRecord) => void;
   onError: () => void;
 };
 
@@ -48,9 +48,11 @@ export function ExpenseCategoryTag({
 
     setSaving(true);
     try {
-      await updateExpense(expense.id, { category_node_id: categoryNodeId });
+      const updated = await updateExpense(expense.id, {
+        category_node_id: categoryNodeId,
+      });
       setEditing(false);
-      onUpdated();
+      onUpdated(updated);
     } catch {
       onError();
     } finally {

@@ -19,6 +19,11 @@ import {
   fetchExpenseFiscalMonths,
   fetchExpensesForMonth,
 } from "@/lib/expenses/client";
+import {
+  applyExpenseCreated,
+  applyExpenseDeleted,
+  applyExpenseUpdated,
+} from "@/lib/expenses/list-mutations";
 import type { ExpenseRecord, FiscalMonthOption } from "@/lib/expenses/types";
 import { fetchTenantSettings } from "@/lib/settings/client";
 import type { Locale } from "@/lib/i18n/messages";
@@ -173,12 +178,57 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
     setFormOpen(true);
   }
 
+  function handleExpenseUpdated(updated: ExpenseRecord) {
+    setRows((prev) =>
+      prev.map((row) => (row.id === updated.id ? updated : row)),
+    );
+    setEditing((prev) => (prev?.id === updated.id ? updated : prev));
+  }
+
+  function handleExpenseSaved(saved: ExpenseRecord) {
+    if (editing) {
+      const mutation = applyExpenseUpdated(
+        rows,
+        availableMonths,
+        saved,
+        editing,
+        budgetMonth,
+        fiscalStartDay,
+      );
+      setRows(mutation.rows);
+      setAvailableMonths(mutation.monthMeta);
+      setOffset((prev) => Math.max(0, prev + mutation.offsetDelta));
+      setEditing(null);
+      return;
+    }
+
+    const mutation = applyExpenseCreated(
+      rows,
+      availableMonths,
+      saved,
+      budgetMonth,
+      fiscalStartDay,
+    );
+    setRows(mutation.rows);
+    setAvailableMonths(mutation.monthMeta);
+    setOffset((prev) => prev + mutation.offsetDelta);
+  }
+
   async function handleDelete(expense: ExpenseRecord) {
     if (!window.confirm(t("expenseDeleteConfirm"))) return;
     setBusyId(expense.id);
     try {
       await deleteExpense(expense.id);
-      await refresh();
+      const mutation = applyExpenseDeleted(
+        rows,
+        availableMonths,
+        expense,
+        budgetMonth,
+        fiscalStartDay,
+      );
+      setRows(mutation.rows);
+      setAvailableMonths(mutation.monthMeta);
+      setOffset((prev) => Math.max(0, prev + mutation.offsetDelta));
     } catch {
       setError("action_failed");
     } finally {
@@ -274,7 +324,7 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
                     expense={row}
                     categories={categories}
                     disabled={busyId === row.id}
-                    onUpdated={() => void refresh()}
+                    onUpdated={handleExpenseUpdated}
                     onError={() => setError("action_failed")}
                   />
                   <button
@@ -313,7 +363,7 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
             setFormOpen(false);
             setEditing(null);
           }}
-          onSaved={() => void refresh()}
+          onSaved={handleExpenseSaved}
         />
       ) : null}
     </div>

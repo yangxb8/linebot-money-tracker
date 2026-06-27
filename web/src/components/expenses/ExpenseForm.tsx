@@ -20,7 +20,7 @@ type Props = {
   expense?: ExpenseRecord | null;
   defaultDate: string;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (expense: ExpenseRecord) => void;
 };
 
 type FieldErrors = {
@@ -101,16 +101,17 @@ export function ExpenseForm({
         category_node_id: values.category_node_id,
       };
 
+      let saved: ExpenseRecord;
       if (expense) {
-        await updateExpense(expense.id, payload);
+        saved = await updateExpense(expense.id, payload);
       } else {
-        await createExpense({
+        saved = await createExpense({
           tenant_type: tenant.tenantType,
           tenant_id: tenant.tenantId,
           ...payload,
         });
       }
-      onSaved();
+      onSaved(saved);
       onClose();
     } catch {
       setError(t("saveFailed"));
