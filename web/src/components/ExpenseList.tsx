@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/components/LanguageProvider";
-import { ExpenseCategoryTag } from "@/components/expenses/ExpenseCategoryTag";
 import { ExpenseForm } from "@/components/expenses/ExpenseForm";
+import { ExpenseGroupList } from "@/components/expenses/ExpenseGroupList";
+import { ExpenseListControls } from "@/components/expenses/ExpenseListControls";
+import { ExpenseRowItem } from "@/components/expenses/ExpenseRowItem";
 import { FiscalMonthNavigator } from "@/components/expenses/FiscalMonthNavigator";
 import { PAGE_SIZE } from "@/lib/dashboard/format";
 import type { TenantOption } from "@/lib/dashboard/tenants";
@@ -16,6 +18,7 @@ import {
 } from "@/lib/budget/format";
 import {
   deleteExpense,
+  fetchAllExpensesForMonth,
   fetchExpenseFiscalMonths,
   fetchExpensesForMonth,
 } from "@/lib/expenses/client";
@@ -24,6 +27,12 @@ import {
   applyExpenseDeleted,
   applyExpenseUpdated,
 } from "@/lib/expenses/list-mutations";
+import {
+  groupExpensesByCategory,
+  sortExpenses,
+  type ExpenseSortDir,
+  type ExpenseSortField,
+} from "@/lib/expenses/sort-group";
 import type { ExpenseRecord, FiscalMonthOption } from "@/lib/expenses/types";
 import { fetchTenantSettings } from "@/lib/settings/client";
 import type { Locale } from "@/lib/i18n/messages";
@@ -51,12 +60,16 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingAll, setLoadingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
   const [categories, setCategories] = useState<CategoryNode[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [groupByCategory, setGroupByCategory] = useState(false);
+  const [sortField, setSortField] = useState<ExpenseSortField>("date");
+  const [sortDir, setSortDir] = useState<ExpenseSortDir>("desc");
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingMoreRef = useRef(false);
 
@@ -65,6 +78,19 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
   const monthTotal =
     monthMeta?.total_amount ??
     rows.reduce((sum, row) => sum + Number(row.amount), 0);
+
+  const sortedRows = useMemo(
+    () => sortExpenses(rows, sortField, sortDir),
+    [rows, sortField, sortDir],
+  );
+
+  const groups = useMemo(() => {
+    const grouped = groupExpensesByCategory(rows, categories);
+    return grouped.map((group) => ({
+      ...group,
+      items: sortExpenses(group.items, sortField, sortDir),
+    }));
+  }, [rows, categories, sortField, sortDir]);
 
   const loadMonths = useCallback(async () => {
     const months = await fetchExpenseFiscalMonths(tenant);
@@ -100,13 +126,32 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
     [tenant, budgetMonth],
   );
 
+  const loadAllForMonth = useCallback(async () => {
+    setLoadingAll(true);
+    setError(null);
+    try {
+      const all = await fetchAllExpensesForMonth(tenant, budgetMonth, PAGE_SIZE);
+      setRows(all);
+      setOffset(all.length);
+      setHasMore(false);
+    } catch {
+      setError("fetch_failed");
+    } finally {
+      setLoadingAll(false);
+    }
+  }, [tenant, budgetMonth]);
+
   const refresh = useCallback(async () => {
     setRows([]);
     setOffset(0);
     setHasMore(true);
     await loadMonths();
-    await loadPage(0, false);
-  }, [loadMonths, loadPage]);
+    if (groupByCategory) {
+      await loadAllForMonth();
+    } else {
+      await loadPage(0, false);
+    }
+  }, [groupByCategory, loadAllForMonth, loadMonths, loadPage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,8 +190,12 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
     setRows([]);
     setOffset(0);
     setHasMore(true);
-    void loadPage(0, false);
-  }, [loadPage]);
+    if (groupByCategory) {
+      void loadAllForMonth();
+    } else {
+      void loadPage(0, false);
+    }
+  }, [groupByCategory, loadAllForMonth, loadPage]);
 
   useEffect(() => {
     void loadMonths().catch(() => {
@@ -155,7 +204,7 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
   }, [loadMonths]);
 
   useEffect(() => {
-    if (!hasMore || loading || loadingMore) return;
+    if (groupByCategory || !hasMore || loading || loadingMore) return;
 
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -171,7 +220,11 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loading, loadingMore, loadPage, offset]);
+  }, [groupByCategory, hasMore, loading, loadingMore, loadPage, offset]);
+
+  function handleGroupByCategoryChange(enabled: boolean) {
+    setGroupByCategory(enabled);
+  }
 
   function openEdit(expense: ExpenseRecord) {
     setEditing(expense);
@@ -243,6 +296,21 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
     return budgetMonth;
   })();
 
+  const rowProps = {
+    categories,
+    busyId,
+    formatAmount: fmt,
+    formatDate,
+    deleteLabel: t("delete"),
+    onEdit: openEdit,
+    onDelete: (expense: ExpenseRecord) => void handleDelete(expense),
+    onUpdated: handleExpenseUpdated,
+    onError: () => setError("action_failed"),
+  };
+
+  const itemCountLabel = (count: number) =>
+    t("expenseGroupItemCount").replace("{count}", String(count));
+
   return (
     <div className="space-y-4">
       <FiscalMonthNavigator
@@ -268,7 +336,28 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
         </button>
       </div>
 
-      {loading ? (
+      {!loading && rows.length > 0 ? (
+        <ExpenseListControls
+          groupByCategory={groupByCategory}
+          sortField={sortField}
+          sortDir={sortDir}
+          labels={{
+            groupByCategory: t("expenseGroupByCategory"),
+            sortBy: t("expenseSortBy"),
+            sortDate: t("expenseSortDate"),
+            sortAmount: t("expenseSortAmount"),
+            dateLateToEarly: t("expenseSortDateLateToEarly"),
+            dateEarlyToLate: t("expenseSortDateEarlyToLate"),
+            amountLargeToSmall: t("expenseSortAmountLargeToSmall"),
+            amountSmallToLarge: t("expenseSortAmountSmallToLarge"),
+          }}
+          onGroupByCategoryChange={handleGroupByCategoryChange}
+          onSortFieldChange={setSortField}
+          onSortDirChange={setSortDir}
+        />
+      ) : null}
+
+      {loading || loadingAll ? (
         <p className="text-center text-sm text-gray-500 py-8">{t("loading")}</p>
       ) : error ? (
         <div className="text-center py-8 space-y-3">
@@ -285,61 +374,17 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
         <p className="text-center text-sm text-gray-500 py-8 px-4">
           {isNewUser ? t("emptyExpensesNewUser") : t("emptyExpensesMonth")}
         </p>
+      ) : groupByCategory ? (
+        <ExpenseGroupList
+          groups={groups}
+          itemCountLabel={itemCountLabel}
+          {...rowProps}
+        />
       ) : (
         <div className="space-y-3">
           <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100 bg-white shadow-sm">
-            {rows.map((row) => (
-              <li
-                key={row.id}
-                role="button"
-                tabIndex={busyId === row.id ? -1 : 0}
-                onClick={() => {
-                  if (busyId === row.id) return;
-                  openEdit(row);
-                }}
-                onKeyDown={(event) => {
-                  if (busyId === row.id) return;
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    openEdit(row);
-                  }
-                }}
-                className="px-4 py-3 text-left transition-colors hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gray-400 disabled:opacity-60"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 break-words line-clamp-3">
-                      {row.description}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {formatDate(row.expense_date)}
-                    </p>
-                  </div>
-                  <p className="text-sm font-semibold text-gray-900 shrink-0">
-                    {fmt(Number(row.amount))}
-                  </p>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <ExpenseCategoryTag
-                    expense={row}
-                    categories={categories}
-                    disabled={busyId === row.id}
-                    onUpdated={handleExpenseUpdated}
-                    onError={() => setError("action_failed")}
-                  />
-                  <button
-                    type="button"
-                    disabled={busyId === row.id}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void handleDelete(row);
-                    }}
-                    className="text-xs text-red-600 underline"
-                  >
-                    {t("delete")}
-                  </button>
-                </div>
-              </li>
+            {sortedRows.map((row) => (
+              <ExpenseRowItem key={row.id} row={row} {...rowProps} />
             ))}
           </ul>
           {hasMore ? (

@@ -24,6 +24,7 @@ export async function fetchExpensesForMonth(
   tenant: TenantOption,
   budgetMonth: string,
   offset: number,
+  limit?: number,
 ): Promise<ExpenseRecord[]> {
   const params = new URLSearchParams({
     tenant_type: tenant.tenantType,
@@ -31,11 +32,30 @@ export async function fetchExpensesForMonth(
     budget_month: budgetMonth,
     offset: String(offset),
   });
+  if (limit !== undefined) {
+    params.set("limit", String(limit));
+  }
   const response = await fetch(`/api/expenses?${params.toString()}`);
   if (!response.ok) {
     throw new Error("Failed to load expenses");
   }
   return response.json() as Promise<ExpenseRecord[]>;
+}
+
+export async function fetchAllExpensesForMonth(
+  tenant: TenantOption,
+  budgetMonth: string,
+  pageSize: number,
+): Promise<ExpenseRecord[]> {
+  const all: ExpenseRecord[] = [];
+  let offset = 0;
+  while (true) {
+    const page = await fetchExpensesForMonth(tenant, budgetMonth, offset, pageSize);
+    all.push(...page);
+    if (page.length < pageSize) break;
+    offset += page.length;
+  }
+  return all;
 }
 
 export async function createExpense(
