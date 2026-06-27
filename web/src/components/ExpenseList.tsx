@@ -173,6 +173,13 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
     setFormOpen(true);
   }
 
+  function handleExpenseUpdated(updated: ExpenseRecord) {
+    setRows((prev) =>
+      prev.map((row) => (row.id === updated.id ? updated : row)),
+    );
+    setEditing((prev) => (prev?.id === updated.id ? updated : prev));
+  }
+
   async function handleDelete(expense: ExpenseRecord) {
     if (!window.confirm(t("expenseDeleteConfirm"))) return;
     setBusyId(expense.id);
@@ -274,7 +281,7 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
                     expense={row}
                     categories={categories}
                     disabled={busyId === row.id}
-                    onUpdated={() => void refresh()}
+                    onUpdated={handleExpenseUpdated}
                     onError={() => setError("action_failed")}
                   />
                   <button
