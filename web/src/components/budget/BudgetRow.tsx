@@ -27,7 +27,7 @@ export function BudgetRow({
 }: Props) {
   const { t, locale } = useLanguage();
   const limit = node.limit;
-  const spent = node.has_limit ? node.spent_assigned : node.spent_aggregate;
+  const spent = node.spent_aggregate;
   const health = computeBudgetHealth(spent, limit, elapsedDays, daysInMonth);
   const fmt = (n: number) => formatYen(n, locale as Locale);
   const spentPct = limit != null && limit > 0 ? spent / limit : null;
