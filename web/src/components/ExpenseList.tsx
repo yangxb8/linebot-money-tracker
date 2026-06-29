@@ -18,7 +18,6 @@ import {
 } from "@/lib/budget/format";
 import {
   deleteExpense,
-  fetchAllExpensesForMonth,
   fetchExpenseFiscalMonths,
   fetchExpensesForMonth,
 } from "@/lib/expenses/client";
@@ -60,7 +59,6 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [loadingAll, setLoadingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -126,32 +124,13 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
     [tenant, budgetMonth],
   );
 
-  const loadAllForMonth = useCallback(async () => {
-    setLoadingAll(true);
-    setError(null);
-    try {
-      const all = await fetchAllExpensesForMonth(tenant, budgetMonth, PAGE_SIZE);
-      setRows(all);
-      setOffset(all.length);
-      setHasMore(false);
-    } catch {
-      setError("fetch_failed");
-    } finally {
-      setLoadingAll(false);
-    }
-  }, [tenant, budgetMonth]);
-
   const refresh = useCallback(async () => {
     setRows([]);
     setOffset(0);
     setHasMore(true);
     await loadMonths();
-    if (groupByCategory) {
-      await loadAllForMonth();
-    } else {
-      await loadPage(0, false);
-    }
-  }, [groupByCategory, loadAllForMonth, loadMonths, loadPage]);
+    await loadPage(0, false);
+  }, [loadMonths, loadPage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -190,14 +169,8 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
     setRows([]);
     setOffset(0);
     setHasMore(true);
-    if (groupByCategory) {
-      void loadAllForMonth();
-    } else {
-      void loadPage(0, false);
-    }
-    // Intentionally excluding `groupByCategory` so toggling it does not reload.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadAllForMonth, loadPage]);
+    void loadPage(0, false);
+  }, [loadPage]);
 
   useEffect(() => {
     void loadMonths().catch(() => {
@@ -226,9 +199,6 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
 
   function handleGroupByCategoryChange(enabled: boolean) {
     setGroupByCategory(enabled);
-    if (enabled && hasMore && !loadingAll && !loading) {
-      void loadAllForMonth();
-    }
   }
 
   function openEdit(expense: ExpenseRecord) {
@@ -362,7 +332,7 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
         />
       ) : null}
 
-      {loading || loadingAll ? (
+      {loading ? (
         <p className="text-center text-sm text-gray-500 py-8">{t("loading")}</p>
       ) : error ? (
         <div className="text-center py-8 space-y-3">

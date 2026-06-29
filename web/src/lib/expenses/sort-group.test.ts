@@ -228,4 +228,51 @@ describe("groupExpensesByCategory", () => {
       "cat-unknown",
     ]);
   });
+
+  it("sorts unknown category last among orphan groups outside the tree order", () => {
+    const rows = [
+      expense({
+        id: "o",
+        expense_date: "2026-06-01",
+        amount: 10,
+        category_node_id: "cat-orphan-unknown",
+        category_l1_name: "不明",
+      }),
+      expense({
+        id: "x",
+        expense_date: "2026-06-02",
+        amount: 20,
+        category_node_id: "cat-orphan-other",
+        category_l1_name: "その他",
+      }),
+    ];
+    const orphanCategories: CategoryNode[] = [
+      {
+        id: "cat-orphan-other",
+        code: "other",
+        name_ja: "その他",
+        level: 1,
+        parent_id: null,
+        sort_order: 1,
+        expense_count: 1,
+        deletable: true,
+      },
+      {
+        id: "cat-orphan-unknown",
+        code: "unknown",
+        name_ja: "不明",
+        level: 1,
+        parent_id: null,
+        sort_order: 99,
+        expense_count: 1,
+        deletable: false,
+      },
+    ];
+
+    const groups = groupExpensesByCategory(rows, orphanCategories);
+    expect(groups.map((group) => group.key)).toEqual([
+      "cat-orphan-other",
+      "cat-orphan-unknown",
+    ]);
+  });
 });

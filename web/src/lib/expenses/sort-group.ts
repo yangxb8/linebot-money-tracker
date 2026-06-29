@@ -35,6 +35,11 @@ export function sortExpenses(
   return [...rows].sort((a, b) => compareExpenses(a, b, field, dir));
 }
 
+function isUnknownCategoryId(id: string, categories: CategoryNode[]): boolean {
+  const node = categories.find((category) => category.id === id);
+  return node?.code === "unknown";
+}
+
 function categoryOrderKeys(categories: CategoryNode[]): string[] {
   const l1Nodes = categories
     .filter((node) => node.level === 1)
@@ -102,7 +107,13 @@ export function groupExpensesByCategory(
 
   const remaining = [...map.values()]
     .filter((group) => !seen.has(group.key))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .sort((a, b) => {
+      const aUnknown = isUnknownCategoryId(a.key, categories);
+      const bUnknown = isUnknownCategoryId(b.key, categories);
+      if (aUnknown && !bUnknown) return 1;
+      if (bUnknown && !aUnknown) return -1;
+      return a.label.localeCompare(b.label);
+    });
 
   return [...ordered, ...remaining];
 }

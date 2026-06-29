@@ -9,7 +9,7 @@ import type {
   BudgetSummary,
   RpcBudgetSummary,
 } from "@/lib/budget/types";
-import { currentBudgetMonthJst } from "@/lib/budget/format";
+import { currentBudgetMonthJst, fiscalPeriodEnd } from "@/lib/budget/format";
 
 export { parseTenantParams, assertTenantAccess };
 
@@ -33,6 +33,32 @@ type DbCategory = {
   sort_order: number;
 };
 
+export type CategorySpentTotals = {
+  byL1: Record<string, number>;
+  byL2: Record<string, number>;
+};
+
+export function buildCategorySpentTotals(
+  expenses: {
+    assigned_level: number;
+    category_node_id: string;
+    category_l1_id: string;
+    amount: number | string;
+  }[],
+): CategorySpentTotals {
+  const byL1: Record<string, number> = {};
+  const byL2: Record<string, number> = {};
+  for (const expense of expenses) {
+    const amount = Number(expense.amount);
+    byL1[expense.category_l1_id] = (byL1[expense.category_l1_id] ?? 0) + amount;
+    if (expense.assigned_level === 2) {
+      byL2[expense.category_node_id] =
+        (byL2[expense.category_node_id] ?? 0) + amount;
+    }
+  }
+  return { byL1, byL2 };
+}
+
 function buildMeter(limit: number | null, spent: number): BudgetMeter {
   const has_limit = limit != null && limit > 0;
   const remaining = has_limit ? Math.max(limit - spent, 0) : null;
@@ -43,6 +69,7 @@ function buildMeter(limit: number | null, spent: number): BudgetMeter {
 export function enrichBudgetSummary(
   rpc: RpcBudgetSummary,
   nodes: DbCategory[],
+  categorySpent?: CategorySpentTotals,
 ): BudgetSummary {
   const limitFor = (level: string, nodeId: string | null): number | null => {
     const row = rpc.budgets.find(
@@ -71,16 +98,17 @@ export function enrichBudgetSummary(
       .filter((n) => n.parent_id === l1.id && n.level === 2)
       .map((l2) => {
         const limit = limitFor("l2", l2.id);
-        const spent = spentAssigned("l2", l2.id);
+        const assigned = spentAssigned("l2", l2.id);
+        const spentAggregate = categorySpent?.byL2[l2.id] ?? assigned;
         return {
           node_id: l2.id,
           code: l2.code,
           name_ja: l2.name_ja,
           level: 2 as const,
           limit,
-          spent,
-          spent_assigned: spent,
-          spent_aggregate: spent,
+          spent: spentAggregate,
+          spent_assigned: assigned,
+          spent_aggregate: spentAggregate,
           suggested_from_children: null,
           has_limit: limit != null,
         };
@@ -90,6 +118,7 @@ export function enrichBudgetSummary(
     const l1Limit = limitFor("l1", l1.id);
     const l1Assigned = spentAssigned("l1", l1.id);
     const l1Aggregate =
+      categorySpent?.byL1[l1.id] ??
       children.reduce((s, c) => s + c.spent_aggregate, 0) + l1Assigned;
 
     return {
@@ -98,7 +127,7 @@ export function enrichBudgetSummary(
       name_ja: l1.name_ja,
       level: 1 as const,
       limit: l1Limit,
-      spent: l1Limit != null ? l1Assigned : l1Aggregate,
+      spent: l1Aggregate,
       spent_assigned: l1Assigned,
       spent_aggregate: l1Aggregate,
       suggested_from_children: childLimitSum > 0 ? childLimitSum : null,
@@ -161,7 +190,24 @@ export async function fetchBudgetSummary(
     throw new Response(nodeError.message, { status: 400 });
   }
 
-  return enrichBudgetSummary(rpc, (nodes ?? []) as DbCategory[]);
+  const periodEnd = fiscalPeriodEnd(month);
+  const { data: expenseRows, error: expenseError } = await supabase
+    .from("expenses")
+    .select("assigned_level, category_node_id, category_l1_id, amount")
+    .eq("tenant_type", tenantType)
+    .eq("tenant_id", tenantId)
+    .eq("currency", "JPY")
+    .is("deleted_at", null)
+    .gte("expense_date", month)
+    .lte("expense_date", periodEnd);
+
+  if (expenseError) {
+    throw new Response(expenseError.message, { status: 400 });
+  }
+
+  const categorySpent = buildCategorySpentTotals(expenseRows ?? []);
+
+  return enrichBudgetSummary(rpc, (nodes ?? []) as DbCategory[], categorySpent);
 }
 
 export async function upsertBudgetRows(
