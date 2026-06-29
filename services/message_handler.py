@@ -18,7 +18,7 @@ from services.expense_repository import (
 from services.gemini_client import GeminiClient, GeminiUsageLimitError
 from services.metered_gemini import UserUsageLimitExceeded
 from services.intent import is_expense_intent_text
-from services.webapp_intent import is_webapp_intent_text, webapp_link_reply
+from services.webapp_intent import is_webapp_intent_text, is_webapp_request_obvious, webapp_link_reply
 from services.log_utils import describe_bytes
 from services.message_context import (
     BotReply,
@@ -305,6 +305,10 @@ async def process_text_message(
                 logger.warning('Text pipeline: empty confirmation after processing')
                 return _text_reply(error_reply_text(language), retryable_failure='processing_error')
             return _text_reply(reply_text, confirmation_payload)
+
+        if is_webapp_request_obvious(text):
+            logger.info('Text pipeline: obvious webapp request (shortcut)')
+            return _text_reply(webapp_link_reply(language))
 
         if await is_expense_intent_text(text, gemini):
             confirmation_payload = None
