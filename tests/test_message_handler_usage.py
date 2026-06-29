@@ -22,7 +22,7 @@ class TestMessageHandlerUsage(unittest.IsolatedAsyncioTestCase):
                 return_value=([], None),
             ),
             patch(
-                'services.message_handler.is_expense_intent_text',
+                'services.message_handler.classify_text_message_intent',
                 new_callable=AsyncMock,
             ) as intent_mock,
         ):
