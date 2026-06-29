@@ -10,6 +10,7 @@ type Props = {
   daysInMonth: number;
   editable: boolean;
   onEditNode: (node: BudgetCategoryNode) => void;
+  onSelectNode?: (node: BudgetCategoryNode) => void;
 };
 
 export function BudgetCategoryTree({
@@ -18,6 +19,7 @@ export function BudgetCategoryTree({
   daysInMonth,
   editable,
   onEditNode,
+  onSelectNode,
 }: Props) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
@@ -51,6 +53,7 @@ export function BudgetCategoryTree({
                   elapsedDays={elapsedDays}
                   daysInMonth={daysInMonth}
                   onEdit={editable ? () => onEditNode(l1) : undefined}
+                  onSelect={onSelectNode ? () => onSelectNode(l1) : undefined}
                 />
               </div>
             </div>
@@ -62,6 +65,9 @@ export function BudgetCategoryTree({
                       elapsedDays={elapsedDays}
                       daysInMonth={daysInMonth}
                       onEdit={editable ? () => onEditNode(l2) : undefined}
+                      onSelect={
+                        onSelectNode ? () => onSelectNode(l2) : undefined
+                      }
                     />
                   </div>
                 ))

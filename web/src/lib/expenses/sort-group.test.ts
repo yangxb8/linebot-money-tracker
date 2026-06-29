@@ -170,4 +170,62 @@ describe("groupExpensesByCategory", () => {
       "cat-transport",
     ]);
   });
+
+  it("always sorts the unknown L1 category last, even with custom categories after it", () => {
+    const withUnknownAndCustom: CategoryNode[] = [
+      ...categories,
+      {
+        id: "cat-unknown",
+        code: "unknown",
+        name_ja: "不明",
+        level: 1,
+        parent_id: null,
+        sort_order: 99,
+        expense_count: 0,
+        deletable: false,
+      },
+      {
+        id: "cat-custom",
+        code: "custom.abc",
+        name_ja: "カスタム",
+        level: 1,
+        parent_id: null,
+        sort_order: 100,
+        expense_count: 0,
+        deletable: true,
+      },
+    ];
+    const rows = [
+      expense({
+        id: "u",
+        expense_date: "2026-06-01",
+        amount: 10,
+        category_node_id: "cat-unknown",
+        category_l1_name: "不明",
+        category_l2_name: null,
+      }),
+      expense({
+        id: "c",
+        expense_date: "2026-06-02",
+        amount: 20,
+        category_node_id: "cat-custom",
+        category_l1_name: "カスタム",
+        category_l2_name: null,
+      }),
+      expense({
+        id: "f",
+        expense_date: "2026-06-03",
+        amount: 30,
+        category_node_id: "cat-food",
+        category_l1_name: "食費",
+      }),
+    ];
+
+    const groups = groupExpensesByCategory(rows, withUnknownAndCustom);
+    expect(groups.map((group) => group.key)).toEqual([
+      "cat-food",
+      "cat-custom",
+      "cat-unknown",
+    ]);
+  });
 });

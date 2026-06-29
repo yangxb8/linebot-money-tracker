@@ -68,18 +68,24 @@ export async function listExpenseFiscalMonths(
   }));
 }
 
+export type ListExpensesFilter = {
+  categoryL1Id?: string;
+  categoryL2Id?: string;
+};
+
 export async function listExpenses(
   tenantType: string,
   tenantId: string,
   budgetMonth: string,
   offset: number,
   limit: number,
+  filter: ListExpensesFilter = {},
 ): Promise<ExpenseRecord[]> {
   const supabase = await requireExpenseUser();
   await assertTenantAccess(supabase, tenantType, tenantId);
 
   const periodEnd = fiscalPeriodEnd(budgetMonth);
-  const { data, error } = await supabase
+  let query = supabase
     .from("v_expenses_enriched")
     .select(EXPENSE_SELECT)
     .eq("tenant_type", tenantType)
@@ -87,7 +93,15 @@ export async function listExpenses(
     .eq("currency", "JPY")
     .is("deleted_at", null)
     .gte("expense_date", budgetMonth)
-    .lte("expense_date", periodEnd)
+    .lte("expense_date", periodEnd);
+
+  if (filter.categoryL2Id) {
+    query = query.eq("category_l2_id", filter.categoryL2Id);
+  } else if (filter.categoryL1Id) {
+    query = query.eq("category_l1_id", filter.categoryL1Id);
+  }
+
+  const { data, error } = await query
     .order("expense_date", { ascending: false })
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);

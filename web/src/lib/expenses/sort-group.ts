@@ -38,7 +38,11 @@ export function sortExpenses(
 function categoryOrderKeys(categories: CategoryNode[]): string[] {
   const l1Nodes = categories
     .filter((node) => node.level === 1)
-    .sort((a, b) => a.sort_order - b.sort_order);
+    .sort((a, b) => {
+      if (a.code === "unknown" && b.code !== "unknown") return 1;
+      if (b.code === "unknown" && a.code !== "unknown") return -1;
+      return a.sort_order - b.sort_order;
+    });
 
   const childrenByParent = new Map<string, CategoryNode[]>();
   for (const node of categories) {
