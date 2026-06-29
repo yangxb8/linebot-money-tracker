@@ -195,7 +195,9 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
     } else {
       void loadPage(0, false);
     }
-  }, [groupByCategory, loadAllForMonth, loadPage]);
+    // Intentionally excluding `groupByCategory` so toggling it does not reload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadAllForMonth, loadPage]);
 
   useEffect(() => {
     void loadMonths().catch(() => {
@@ -224,6 +226,9 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
 
   function handleGroupByCategoryChange(enabled: boolean) {
     setGroupByCategory(enabled);
+    if (enabled && hasMore && !loadingAll && !loading) {
+      void loadAllForMonth();
+    }
   }
 
   function openEdit(expense: ExpenseRecord) {

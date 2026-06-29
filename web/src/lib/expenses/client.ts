@@ -20,11 +20,17 @@ export async function fetchExpenseFiscalMonths(
   return response.json() as Promise<FiscalMonthOption[]>;
 }
 
+export type ExpenseCategoryFilter = {
+  categoryL1Id?: string;
+  categoryL2Id?: string;
+};
+
 export async function fetchExpensesForMonth(
   tenant: TenantOption,
   budgetMonth: string,
   offset: number,
   limit?: number,
+  filter: ExpenseCategoryFilter = {},
 ): Promise<ExpenseRecord[]> {
   const params = new URLSearchParams({
     tenant_type: tenant.tenantType,
@@ -34,6 +40,11 @@ export async function fetchExpensesForMonth(
   });
   if (limit !== undefined) {
     params.set("limit", String(limit));
+  }
+  if (filter.categoryL2Id) {
+    params.set("category_l2_id", filter.categoryL2Id);
+  } else if (filter.categoryL1Id) {
+    params.set("category_l1_id", filter.categoryL1Id);
   }
   const response = await fetch(`/api/expenses?${params.toString()}`);
   if (!response.ok) {

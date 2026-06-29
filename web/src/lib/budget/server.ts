@@ -58,7 +58,14 @@ export function enrichBudgetSummary(
   const spentAssigned = (level: "l1" | "l2", nodeId: string): number =>
     rpc.spent_by_bucket[`${level}:${nodeId}`] ?? 0;
 
-  const l1Nodes = nodes.filter((n) => n.level === 1);
+  const l1Nodes = nodes
+    .filter((n) => n.level === 1)
+    .slice()
+    .sort((a, b) => {
+      if (a.code === "unknown" && b.code !== "unknown") return 1;
+      if (b.code === "unknown" && a.code !== "unknown") return -1;
+      return a.sort_order - b.sort_order;
+    });
   const categories: BudgetCategoryNode[] = l1Nodes.map((l1) => {
     const children = nodes
       .filter((n) => n.parent_id === l1.id && n.level === 2)
@@ -193,20 +200,25 @@ export async function upsertBudgetRows(
   }
 
   for (const item of budgets) {
-    const { data: existing } = await supabase
+    let existingQuery = supabase
       .from("monthly_budgets")
       .select("id")
       .eq("tenant_type", tenantType)
       .eq("tenant_id", tenantId)
       .eq("budget_month", budgetMonth)
       .eq("currency", currency)
-      .eq("budget_level", item.budget_level)
-      .match(
-        item.budget_level === "total"
-          ? { category_node_id: null }
-          : { category_node_id: item.category_node_id },
-      )
-      .maybeSingle();
+      .eq("budget_level", item.budget_level);
+
+    if (item.budget_level === "total") {
+      existingQuery = existingQuery.is("category_node_id", null);
+    } else {
+      existingQuery = existingQuery.eq(
+        "category_node_id",
+        item.category_node_id!,
+      );
+    }
+
+    const { data: existing } = await existingQuery.maybeSingle();
 
     if (existing?.id) {
       const { error } = await supabase

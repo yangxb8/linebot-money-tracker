@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLanguage } from "@/components/LanguageProvider";
 import { useTenant } from "@/components/TenantProvider";
+import { BudgetCategoryExpensesModal } from "@/components/budget/BudgetCategoryExpensesModal";
 import { BudgetCategoryTree } from "@/components/budget/BudgetCategoryTree";
 import { BudgetEditor } from "@/components/budget/BudgetEditor";
 import { BudgetEmptyState } from "@/components/budget/BudgetEmptyState";
@@ -39,6 +40,9 @@ export function BudgetPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [focusNode, setFocusNode] = useState<BudgetCategoryNode | null>(null);
   const [copyDraft, setCopyDraft] = useState<BudgetUpsertItem[] | undefined>();
+  const [expensesNode, setExpensesNode] = useState<BudgetCategoryNode | null>(
+    null,
+  );
 
   const editable = isCurrentBudgetMonth(budgetMonth, fiscalStartDay);
   const currentMonth = currentBudgetMonthJst(fiscalStartDay);
@@ -220,6 +224,15 @@ export function BudgetPage() {
           setCopyDraft(undefined);
           setEditorOpen(true);
         }}
+        onSelectNode={(node) => setExpensesNode(node)}
+      />
+
+      <BudgetCategoryExpensesModal
+        open={expensesNode !== null}
+        tenant={selectedTenant}
+        budgetMonth={summary.budget_month}
+        node={expensesNode}
+        onClose={() => setExpensesNode(null)}
       />
 
       <BudgetEditor

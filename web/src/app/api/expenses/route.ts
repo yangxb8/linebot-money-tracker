@@ -20,9 +20,11 @@ export async function GET(request: Request) {
 
     const offset = Math.max(0, Number(url.searchParams.get("offset") ?? 0));
     const limit = Math.min(
-      100,
+      200,
       Math.max(1, Number(url.searchParams.get("limit") ?? PAGE_SIZE)),
     );
+    const categoryL1Id = url.searchParams.get("category_l1_id") || undefined;
+    const categoryL2Id = url.searchParams.get("category_l2_id") || undefined;
 
     const rows = await listExpenses(
       tenantType,
@@ -30,6 +32,7 @@ export async function GET(request: Request) {
       budgetMonth,
       offset,
       limit,
+      { categoryL1Id, categoryL2Id },
     );
     return NextResponse.json(rows);
   } catch (error) {
