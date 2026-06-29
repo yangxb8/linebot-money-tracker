@@ -18,6 +18,7 @@ from services.expense_repository import (
 from services.gemini_client import GeminiClient, GeminiUsageLimitError
 from services.metered_gemini import UserUsageLimitExceeded
 from services.intent import is_expense_intent_text
+from services.webapp_intent import is_webapp_intent_text, webapp_link_reply
 from services.log_utils import describe_bytes
 from services.message_context import (
     BotReply,
@@ -325,6 +326,11 @@ async def process_text_message(
 
             logger.warning('Text pipeline: expense intent but no parseable items')
             return _text_reply(receipt_parse_error_reply(language))
+
+        if await is_webapp_intent_text(text, gemini):
+            logger.info('Text pipeline: webapp intent detected')
+            return _text_reply(webapp_link_reply(language))
+
         logger.info('Text pipeline: message rejected as non-expense intent')
         return _text_reply(canned_unsupported_reply(language))
     except UserUsageLimitExceeded as exc:

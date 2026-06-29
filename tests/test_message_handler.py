@@ -70,9 +70,21 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
 
     async def test_process_text_non_expense(self):
         gemini = MagicMock(spec=GeminiClient)
-        with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=False)):
+        with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=False)), patch(
+            'services.message_handler.is_webapp_intent_text', AsyncMock(return_value=False)
+        ):
             reply = await process_text_message('Hello bot', gemini, self._english_context())
         self.assertEqual(reply.text, canned_unsupported_reply('en'))
+
+    async def test_process_text_webapp_request(self):
+        gemini = MagicMock(spec=GeminiClient)
+        with patch('services.message_handler.parse_text_for_expenses', return_value=[]), patch(
+            'services.message_handler.is_expense_intent_text', AsyncMock(return_value=False)
+        ), patch(
+            'services.message_handler.is_webapp_intent_text', AsyncMock(return_value=True)
+        ), patch.dict(os.environ, {'DASHBOARD_LIFF_URL': 'https://liff.line.me/abc123'}):
+            reply = await process_text_message('open dashboard', gemini, self._english_context())
+        self.assertIn('https://liff.line.me/abc123', reply.text)
 
     async def test_process_text_gemini_fallback(self):
         gemini = MagicMock(spec=GeminiClient)
