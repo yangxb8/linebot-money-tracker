@@ -34,6 +34,14 @@ Active when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set. Console: `py
 | `USAGE_MAX_TEXT_WORDS` | `1000` | Reject inbound text over this word count before LLM |
 | `USAGE_MAX_IMAGE_BYTES` | `10485760` | Reject inbound images over this size (10 MiB) before LLM |
 
+## Optional — expense dashboard link (webhook, console, Cloud Run)
+
+When users ask for the web app or dashboard in chat, the bot replies with this URL. Use the LIFF URL from the LINE Login channel (same value as rich menu setup).
+
+| Variable | Required | Purpose |
+| -------- | -------- | ------- |
+| `DASHBOARD_LIFF_URL` | No | Full LIFF URL (e.g. `https://liff.line.me/<LIFF_ID>`) returned when users request the dashboard |
+
 ## Optional — OCR (all profiles)
 
 | Variable | Default | Purpose |

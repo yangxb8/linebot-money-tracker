@@ -55,6 +55,11 @@ _STRINGS: Dict[str, Dict[str, str]] = {
             'AIの利用上限に達したため、レシート画像の解析ができません。'
             'しばらくしてから再度お試しいただくか、合計金額をテキストで送ってください。'
         ),
+        'webapp_link': '家計簿のWebページはこちらです:\n{url}',
+        'webapp_unavailable': (
+            '家計簿のWebページは現在ご利用いただけません。'
+            'しばらくしてからもう一度お試しください。'
+        ),
     },
     'en': {
         'header': 'Detected expense(s):',
@@ -91,6 +96,10 @@ _STRINGS: Dict[str, Dict[str, str]] = {
             "I can't analyze receipt images right now because the AI usage limit has been reached. "
             'Please try again later, or send the total as text.'
         ),
+        'webapp_link': 'Open your expense dashboard here:\n{url}',
+        'webapp_unavailable': (
+            'The expense dashboard is not available right now. Please try again later.'
+        ),
     },
     'zh': {
         'header': '检测到的支出:',
@@ -124,6 +133,10 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         'usage_limit': (
             'AI 使用额度已达上限，暂时无法解析收据图片。'
             '请稍后再试，或以文字发送合计金额。'
+        ),
+        'webapp_link': '请在此打开家计簿网页:\n{url}',
+        'webapp_unavailable': (
+            '家计簿网页暂时无法使用，请稍后再试。'
         ),
     },
 }
