@@ -70,7 +70,7 @@ class TestMessageHandlerReply(unittest.IsolatedAsyncioTestCase):
     async def test_process_text_returns_confirmation_payload(self, _fetch):
         gemini = MagicMock(spec=GeminiClient)
         context = MessageContext(tenant=TenantContext.personal('u1'), source_message_id='m1')
-        with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
+        with patch('services.message_handler.classify_text_message_intent', AsyncMock(return_value='expense')), patch(
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
         ), patch(

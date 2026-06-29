@@ -26,7 +26,7 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
             source_message_id='msg-1',
             reply_language='en',
         )
-        with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
+        with patch('services.message_handler.classify_text_message_intent', AsyncMock(return_value='expense')), patch(
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
         ), patch(
@@ -43,7 +43,7 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
 
     async def test_skips_persist_without_context(self):
         gemini = MagicMock(spec=GeminiClient)
-        with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
+        with patch('services.message_handler.classify_text_message_intent', AsyncMock(return_value='expense')), patch(
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
         ), patch(
@@ -61,7 +61,7 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
             source_message_id='msg-1',
             reply_language='en',
         )
-        with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
+        with patch('services.message_handler.classify_text_message_intent', AsyncMock(return_value='expense')), patch(
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
         ), patch(
@@ -81,7 +81,7 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
             source_message_id='msg-2',
             reply_language='en',
         )
-        with patch('services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)), patch(
+        with patch('services.message_handler.classify_text_message_intent', AsyncMock(return_value='expense')), patch(
             'services.message_handler.parse_text_for_expenses',
             return_value=[{'description': 'Starbucks latte', 'amount': 580.0, 'currency': 'JPY'}],
         ), patch(
