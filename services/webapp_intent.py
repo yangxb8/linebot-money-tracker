@@ -116,7 +116,7 @@ async def is_webapp_intent_text(text: Optional[str], gemini: GeminiClient) -> bo
 
     logger.info('Webapp intent check (text): classifying message len=%d', len(normalized))
     logger.debug('Webapp intent check (text): message=%s', truncate(normalized, 500))
-    prompt = WEBAPP_INTENT_PROMPT.format(text=normalized)
+    prompt = WEBAPP_INTENT_PROMPT.replace('{text}', normalized)
     with llm_operation_scope('intent'):
         response = await gemini.generate_reply(prompt)
     return _parse_webapp_intent_response(response, source='text')

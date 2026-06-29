@@ -76,6 +76,15 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             reply = await process_text_message('Hello bot', gemini, self._english_context())
         self.assertEqual(reply.text, canned_unsupported_reply('en'))
 
+    async def test_process_text_webapp_obvious_skips_expense_intent(self):
+        gemini = MagicMock(spec=GeminiClient)
+        with patch('services.message_handler.parse_text_for_expenses', return_value=[]), patch(
+            'services.message_handler.is_expense_intent_text', AsyncMock(return_value=True)
+        ) as expense_intent_mock:
+            reply = await process_text_message('网页', gemini, self._english_context())
+        expense_intent_mock.assert_not_awaited()
+        self.assertIn('not available', reply.text.lower())
+
     async def test_process_text_webapp_request(self):
         gemini = MagicMock(spec=GeminiClient)
         with patch('services.message_handler.parse_text_for_expenses', return_value=[]), patch(

@@ -69,7 +69,7 @@ async def is_expense_intent_text(text: Optional[str], gemini: GeminiClient) -> b
 
     logger.info('Intent check (text): classifying message len=%d', len(normalized))
     logger.debug('Intent check (text): message=%s', truncate(normalized, 500))
-    prompt = TEXT_INTENT_PROMPT.format(text=normalized)
+    prompt = TEXT_INTENT_PROMPT.replace('{text}', normalized)
     with llm_operation_scope('intent'):
         response = await gemini.generate_reply(prompt)
     return _parse_intent_response(response, source='text')
