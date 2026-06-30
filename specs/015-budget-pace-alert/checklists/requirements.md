@@ -31,7 +31,5 @@
 
 ## Notes
 
-- Validation passed on first iteration (2026-06-30).
-- Pace formula aligned with feature 012 (monthly budget manager) for cross-channel consistency.
-- Reply-edit scope limited to category and amount changes per user request; other edit types documented in assumptions.
+- Validation passed on first iteration (2026-06-30); updated same day per user clarification on multi-level cascade evaluation (warn at lowest ahead-of-pace level only).
 - Ready for `/speckit-plan`.
