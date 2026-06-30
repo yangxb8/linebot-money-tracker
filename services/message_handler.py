@@ -38,6 +38,7 @@ from services.confirmation_i18n import format_expense_confirmation, t
 from services.reply_edit import apply_edit_intent, parse_edit_intent
 from services.reply_summary import format_duplicate_reply, format_unknown_confirmation
 from services.user_language import maybe_update_from_user_message
+from services.budget_pace import expense_rows_from_enriched, maybe_prepend_budget_pace_warning
 
 logger = logging.getLogger(__name__)
 
@@ -228,6 +229,27 @@ def _text_reply(
     return BotReply(text=text, confirmation=confirmation, retryable_failure=retryable_failure)
 
 
+async def _finalize_expense_reply(
+    reply_text: Optional[str],
+    items: List[Dict[str, Any]],
+    gemini: GeminiClient,
+    context: Optional[MessageContext],
+    confirmation_payload: Optional[ConfirmationSavePayload],
+) -> BotReply:
+    language = context.reply_language if context else 'ja'
+    if not reply_text:
+        return _text_reply(error_reply_text(language), retryable_failure='processing_error')
+    if context is not None:
+        reply_text = await maybe_prepend_budget_pace_warning(
+            reply_text,
+            expense_rows=expense_rows_from_enriched(items, context),
+            tenant=context.tenant,
+            language=language,
+            gemini=gemini,
+        )
+    return _text_reply(reply_text, confirmation_payload)
+
+
 async def process_reply_edit(
     text: str,
     reply_context: ReplyContext,
@@ -301,10 +323,13 @@ async def process_text_message(
                 language=language,
                 **_confirmation_format_kwargs(context),
             )
-            if not reply_text:
-                logger.warning('Text pipeline: empty confirmation after processing')
-                return _text_reply(error_reply_text(language), retryable_failure='processing_error')
-            return _text_reply(reply_text, confirmation_payload)
+            return await _finalize_expense_reply(
+                reply_text,
+                items,
+                gemini,
+                context,
+                confirmation_payload,
+            )
 
         if is_webapp_request_obvious(text):
             logger.info('Text pipeline: obvious webapp request (shortcut)')
@@ -329,10 +354,13 @@ async def process_text_message(
                     language=language,
                     **_confirmation_format_kwargs(context),
                 )
-                if not reply_text:
-                    logger.warning('Text pipeline: empty confirmation after processing')
-                    return _text_reply(error_reply_text(language), retryable_failure='processing_error')
-                return _text_reply(reply_text, confirmation_payload)
+                return await _finalize_expense_reply(
+                    reply_text,
+                    items,
+                    gemini,
+                    context,
+                    confirmation_payload,
+                )
 
             logger.warning('Text pipeline: expense intent but no parseable items')
             return _text_reply(receipt_parse_error_reply(language))
@@ -454,7 +482,13 @@ async def process_image_message(
             return _text_reply(error_reply_text(language), retryable_failure='processing_error')
 
         logger.info('Image pipeline: success with %d item(s)', len(items))
-        return _text_reply(reply_text, confirmation_payload)
+        return await _finalize_expense_reply(
+            reply_text,
+            items,
+            gemini,
+            context,
+            confirmation_payload,
+        )
     except Exception:
         logger.exception(
             'Image processing failed: image=%s mime=%s',

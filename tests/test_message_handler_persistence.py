@@ -116,7 +116,8 @@ class TestEnrichedReplyFormat(unittest.TestCase):
         self.assertIn('  2) 不明', text)
         self.assertIn('このメッセージに返信', text)
 
-    def test_no_budget_impact_text(self):
+    def test_confirmation_format_has_no_embedded_budget_text(self):
+        """format_expense_items itself does not embed budget warnings (prepended separately)."""
         text = format_expense_items(
             [
                 {
@@ -131,6 +132,32 @@ class TestEnrichedReplyFormat(unittest.TestCase):
         lowered = (text or '').lower()
         self.assertNotIn('budget', lowered)
         self.assertNotIn('予算', text or '')
+
+
+class TestBudgetPacePrepend(unittest.IsolatedAsyncioTestCase):
+    async def test_prepends_pace_warning_on_log(self):
+        gemini = MagicMock(spec=GeminiClient)
+        context = MessageContext(
+            tenant=TenantContext.personal('u1'),
+            source_message_id='msg-pace',
+            reply_language='ja',
+        )
+        with patch('services.message_handler.classify_text_message_intent', AsyncMock(return_value='expense')), patch(
+            'services.message_handler.parse_text_for_expenses',
+            return_value=[{'description': 'Lunch', 'amount': 1200.0, 'currency': 'JPY'}],
+        ), patch(
+            'services.message_handler.classify_expense_with_memory',
+            AsyncMock(return_value=_unknown_category()),
+        ), patch(
+            'services.message_handler.insert_expenses',
+            return_value=PersistResult(inserted=1, skipped=0),
+        ), patch(
+            'services.message_handler.maybe_prepend_budget_pace_warning',
+            AsyncMock(return_value='⚠️ pace\n\n検出した支出:'),
+        ) as prepend_mock:
+            reply = await process_text_message('Lunch 1200', gemini, context)
+        prepend_mock.assert_awaited_once()
+        self.assertTrue(reply.text.startswith('⚠️'))
 
 
 class TestExpenseRollupLogic(unittest.TestCase):
