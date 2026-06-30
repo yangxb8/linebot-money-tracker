@@ -1400,6 +1400,16 @@ async def apply_edit_intent(
                     changes=tuple(changes),
                 ),
             )
+            if after_row is not None and (category_code is not None or amount_decimal is not None):
+                from services.budget_pace import expense_row_from_expense_row, maybe_prepend_budget_pace_warning
+
+                summary = await maybe_prepend_budget_pace_warning(
+                    summary,
+                    expense_rows=[expense_row_from_expense_row(after_row)],
+                    tenant=confirmation.tenant,
+                    language=language,
+                    gemini=gemini,
+                )
             return EditApplyResult(status='applied', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
 
     summary = format_edit_result(

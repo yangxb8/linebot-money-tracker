@@ -634,6 +634,62 @@ class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(update_fields.call_count, 2)
         _clear_pending.assert_called_once()
 
+    @patch('services.budget_pace.maybe_prepend_budget_pace_warning', new_callable=AsyncMock)
+    @patch('services.reply_edit.update_items_snapshot')
+    @patch('services.reply_edit.get_expenses_by_ids')
+    @patch('services.reply_edit.update_expense_fields')
+    async def test_apply_amount_update_prepends_pace_warning(
+        self,
+        update_fields,
+        get_by_ids,
+        _update_snap,
+        prepend_mock,
+    ):
+        update_fields.return_value = UpdateResult(success=True)
+        prepend_mock.return_value = '⚠️ pace\n\nUpdated summary'
+        expense_row = ExpenseRow(
+            id='e1',
+            line_user_id='u1',
+            description='Coffee',
+            amount=Decimal('3000'),
+            currency='JPY',
+            expense_date=__import__('datetime').date.today(),
+            category_node_id='cat',
+            assigned_level=1,
+            category_l1_id='cat',
+            category_l2_id=None,
+            category_l3_id=None,
+        )
+        get_by_ids.side_effect = [[expense_row], [expense_row], [expense_row]]
+        confirmation = ConfirmationRecord(
+            id='c1',
+            bot_message_id='bot-1',
+            tenant=TenantContext.personal('u1'),
+            confirmation_text='text',
+            items_snapshot=(
+                {
+                    'line_item_index': 0,
+                    'expense_id': 'e1',
+                    'description': 'Coffee',
+                    'amount': 450,
+                    'currency': 'JPY',
+                    'category_guess_code': 'food.dining',
+                    'category_alternatives': [],
+                },
+            ),
+            pending_action=None,
+        )
+        intent = {
+            'action': 'update',
+            'target': {'mode': 'single', 'line_item_index': 0},
+            'updates': {'amount': 3000},
+        }
+        gemini = MagicMock(spec=GeminiClient)
+        result = await apply_edit_intent(intent, confirmation, '3000円', gemini)
+        self.assertEqual(result.status, 'applied')
+        prepend_mock.assert_awaited_once()
+        self.assertTrue(result.summary.startswith('⚠️'))
+
 
 if __name__ == '__main__':
     unittest.main()

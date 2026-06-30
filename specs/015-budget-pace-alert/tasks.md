@@ -19,8 +19,8 @@
 
 **Purpose**: Scaffold modules and verify dependencies before core pace logic
 
-- [ ] T001 Verify `get_budget_summary` RPC is available in Supabase per `specs/015-budget-pace-alert/quickstart.md` prerequisites (no migration required for this feature)
-- [ ] T002 [P] Add dataclasses `BudgetLevelCandidate`, `PaceEvaluation`, `PaceWarning`, and `HealthResult` in `services/budget_pace.py` per `specs/015-budget-pace-alert/data-model.md`
+- [X] T001 Verify `get_budget_summary` RPC is available in Supabase per `specs/015-budget-pace-alert/quickstart.md` prerequisites (no migration required for this feature)
+- [X] T002 [P] Add dataclasses `BudgetLevelCandidate`, `PaceEvaluation`, `PaceWarning`, and `HealthResult` in `services/budget_pace.py` per `specs/015-budget-pace-alert/data-model.md`
 
 ---
 
@@ -30,15 +30,15 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 [P] Implement `compute_budget_health()` in `services/budget_pace.py` mirroring `web/src/lib/budget/health.ts` (`pace_ratio > 1` = ahead)
-- [ ] T004 [P] Implement `fetch_budget_summary()` Supabase RPC wrapper in `services/budget_pace.py` per `specs/015-budget-pace-alert/contracts/budget-pace-evaluation.md`
-- [ ] T005 Implement `build_level_candidates()` in `services/budget_pace.py` (L2 → L1 → total; skip undefined limits; FR-003)
-- [ ] T006 Implement `find_lowest_ahead_warning()` and `evaluate_pace_warnings()` in `services/budget_pace.py` (lowest-ahead rule per spec clarification)
-- [ ] T007 [P] Add `fetch_category_display_names()` helper querying `category_nodes` in `services/budget_pace.py`
-- [ ] T008 [P] Create `services/budget_pace_i18n.py` with ja/en/zh template strings per `specs/015-budget-pace-alert/contracts/budget-pace-reply.md`
-- [ ] T009 Implement `format_pace_warnings()` and `maybe_prepend_budget_pace_warning()` (template-only path) in `services/budget_pace.py` with FR-013 try/except returning body unchanged on failure
-- [ ] T010 [P] Add unit tests for `compute_budget_health()` in `tests/test_budget_pace.py` using vectors from `web/src/lib/budget/health.test.ts`
-- [ ] T011 [P] Add unit tests for lowest-ahead selection (L2 vs L1 vs total) and skipped undefined levels in `tests/test_budget_pace.py`
+- [X] T003 [P] Implement `compute_budget_health()` in `services/budget_pace.py` mirroring `web/src/lib/budget/health.ts` (`pace_ratio > 1` = ahead)
+- [X] T004 [P] Implement `fetch_budget_summary()` Supabase RPC wrapper in `services/budget_pace.py` per `specs/015-budget-pace-alert/contracts/budget-pace-evaluation.md`
+- [X] T005 Implement `build_level_candidates()` in `services/budget_pace.py` (L2 → L1 → total; skip undefined limits; FR-003)
+- [X] T006 Implement `find_lowest_ahead_warning()` and `evaluate_pace_warnings()` in `services/budget_pace.py` (lowest-ahead rule per spec clarification)
+- [X] T007 [P] Add `fetch_category_display_names()` helper querying `category_nodes` in `services/budget_pace.py`
+- [X] T008 [P] Create `services/budget_pace_i18n.py` with ja/en/zh template strings per `specs/015-budget-pace-alert/contracts/budget-pace-reply.md`
+- [X] T009 Implement `format_pace_warnings()` and `maybe_prepend_budget_pace_warning()` (template-only path) in `services/budget_pace.py` with FR-013 try/except returning body unchanged on failure
+- [X] T010 [P] Add unit tests for `compute_budget_health()` in `tests/test_budget_pace.py` using vectors from `web/src/lib/budget/health.test.ts`
+- [X] T011 [P] Add unit tests for lowest-ahead selection (L2 vs L1 vs total) and skipped undefined levels in `tests/test_budget_pace.py`
 
 **Checkpoint**: Pace evaluation callable with mocked RPC; template prepend works in isolation
 
@@ -52,15 +52,15 @@
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] Add unit tests for `maybe_prepend_budget_pace_warning()` ahead-of-pace, on-pace, and no-budget cases in `tests/test_budget_pace.py`
-- [ ] T013 [P] [US1] Add handler tests for pace prepend on successful text log in `tests/test_message_handler_persistence.py`
+- [X] T012 [P] [US1] Add unit tests for `maybe_prepend_budget_pace_warning()` ahead-of-pace, on-pace, and no-budget cases in `tests/test_budget_pace.py`
+- [X] T013 [P] [US1] Add handler tests for pace prepend on successful text log in `tests/test_message_handler_persistence.py`
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Wire `maybe_prepend_budget_pace_warning()` into `services/message_handler.py` after `insert_expenses` in `_enrich_and_persist_items` (text path)
-- [ ] T015 [US1] Wire pace prepend into image/receipt expense path in `services/message_handler.py`
-- [ ] T016 [US1] Support multi-item distinct path warnings (dedupe by category path; combine blocks) in `services/budget_pace.py` per FR-012
-- [ ] T017 [US1] Pass correct `TenantContext` (personal vs group) into pace evaluation from `services/message_handler.py` per FR-010/FR-011
+- [X] T014 [US1] Wire `maybe_prepend_budget_pace_warning()` into `services/message_handler.py` after `insert_expenses` in `_enrich_and_persist_items` (text path)
+- [X] T015 [US1] Wire pace prepend into image/receipt expense path in `services/message_handler.py`
+- [X] T016 [US1] Support multi-item distinct path warnings (dedupe by category path; combine blocks) in `services/budget_pace.py` per FR-012
+- [X] T017 [US1] Pass correct `TenantContext` (personal vs group) into pace evaluation from `services/message_handler.py` per FR-010/FR-011
 
 **Checkpoint**: New expense logs prepend pace warning when applicable; group ledger uses group budgets
 
@@ -74,13 +74,13 @@
 
 ### Tests for User Story 2
 
-- [ ] T018 [P] [US2] Add reply-edit tests for category and amount pace prepend in `tests/test_reply_edit.py`
+- [X] T018 [P] [US2] Add reply-edit tests for category and amount pace prepend in `tests/test_reply_edit.py`
 
 ### Implementation for User Story 2
 
-- [ ] T019 [US2] Wire pace prepend after successful category `update` in `services/reply_edit.py` `apply_edit_intent`
-- [ ] T020 [US2] Wire pace prepend after successful amount `update` in `services/reply_edit.py` `apply_edit_intent`
-- [ ] T021 [US2] Skip pace evaluation for delete, restore, clarify, and non-budget field-only edits in `services/reply_edit.py`
+- [X] T019 [US2] Wire pace prepend after successful category `update` in `services/reply_edit.py` `apply_edit_intent`
+- [X] T020 [US2] Wire pace prepend after successful amount `update` in `services/reply_edit.py` `apply_edit_intent`
+- [X] T021 [US2] Skip pace evaluation for delete, restore, clarify, and non-budget field-only edits in `services/reply_edit.py`
 
 **Checkpoint**: Reply-edit category/amount changes trigger same pace logic as new logs
 
@@ -94,14 +94,14 @@
 
 ### Tests for User Story 3
 
-- [ ] T022 [P] [US3] Add unit tests for LLM path and template fallback on Gemini failure in `tests/test_budget_pace.py`
+- [X] T022 [P] [US3] Add unit tests for LLM path and template fallback on Gemini failure in `tests/test_budget_pace.py`
 
 ### Implementation for User Story 3
 
-- [ ] T023 [P] [US3] Create `services/budget_pace_prompt.py` with structured LLM prompt builder per `specs/015-budget-pace-alert/contracts/budget-pace-reply.md`
-- [ ] T024 [US3] Integrate `gemini.generate_reply()` into `maybe_prepend_budget_pace_warning()` under `llm_operation_scope('budget_pace')` in `services/budget_pace.py`
-- [ ] T025 [P] [US3] Register `budget_pace` operation type in `services/metered_gemini.py` if not already covered by existing metering scopes
-- [ ] T026 [US3] Enforce `"{warning}\n\n{body}"` blank-line separation in `services/budget_pace.py` per SC-004
+- [X] T023 [P] [US3] Create `services/budget_pace_prompt.py` with structured LLM prompt builder per `specs/015-budget-pace-alert/contracts/budget-pace-reply.md`
+- [X] T024 [US3] Integrate `gemini.generate_reply()` into `maybe_prepend_budget_pace_warning()` under `llm_operation_scope('budget_pace')` in `services/budget_pace.py`
+- [X] T025 [P] [US3] Register `budget_pace` operation type in `services/metered_gemini.py` if not already covered by existing metering scopes
+- [X] T026 [US3] Enforce `"{warning}\n\n{body}"` blank-line separation in `services/budget_pace.py` per SC-004
 
 **Checkpoint**: Warnings use LLM when available; templates cover all three languages; visual separation from confirmation body
 
@@ -111,10 +111,10 @@
 
 **Purpose**: Hardening, regression fixes, and quickstart validation
 
-- [ ] T027 [P] Update `tests/test_message_handler_persistence.py` — replace or split `test_no_budget_impact_text` to allow pace text only when ahead of pace
-- [ ] T029 [P] Add FR-013 isolation tests (RPC error, Supabase unconfigured → body unchanged) in `tests/test_budget_pace.py`
-- [ ] T028 Run `specs/015-budget-pace-alert/quickstart.md` manual validation and document any gaps in task notes or fix code
-- [ ] T030 Run `python3 -m pytest -q` for `tests/test_budget_pace.py`, `tests/test_message_handler_persistence.py`, and `tests/test_reply_edit.py`
+- [X] T027 [P] Update `tests/test_message_handler_persistence.py` — replace or split `test_no_budget_impact_text` to allow pace text only when ahead of pace
+- [X] T029 [P] Add FR-013 isolation tests (RPC error, Supabase unconfigured → body unchanged) in `tests/test_budget_pace.py`
+- [X] T028 Run `specs/015-budget-pace-alert/quickstart.md` manual validation and document any gaps in task notes or fix code
+- [X] T030 Run `python3 -m pytest -q` for `tests/test_budget_pace.py`, `tests/test_message_handler_persistence.py`, and `tests/test_reply_edit.py`
 
 ---
 
@@ -147,7 +147,7 @@
 - **Phase 2**: T003, T004, T007, T008, T010, T011 in parallel after T002; then T005 → T006 → T009 sequentially
 - **Phase 3**: T012, T013 parallel; T014, T015 can parallel after T009
 - **Phase 4**: T018 parallel with T019–T021 prep
-- **Phase 5**: T022, T024, T025 parallel; T023 after T022
+- **Phase 5**: T022, T025 parallel; T023 after T022 prompt module; T024 after T023
 - **Phase 6**: T027, T029 parallel
 
 ---
