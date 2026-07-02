@@ -75,17 +75,6 @@ export type ListExpensesFilter = {
   categoryL2Id?: string;
 };
 
-function applyExpenseListSort<T extends { order: (...args: never[]) => T }>(
-  query: T,
-  sort: ExpenseListSort = DEFAULT_EXPENSE_LIST_SORT,
-): T {
-  const ascending = sort.dir === "asc";
-  if (sort.field === "amount") {
-    return query.order("amount", { ascending }).order("id", { ascending });
-  }
-  return query.order("expense_date", { ascending }).order("id", { ascending });
-}
-
 export async function listExpenses(
   tenantType: string,
   tenantId: string,
@@ -115,8 +104,14 @@ export async function listExpenses(
     query = query.eq("category_l1_id", filter.categoryL1Id);
   }
 
-  const { data, error } = await applyExpenseListSort(query, sort)
-    .range(offset, offset + limit - 1);
+  const ascending = sort.dir === "asc";
+  if (sort.field === "amount") {
+    query = query.order("amount", { ascending }).order("id", { ascending });
+  } else {
+    query = query.order("expense_date", { ascending }).order("id", { ascending });
+  }
+
+  const { data, error } = await query.range(offset, offset + limit - 1);
 
   if (error) {
     throw new Response(error.message, { status: 400 });
