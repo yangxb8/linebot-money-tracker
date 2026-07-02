@@ -3,8 +3,13 @@
 import { useEffect, useState } from "react";
 import { Modal, ModalBody, ModalHeader } from "@/components/Modal";
 import { useLanguage } from "@/components/LanguageProvider";
+import { ExpenseSortControls } from "@/components/expenses/ExpenseSortControls";
 import { formatYen } from "@/lib/budget/format";
 import { fetchExpensesForMonth } from "@/lib/expenses/client";
+import type {
+  ExpenseSortDir,
+  ExpenseSortField,
+} from "@/lib/expenses/sort-group";
 import type { ExpenseRecord } from "@/lib/expenses/types";
 import type { BudgetCategoryNode } from "@/lib/budget/types";
 import type { TenantOption } from "@/lib/dashboard/tenants";
@@ -38,6 +43,8 @@ export function BudgetCategoryExpensesModal({
   const [rows, setRows] = useState<ExpenseRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<ExpenseSortField>("date");
+  const [sortDir, setSortDir] = useState<ExpenseSortDir>("desc");
   const fmt = (n: number) => formatYen(n, locale as Locale);
 
   useEffect(() => {
@@ -50,7 +57,10 @@ export function BudgetCategoryExpensesModal({
       node.level === 2
         ? { categoryL2Id: node.node_id }
         : { categoryL1Id: node.node_id };
-    void fetchExpensesForMonth(tenant, budgetMonth, 0, 200, filter)
+    void fetchExpensesForMonth(tenant, budgetMonth, 0, 200, filter, {
+      field: sortField,
+      dir: sortDir,
+    })
       .then((data) => {
         if (!cancelled) setRows(data);
       })
@@ -63,11 +73,20 @@ export function BudgetCategoryExpensesModal({
     return () => {
       cancelled = true;
     };
-  }, [open, node, tenant, budgetMonth]);
+  }, [open, node, tenant, budgetMonth, sortField, sortDir]);
 
   if (!open || !node) return null;
 
   const total = rows.reduce((sum, row) => sum + Number(row.amount), 0);
+  const sortLabels = {
+    sortBy: t("expenseSortBy"),
+    sortDate: t("expenseSortDate"),
+    sortAmount: t("expenseSortAmount"),
+    dateLateToEarly: t("expenseSortDateLateToEarly"),
+    dateEarlyToLate: t("expenseSortDateEarlyToLate"),
+    amountLargeToSmall: t("expenseSortAmountLargeToSmall"),
+    amountSmallToLarge: t("expenseSortAmountSmallToLarge"),
+  };
 
   return (
     <Modal open={open} onClose={onClose} split>
@@ -102,27 +121,38 @@ export function BudgetCategoryExpensesModal({
             {t("emptyExpensesMonth")}
           </p>
         ) : (
-          <ul className="divide-y divide-gray-100 rounded-lg border border-gray-100">
-            {rows.map((row) => (
-              <li
-                key={row.id}
-                className="flex items-start justify-between gap-3 px-3 py-2"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm text-gray-900">
-                    {row.description || "—"}
+          <div className="space-y-3">
+            <div className="rounded-xl border border-gray-100 bg-white px-3 py-2 shadow-sm">
+              <ExpenseSortControls
+                sortField={sortField}
+                sortDir={sortDir}
+                labels={sortLabels}
+                onSortFieldChange={setSortField}
+                onSortDirChange={setSortDir}
+              />
+            </div>
+            <ul className="divide-y divide-gray-100 rounded-lg border border-gray-100">
+              {rows.map((row) => (
+                <li
+                  key={row.id}
+                  className="flex items-start justify-between gap-3 px-3 py-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-gray-900">
+                      {row.description || "—"}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {formatDate(row.expense_date)}
+                      {row.category_l2_name ? ` · ${row.category_l2_name}` : ""}
+                    </p>
+                  </div>
+                  <p className="whitespace-nowrap text-sm font-medium text-gray-900">
+                    {fmt(Number(row.amount))}
                   </p>
-                  <p className="text-xs text-gray-500">
-                    {formatDate(row.expense_date)}
-                    {row.category_l2_name ? ` · ${row.category_l2_name}` : ""}
-                  </p>
-                </div>
-                <p className="whitespace-nowrap text-sm font-medium text-gray-900">
-                  {fmt(Number(row.amount))}
-                </p>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </ModalBody>
     </Modal>
