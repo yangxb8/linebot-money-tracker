@@ -39,12 +39,17 @@ class BudgetLevelCandidate:
 @dataclass(frozen=True)
 class PaceWarning:
     level: BudgetLevel
+    category_node_id: Optional[str]
     display_name: str
     daily_allowance: int
     remaining: Decimal
     days_remaining: int
     text: str
     source: Literal['llm', 'template'] = 'template'
+
+
+def _warning_bucket_key(warning: PaceWarning, *, currency: str) -> tuple:
+    return (warning.level, warning.category_node_id, currency)
 
 
 def compute_budget_health(
@@ -237,6 +242,7 @@ def find_lowest_ahead_warning(
         )
         return PaceWarning(
             level=candidate.level,
+            category_node_id=candidate.category_node_id,
             display_name=candidate.display_name,
             daily_allowance=daily_allowance,
             remaining=remaining,
@@ -407,6 +413,7 @@ def evaluate_pace_warnings(
         unique_rows[_path_key(row)] = row
 
     warnings: List[PaceWarning] = []
+    seen_buckets: set[tuple] = set()
     summaries: Dict[tuple, Dict[str, Any]] = {}
 
     for row in unique_rows.values():
@@ -449,6 +456,10 @@ def evaluate_pace_warnings(
             language=language,
         )
         if warning is not None:
+            bucket_key = _warning_bucket_key(warning, currency=currency)
+            if bucket_key in seen_buckets:
+                continue
+            seen_buckets.add(bucket_key)
             warnings.append(warning)
 
     return warnings
@@ -484,6 +495,7 @@ async def _format_warnings_with_llm(
                 formatted.append(
                     PaceWarning(
                         level=warning.level,
+                        category_node_id=warning.category_node_id,
                         display_name=warning.display_name,
                         daily_allowance=warning.daily_allowance,
                         remaining=warning.remaining,
