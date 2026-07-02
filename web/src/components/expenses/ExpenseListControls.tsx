@@ -1,5 +1,6 @@
 "use client";
 
+import { ExpenseSortControls } from "@/components/expenses/ExpenseSortControls";
 import type { ExpenseSortDir, ExpenseSortField } from "@/lib/expenses/sort-group";
 
 type Props = {
@@ -30,11 +31,6 @@ export function ExpenseListControls({
   onSortFieldChange,
   onSortDirChange,
 }: Props) {
-  const ascLabel =
-    sortField === "date" ? labels.dateEarlyToLate : labels.amountSmallToLarge;
-  const descLabel =
-    sortField === "date" ? labels.dateLateToEarly : labels.amountLargeToSmall;
-
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2 shadow-sm">
       <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -47,29 +43,13 @@ export function ExpenseListControls({
         {labels.groupByCategory}
       </label>
 
-      <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
-        <span>{labels.sortBy}</span>
-        <select
-          value={sortField}
-          onChange={(event) =>
-            onSortFieldChange(event.target.value as ExpenseSortField)
-          }
-          className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm"
-        >
-          <option value="date">{labels.sortDate}</option>
-          <option value="amount">{labels.sortAmount}</option>
-        </select>
-        <select
-          value={sortDir}
-          onChange={(event) =>
-            onSortDirChange(event.target.value as ExpenseSortDir)
-          }
-          className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm"
-        >
-          <option value="desc">{descLabel}</option>
-          <option value="asc">{ascLabel}</option>
-        </select>
-      </div>
+      <ExpenseSortControls
+        sortField={sortField}
+        sortDir={sortDir}
+        labels={labels}
+        onSortFieldChange={onSortFieldChange}
+        onSortDirChange={onSortDirChange}
+      />
     </div>
   );
 }
