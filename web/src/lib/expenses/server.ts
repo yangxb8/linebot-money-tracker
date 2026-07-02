@@ -11,6 +11,8 @@ import type {
   FiscalMonthOption,
   UpdateExpensePayload,
 } from "@/lib/expenses/types";
+import type { ExpenseListSort } from "@/lib/expenses/sort-group";
+import { DEFAULT_EXPENSE_LIST_SORT } from "@/lib/expenses/sort-group";
 
 export { parseTenantParams };
 
@@ -73,6 +75,17 @@ export type ListExpensesFilter = {
   categoryL2Id?: string;
 };
 
+function applyExpenseListSort<T extends { order: (...args: never[]) => T }>(
+  query: T,
+  sort: ExpenseListSort = DEFAULT_EXPENSE_LIST_SORT,
+): T {
+  const ascending = sort.dir === "asc";
+  if (sort.field === "amount") {
+    return query.order("amount", { ascending }).order("id", { ascending });
+  }
+  return query.order("expense_date", { ascending }).order("id", { ascending });
+}
+
 export async function listExpenses(
   tenantType: string,
   tenantId: string,
@@ -80,6 +93,7 @@ export async function listExpenses(
   offset: number,
   limit: number,
   filter: ListExpensesFilter = {},
+  sort: ExpenseListSort = DEFAULT_EXPENSE_LIST_SORT,
 ): Promise<ExpenseRecord[]> {
   const supabase = await requireExpenseUser();
   await assertTenantAccess(supabase, tenantType, tenantId);
@@ -101,9 +115,7 @@ export async function listExpenses(
     query = query.eq("category_l1_id", filter.categoryL1Id);
   }
 
-  const { data, error } = await query
-    .order("expense_date", { ascending: false })
-    .order("created_at", { ascending: false })
+  const { data, error } = await applyExpenseListSort(query, sort)
     .range(offset, offset + limit - 1);
 
   if (error) {

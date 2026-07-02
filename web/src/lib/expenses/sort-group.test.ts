@@ -5,6 +5,7 @@ import {
   compareExpenses,
   groupExpensesByCategory,
   groupExpensesByL1Category,
+  parseExpenseListSort,
   sortExpenses,
 } from "@/lib/expenses/sort-group";
 
@@ -57,6 +58,29 @@ const categories: CategoryNode[] = [
     deletable: true,
   },
 ];
+
+describe("parseExpenseListSort", () => {
+  it("defaults to date descending", () => {
+    expect(parseExpenseListSort(null, null)).toEqual({
+      field: "date",
+      dir: "desc",
+    });
+  });
+
+  it("parses amount ascending", () => {
+    expect(parseExpenseListSort("amount", "asc")).toEqual({
+      field: "amount",
+      dir: "asc",
+    });
+  });
+
+  it("falls back for invalid values", () => {
+    expect(parseExpenseListSort("invalid", "sideways")).toEqual({
+      field: "date",
+      dir: "desc",
+    });
+  });
+});
 
 describe("sortExpenses", () => {
   it("sorts by date descending", () => {

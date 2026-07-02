@@ -5,6 +5,26 @@ import type { ExpenseRecord } from "@/lib/expenses/types";
 export type ExpenseSortField = "date" | "amount";
 export type ExpenseSortDir = "asc" | "desc";
 
+export type ExpenseListSort = {
+  field: ExpenseSortField;
+  dir: ExpenseSortDir;
+};
+
+export const DEFAULT_EXPENSE_LIST_SORT: ExpenseListSort = {
+  field: "date",
+  dir: "desc",
+};
+
+export function parseExpenseListSort(
+  field: string | null | undefined,
+  dir: string | null | undefined,
+): ExpenseListSort {
+  return {
+    field: field === "amount" ? "amount" : "date",
+    dir: dir === "asc" ? "asc" : "desc",
+  };
+}
+
 export type ExpenseGroup = {
   key: string;
   label: string;

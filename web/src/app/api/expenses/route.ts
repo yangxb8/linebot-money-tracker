@@ -5,6 +5,7 @@ import {
   listExpenses,
   parseTenantParams,
 } from "@/lib/expenses/server";
+import { parseExpenseListSort } from "@/lib/expenses/sort-group";
 
 export async function GET(request: Request) {
   try {
@@ -25,6 +26,10 @@ export async function GET(request: Request) {
     );
     const categoryL1Id = url.searchParams.get("category_l1_id") || undefined;
     const categoryL2Id = url.searchParams.get("category_l2_id") || undefined;
+    const sort = parseExpenseListSort(
+      url.searchParams.get("sort_field"),
+      url.searchParams.get("sort_dir"),
+    );
 
     const rows = await listExpenses(
       tenantType,
@@ -33,6 +38,7 @@ export async function GET(request: Request) {
       offset,
       limit,
       { categoryL1Id, categoryL2Id },
+      sort,
     );
     return NextResponse.json(rows);
   } catch (error) {

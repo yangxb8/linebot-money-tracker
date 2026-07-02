@@ -79,10 +79,7 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
     monthMeta?.total_amount ??
     rows.reduce((sum, row) => sum + Number(row.amount), 0);
 
-  const sortedRows = useMemo(
-    () => sortExpenses(rows, sortField, sortDir),
-    [rows, sortField, sortDir],
-  );
+  const flatSortKey = groupByCategory ? "" : `${sortField}:${sortDir}`;
 
   const l1Groups = useMemo(() => {
     const grouped = groupExpensesByL1Category(rows, categories);
@@ -115,7 +112,14 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
       setError(null);
 
       try {
-        const page = await fetchExpensesForMonth(tenant, budgetMonth, nextOffset);
+        const page = await fetchExpensesForMonth(
+          tenant,
+          budgetMonth,
+          nextOffset,
+          undefined,
+          {},
+          groupByCategory ? undefined : { field: sortField, dir: sortDir },
+        );
         setRows((prev) => (append ? [...prev, ...page] : page));
         setOffset(nextOffset + page.length);
         setHasMore(page.length === PAGE_SIZE);
@@ -127,7 +131,7 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
         loadingMoreRef.current = false;
       }
     },
-    [tenant, budgetMonth],
+    [tenant, budgetMonth, sortField, sortDir, groupByCategory],
   );
 
   const refresh = useCallback(async () => {
@@ -176,7 +180,7 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
     setOffset(0);
     setHasMore(true);
     void loadPage(0, false);
-  }, [loadPage]);
+  }, [tenant, budgetMonth, groupByCategory, flatSortKey, loadPage]);
 
   useEffect(() => {
     void loadMonths().catch(() => {
@@ -394,7 +398,7 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
       ) : (
         <div className="space-y-3">
           <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100 bg-white shadow-sm">
-            {sortedRows.map((row) => (
+            {rows.map((row) => (
               <ExpenseRowItem key={row.id} row={row} {...rowProps} />
             ))}
           </ul>
