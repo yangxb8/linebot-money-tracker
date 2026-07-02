@@ -18,6 +18,7 @@ import {
 } from "@/lib/budget/format";
 import {
   deleteExpense,
+  fetchAllExpensesForMonth,
   fetchExpenseFiscalMonths,
   fetchExpensesForMonth,
 } from "@/lib/expenses/client";
@@ -27,7 +28,7 @@ import {
   applyExpenseUpdated,
 } from "@/lib/expenses/list-mutations";
 import {
-  groupExpensesByCategory,
+  groupExpensesByL1Category,
   sortExpenses,
   type ExpenseSortDir,
   type ExpenseSortField,
@@ -59,6 +60,7 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingAll, setLoadingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
@@ -82,11 +84,15 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
     [rows, sortField, sortDir],
   );
 
-  const groups = useMemo(() => {
-    const grouped = groupExpensesByCategory(rows, categories);
+  const l1Groups = useMemo(() => {
+    const grouped = groupExpensesByL1Category(rows, categories);
     return grouped.map((group) => ({
       ...group,
-      items: sortExpenses(group.items, sortField, sortDir),
+      directItems: sortExpenses(group.directItems, sortField, sortDir),
+      l2Groups: group.l2Groups.map((l2Group) => ({
+        ...l2Group,
+        items: sortExpenses(l2Group.items, sortField, sortDir),
+      })),
     }));
   }, [rows, categories, sortField, sortDir]);
 
@@ -177,6 +183,32 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
       setError("fetch_failed");
     });
   }, [loadMonths]);
+
+  useEffect(() => {
+    if (!groupByCategory || !hasMore || loading || loadingMore) return;
+
+    let cancelled = false;
+    setLoadingAll(true);
+    setError(null);
+
+    void fetchAllExpensesForMonth(tenant, budgetMonth, PAGE_SIZE)
+      .then((all) => {
+        if (cancelled) return;
+        setRows(all);
+        setOffset(all.length);
+        setHasMore(false);
+      })
+      .catch(() => {
+        if (!cancelled) setError("fetch_failed");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingAll(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [groupByCategory, hasMore, loading, loadingMore, tenant, budgetMonth]);
 
   useEffect(() => {
     if (groupByCategory || !hasMore || loading || loadingMore) return;
@@ -350,11 +382,15 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
           {isNewUser ? t("emptyExpensesNewUser") : t("emptyExpensesMonth")}
         </p>
       ) : groupByCategory ? (
-        <ExpenseGroupList
-          groups={groups}
-          itemCountLabel={itemCountLabel}
-          {...rowProps}
-        />
+        loadingAll ? (
+          <p className="text-center text-sm text-gray-500 py-8">{t("loading")}</p>
+        ) : (
+          <ExpenseGroupList
+            groups={l1Groups}
+            itemCountLabel={itemCountLabel}
+            {...rowProps}
+          />
+        )
       ) : (
         <div className="space-y-3">
           <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100 bg-white shadow-sm">
