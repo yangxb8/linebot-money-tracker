@@ -203,6 +203,76 @@ class TestEvaluatePaceWarnings(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
         self.assertEqual(warnings[0].level, 'l2')
 
+    @patch('services.budget_pace.fetch_budget_summary')
+    @patch(
+        'services.budget_pace.fetch_category_display_names',
+        return_value={'l2-a': '外食', 'l2-b': '超市', 'l1-id': '食費'},
+    )
+    def test_dedupes_same_l1_bucket_across_multiple_l2_paths(self, _names, fetch_summary):
+        fetch_summary.return_value = {
+            'has_any_limit': True,
+            'elapsed_days': 10,
+            'days_in_month': 30,
+            'budgets': [{'budget_level': 'l1', 'category_node_id': 'l1-id', 'amount': 50000}],
+            'spent_by_bucket': {'l1:l1-id': 45000},
+        }
+        rows = [
+            {
+                'assigned_level': 2,
+                'category_node_id': 'l2-a',
+                'category_l1_id': 'l1-id',
+                'expense_date': date(2026, 6, 15),
+                'currency': 'JPY',
+            },
+            {
+                'assigned_level': 2,
+                'category_node_id': 'l2-b',
+                'category_l1_id': 'l1-id',
+                'expense_date': date(2026, 6, 15),
+                'currency': 'JPY',
+            },
+        ]
+        warnings = evaluate_pace_warnings(rows, TenantContext.personal('u1'), language='ja')
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0].level, 'l1')
+        self.assertEqual(warnings[0].category_node_id, 'l1-id')
+
+    @patch('services.budget_pace.fetch_budget_summary')
+    @patch(
+        'services.budget_pace.fetch_category_display_names',
+        return_value={'l2-a': '外食', 'l2-b': '交通', 'l1-a': '食費', 'l1-b': '交通費'},
+    )
+    def test_keeps_distinct_l1_buckets(self, _names, fetch_summary):
+        fetch_summary.return_value = {
+            'has_any_limit': True,
+            'elapsed_days': 10,
+            'days_in_month': 30,
+            'budgets': [
+                {'budget_level': 'l1', 'category_node_id': 'l1-a', 'amount': 50000},
+                {'budget_level': 'l1', 'category_node_id': 'l1-b', 'amount': 20000},
+            ],
+            'spent_by_bucket': {'l1:l1-a': 45000, 'l1:l1-b': 18000},
+        }
+        rows = [
+            {
+                'assigned_level': 2,
+                'category_node_id': 'l2-a',
+                'category_l1_id': 'l1-a',
+                'expense_date': date(2026, 6, 15),
+                'currency': 'JPY',
+            },
+            {
+                'assigned_level': 2,
+                'category_node_id': 'l2-b',
+                'category_l1_id': 'l1-b',
+                'expense_date': date(2026, 6, 15),
+                'currency': 'JPY',
+            },
+        ]
+        warnings = evaluate_pace_warnings(rows, TenantContext.personal('u1'), language='ja')
+        self.assertEqual(len(warnings), 2)
+        self.assertEqual({w.category_node_id for w in warnings}, {'l1-a', 'l1-b'})
+
 
 class TestExpenseRowsFromEnriched(unittest.TestCase):
     def test_builds_rows_from_enriched_items(self):
