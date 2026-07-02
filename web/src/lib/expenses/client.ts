@@ -1,4 +1,5 @@
 import type { TenantOption } from "@/lib/dashboard/tenants";
+import type { ExpenseListSort } from "@/lib/expenses/sort-group";
 import type {
   CreateExpensePayload,
   ExpenseRecord,
@@ -31,6 +32,7 @@ export async function fetchExpensesForMonth(
   offset: number,
   limit?: number,
   filter: ExpenseCategoryFilter = {},
+  sort?: ExpenseListSort,
 ): Promise<ExpenseRecord[]> {
   const params = new URLSearchParams({
     tenant_type: tenant.tenantType,
@@ -40,6 +42,10 @@ export async function fetchExpensesForMonth(
   });
   if (limit !== undefined) {
     params.set("limit", String(limit));
+  }
+  if (sort) {
+    params.set("sort_field", sort.field);
+    params.set("sort_dir", sort.dir);
   }
   if (filter.categoryL2Id) {
     params.set("category_l2_id", filter.categoryL2Id);

@@ -11,6 +11,8 @@ import type {
   FiscalMonthOption,
   UpdateExpensePayload,
 } from "@/lib/expenses/types";
+import type { ExpenseListSort } from "@/lib/expenses/sort-group";
+import { DEFAULT_EXPENSE_LIST_SORT } from "@/lib/expenses/sort-group";
 
 export { parseTenantParams };
 
@@ -80,6 +82,7 @@ export async function listExpenses(
   offset: number,
   limit: number,
   filter: ListExpensesFilter = {},
+  sort: ExpenseListSort = DEFAULT_EXPENSE_LIST_SORT,
 ): Promise<ExpenseRecord[]> {
   const supabase = await requireExpenseUser();
   await assertTenantAccess(supabase, tenantType, tenantId);
@@ -101,10 +104,14 @@ export async function listExpenses(
     query = query.eq("category_l1_id", filter.categoryL1Id);
   }
 
-  const { data, error } = await query
-    .order("expense_date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+  const ascending = sort.dir === "asc";
+  if (sort.field === "amount") {
+    query = query.order("amount", { ascending }).order("id", { ascending });
+  } else {
+    query = query.order("expense_date", { ascending }).order("id", { ascending });
+  }
+
+  const { data, error } = await query.range(offset, offset + limit - 1);
 
   if (error) {
     throw new Response(error.message, { status: 400 });
