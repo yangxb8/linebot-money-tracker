@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Modal, ModalBody, ModalHeader } from "@/components/Modal";
 import { useLanguage } from "@/components/LanguageProvider";
 import { IsoDateInput } from "@/components/IsoDateInput";
 import { fetchCategories } from "@/lib/categories/client";
@@ -195,20 +196,28 @@ export function ScheduleForm({ tenant, schedule, onClose, onSaved }: Props) {
   const l2Nodes = categories.filter((n) => n.level === 2);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
-      <form
-        onSubmit={handleSubmit}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-4 shadow-xl sm:rounded-2xl"
-      >
-        <div className="mb-4 flex items-center justify-between">
+    <Modal
+      as="form"
+      onClose={onClose}
+      split
+      formProps={{ onSubmit: handleSubmit }}
+    >
+      <ModalHeader>
+        <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-gray-900">
             {schedule ? t("periodicEditTitle") : t("periodicCreateTitle")}
           </h2>
-          <button type="button" onClick={onClose} className="text-sm text-gray-500">
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-lg px-2 py-1 text-sm text-gray-500 hover:bg-gray-50"
+          >
             {t("cancel")}
           </button>
         </div>
+      </ModalHeader>
 
+      <ModalBody>
         <div className="space-y-4">
           <div>
             <label className="text-sm font-medium text-gray-700">{t("periodicName")}</label>
@@ -305,7 +314,7 @@ export function ScheduleForm({ tenant, schedule, onClose, onSaved }: Props) {
             {saving ? t("saving") : t("periodicSave")}
           </button>
         </div>
-      </form>
-    </div>
+      </ModalBody>
+    </Modal>
   );
 }

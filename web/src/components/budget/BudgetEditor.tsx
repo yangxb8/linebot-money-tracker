@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Modal, ModalBody, ModalHeader } from "@/components/Modal";
 import { useLanguage } from "@/components/LanguageProvider";
 import { fetchBudgetSuggestions } from "@/lib/budget/client";
 import type {
@@ -205,15 +206,21 @@ export function BudgetEditor({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-4 shadow-xl sm:rounded-2xl">
-        <div className="mb-4 flex items-center justify-between">
+    <Modal open={open} onClose={onClose} split>
+      <ModalHeader>
+        <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">{t("budgetEditTitle")}</h2>
-          <button type="button" onClick={onClose} className="text-sm text-gray-500">
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-lg px-2 py-1 text-sm text-gray-500 hover:bg-gray-50"
+          >
             {t("cancel")}
           </button>
         </div>
+      </ModalHeader>
 
+      <ModalBody>
         {!editable ? (
           <p className="text-sm text-gray-600">{t("budgetReadOnlyMonth")}</p>
         ) : (
@@ -319,7 +326,7 @@ export function BudgetEditor({
             {saving ? t("saving") : t("budgetSave")}
           </button>
         ) : null}
-      </div>
-    </div>
+      </ModalBody>
+    </Modal>
   );
 }

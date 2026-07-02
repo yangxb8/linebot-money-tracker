@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Modal, ModalBody, ModalHeader } from "@/components/Modal";
 import { IsoDateInput } from "@/components/IsoDateInput";
 import { useLanguage } from "@/components/LanguageProvider";
 import { CategoryNodeSelect } from "@/components/expenses/CategoryNodeSelect";
@@ -122,24 +123,28 @@ export function ExpenseForm({
 
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
-      <form
-        onSubmit={(event) => void handleSubmit(event)}
-        className="w-full max-w-lg rounded-2xl bg-white p-4 shadow-xl"
-      >
-        <div className="mb-4 flex items-center justify-between gap-3">
+    <Modal
+      as="form"
+      onClose={onClose}
+      split
+      formProps={{ onSubmit: (event) => void handleSubmit(event) }}
+    >
+      <ModalHeader>
+        <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-gray-900">
             {expense ? t("expenseEditTitle") : t("expenseCreateTitle")}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-sm text-gray-500 underline"
+            className="shrink-0 rounded-lg px-2 py-1 text-sm text-gray-500 underline hover:bg-gray-50"
           >
             {t("cancel")}
           </button>
         </div>
+      </ModalHeader>
 
+      <ModalBody>
         <div className="space-y-3">
           <div>
             <label className="text-sm font-medium text-gray-700">
@@ -220,7 +225,7 @@ export function ExpenseForm({
             {saving ? t("saving") : t("budgetSave")}
           </button>
         </div>
-      </form>
-    </div>
+      </ModalBody>
+    </Modal>
   );
 }
