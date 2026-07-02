@@ -23,3 +23,47 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Mobile-friendly modals: respect dynamic viewport + safe areas (URL bar, notch). */
+.modal-backdrop {
+  padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 640px) {
+  .modal-backdrop {
+    padding: 1rem;
+  }
+}
+
+.modal-panel {
+  max-height: min(
+    90dvh,
+    calc(
+      100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) -
+        1.5rem
+    )
+  );
+}
+
+.modal-panel-split {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-panel-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.modal-header {
+  flex-shrink: 0;
+}
+
+.modal-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Modal, ModalBody, ModalHeader } from "@/components/Modal";
 import { useLanguage } from "@/components/LanguageProvider";
 import type { CategoryNode } from "@/lib/categories/types";
 
@@ -66,12 +67,15 @@ export function DeleteCategoryDialog({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
-      <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl">
+    <Modal onClose={onCancel} panelClassName="max-w-md" split>
+      <ModalHeader className="border-none pb-0">
         <h3 className="text-base font-semibold text-gray-900">
           {t("deleteCategoryTitle")}
         </h3>
-        <p className="mt-2 text-sm text-gray-600">
+      </ModalHeader>
+
+      <ModalBody className="pt-2">
+        <p className="text-sm text-gray-600">
           {needsTransfer ? (
             <>
               {t("deleteCategoryTransferPrefix")} {target.expense_count}{" "}
@@ -170,7 +174,7 @@ export function DeleteCategoryDialog({
             {t("delete")}
           </button>
         </div>
-      </div>
-    </div>
+      </ModalBody>
+    </Modal>
   );
 }
