@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { fiscalPeriodEnd } from "@/lib/budget/format";
+import { resolveExpenseMerchantDisplay } from "@/lib/expenses/merchant.server";
 import { resolveCategoryAssignment } from "@/lib/periodic/server";
 import {
   assertTenantAccess,
@@ -17,7 +18,7 @@ import { DEFAULT_EXPENSE_LIST_SORT } from "@/lib/expenses/sort-group";
 export { parseTenantParams };
 
 const EXPENSE_SELECT =
-  "id, expense_date, description, amount, currency, category_node_id, category_name_ja, category_l1_name, category_l2_name, logged_by_line_user_id, tenant_type, tenant_id";
+  "id, expense_date, description, amount, currency, category_node_id, category_name_ja, category_l1_name, category_l2_name, logged_by_line_user_id, tenant_type, tenant_id, metadata";
 
 export async function requireExpenseUser() {
   const supabase = await createClient();
@@ -31,10 +32,11 @@ export async function requireExpenseUser() {
 }
 
 function mapExpenseRow(row: Record<string, unknown>): ExpenseRecord {
+  const description = String(row.description);
   return {
     id: String(row.id),
     expense_date: String(row.expense_date).slice(0, 10),
-    description: String(row.description),
+    description,
     amount: Number(row.amount),
     currency: String(row.currency),
     category_node_id: String(row.category_node_id),
@@ -44,6 +46,7 @@ function mapExpenseRow(row: Record<string, unknown>): ExpenseRecord {
     logged_by_line_user_id: String(row.logged_by_line_user_id),
     tenant_type: String(row.tenant_type),
     tenant_id: String(row.tenant_id),
+    merchant_display: resolveExpenseMerchantDisplay(row.metadata, description),
   };
 }
 

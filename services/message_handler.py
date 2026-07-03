@@ -191,6 +191,8 @@ async def _enrich_and_persist_items(
                     category_code=guess_node.code,
                     category_guess_code=cat_result.guessed,
                     category_source=cat_result.source,
+                    merchant_key=cat_result.merchant_key,
+                    display_merchant=cat_result.display_merchant,
                 )
             )
 

@@ -11,6 +11,7 @@ export type ExpenseRecord = {
   logged_by_line_user_id: string;
   tenant_type: string;
   tenant_id: string;
+  merchant_display: string | null;
 };
 
 export type FiscalMonthOption = {

@@ -1,6 +1,7 @@
 "use client";
 
 import { ExpenseCategoryTag } from "@/components/expenses/ExpenseCategoryTag";
+import { ExpenseMerchantTag } from "@/components/expenses/ExpenseMerchantTag";
 import type { CategoryNode } from "@/lib/categories/types";
 import type { ExpenseRecord } from "@/lib/expenses/types";
 
@@ -60,13 +61,18 @@ export function ExpenseRowItem({
         </p>
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
-        <ExpenseCategoryTag
-          expense={row}
-          categories={categories}
-          disabled={disabled}
-          onUpdated={onUpdated}
-          onError={onError}
-        />
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          <ExpenseCategoryTag
+            expense={row}
+            categories={categories}
+            disabled={disabled}
+            onUpdated={onUpdated}
+            onError={onError}
+          />
+          {row.merchant_display ? (
+            <ExpenseMerchantTag label={row.merchant_display} />
+          ) : null}
+        </div>
         <button
           type="button"
           disabled={disabled}
