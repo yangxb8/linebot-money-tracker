@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -10,11 +10,13 @@ import {
   stripBranchSuffix,
 } from "@/lib/expenses/merchant";
 
-const aliases = parseMerchantAliases(
-  readFileSync(join(process.cwd(), "..", "data", "merchant_aliases_ja.yaml"), "utf8"),
-);
+const bundledAliasPath = join(process.cwd(), "src/data/merchant_aliases_ja.yaml");
+const aliases = parseMerchantAliases(readFileSync(bundledAliasPath, "utf8"));
 
 describe("merchant display", () => {
+  it("ships bundled alias data for production deploys", () => {
+    expect(existsSync(bundledAliasPath)).toBe(true);
+  });
   it("strips branch suffixes", () => {
     expect(stripBranchSuffix("スターバックス 渋谷店")).toBe("スターバックス");
   });
