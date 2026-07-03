@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal, ModalBody, ModalHeader } from "@/components/Modal";
 import { useLanguage } from "@/components/LanguageProvider";
+import { ExpenseMerchantTag } from "@/components/expenses/ExpenseMerchantTag";
 import { ExpenseSortControls } from "@/components/expenses/ExpenseSortControls";
 import { formatYen } from "@/lib/budget/format";
 import { fetchExpensesForMonth } from "@/lib/expenses/client";
@@ -145,6 +146,11 @@ export function BudgetCategoryExpensesModal({
                       {formatDate(row.expense_date)}
                       {row.category_l2_name ? ` · ${row.category_l2_name}` : ""}
                     </p>
+                    {row.merchant_display ? (
+                      <div className="mt-1">
+                        <ExpenseMerchantTag label={row.merchant_display} />
+                      </div>
+                    ) : null}
                   </div>
                   <p className="whitespace-nowrap text-sm font-medium text-gray-900">
                     {fmt(Number(row.amount))}

@@ -94,11 +94,21 @@ def expense_date_for_item(item: Dict[str, Any]) -> date:
     return datetime.now(JST).date()
 
 
-def _metadata_for_item(item: Dict[str, Any]) -> Dict[str, Any]:
+def _metadata_for_item(
+    item: Dict[str, Any],
+    *,
+    merchant_key: Optional[str] = None,
+    display_merchant: Optional[str] = None,
+) -> Dict[str, Any]:
+    metadata: Dict[str, Any] = {}
     store_name = item.get('store_name')
     if store_name is not None and str(store_name).strip():
-        return {'store_name': str(store_name).strip()}
-    return {}
+        metadata['store_name'] = str(store_name).strip()
+    if merchant_key:
+        metadata['merchant_key'] = str(merchant_key).strip()
+    if display_merchant:
+        metadata['display_merchant'] = str(display_merchant).strip()
+    return metadata
 
 
 def build_insert_row(
@@ -109,6 +119,8 @@ def build_insert_row(
     category_code: str,
     category_guess_code: Optional[str] = None,
     category_source: Optional[str] = None,
+    merchant_key: Optional[str] = None,
+    display_merchant: Optional[str] = None,
 ) -> ExpenseInsertRow:
     node = resolve_code(category_code, context.tenant)
     amount_raw = item.get('amount', 0)
@@ -135,7 +147,11 @@ def build_insert_row(
         category_l3_id=node.l3_id,
         category_guess_code=category_guess_code or category_code,
         category_source=category_source,
-        metadata=_metadata_for_item(item),
+        metadata=_metadata_for_item(
+            item,
+            merchant_key=merchant_key,
+            display_merchant=display_merchant,
+        ),
     )
 
 

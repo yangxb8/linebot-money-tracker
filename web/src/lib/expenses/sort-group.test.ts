@@ -22,6 +22,7 @@ function expense(
     logged_by_line_user_id: "u1",
     tenant_type: "personal",
     tenant_id: "t1",
+    merchant_display: null,
     ...overrides,
   };
 }
