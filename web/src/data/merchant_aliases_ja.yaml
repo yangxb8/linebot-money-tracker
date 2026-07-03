@@ -1,0 +1,331 @@
+aeon:
+- イオン
+- AEON
+- まいばすけっと
+- マイバスケット
+- My Basket
+amazon:
+- Amazon
+- アマゾン
+- Amazon.co.jp
+au:
+- au
+- KDDI
+belc:
+- ベルク
+- Belc
+bic_camera:
+- ビックカメラ
+- BicCamera
+coco_ichi:
+- ココイチ
+- ココイチバンヤ
+- CoCo壱
+coco_store:
+- ココストア
+- Coco Store
+cocokara_fine:
+- ココカラファイン
+- Cocokara Fine
+cosmos:
+- コスモス
+- Cosmos
+create_sd:
+- クリエイトSD
+- クリエイトエスディー
+daily_yamazaki:
+- デイリーヤマザキ
+- ヤマザキデイリー
+daiso:
+- ダイソー
+- Daiso
+- セリア
+- Seria
+- キャンドゥ
+- Can Do
+demae_can:
+- 出前館
+dennys:
+- デニーズ
+- Denny's
+didi:
+- DiDi
+- ディディ
+don_quijote:
+- ドン・キホーテ
+- ドンキ
+- ドンキホーテ
+- Don Quijote
+doutor:
+- ドトール
+- Doutor
+edion:
+- エディオン
+- Edion
+excelsior:
+- エクセルシオール
+- Excelsior
+familymart:
+- ファミリーマート
+- ファミマ
+- FamilyMart
+- FAMILYMART
+go_taxi:
+- GO
+- GOタクシー
+gu:
+- ジーユー
+- GU
+gyomu_super:
+- 業務スーパー
+- 業スー
+halods:
+- ハローズ
+- Harrows
+hamazushi:
+- はま寿司
+- Hamazushi
+hard_off:
+- ハードオフ
+- オフハウス
+- Book Off
+- ブックオフ
+icoca:
+- ICOCA
+- イコカ
+ikea:
+- IKEA
+- イケア
+inageya:
+- いなげや
+- Inageya
+ito_yokado:
+- イトーヨーカドー
+- Ito-Yokado
+japan_railways:
+- JR
+- JR東日本
+- JR西日本
+- JR東海
+- JR九州
+- JR四国
+japan_taxi:
+- 日本交通
+- 国際自動車
+kasumi:
+- カスミ
+- フードスクエアカスミ
+kfc:
+- ケンタッキー
+- KFC
+- ケンタ
+kojima:
+- コジマ
+- Kojima
+komeda:
+- コメダ珈琲
+- コメダ
+- Komeda
+kura_sushi:
+- くら寿司
+- Kura Sushi
+lawson:
+- ローソン
+- LAWSON
+- ナチュラルローソン
+- ローソン100
+life:
+- ライフ
+- LIFE
+- ライフコーポレーション
+lopia:
+- ロピア
+- Lopia
+maruetsu:
+- マルエツ
+- マルエツプチ
+matsumoto_kiyoshi:
+- マツモトキヨシ
+- マツキヨ
+- Matsumoto Kiyoshi
+matsuya:
+- 松屋
+- Matsuya
+maxvalu:
+- マックスバリュ
+- MaxValu
+mcdonalds:
+- マクドナルド
+- マック
+- McDonald's
+mercari:
+- メルカリ
+- Mercari
+ministop:
+- ミニストップ
+- MINISTOP
+mister_donut:
+- ミスタードーナツ
+- ミスド
+mos_burger:
+- モスバーガー
+- MOS BURGER
+muji:
+- 無印良品
+- MUJI
+nakau:
+- なか卯
+- Nakau
+newdays:
+- ニューデイズ
+- NewDays
+nimoca:
+- nimoca
+nitori:
+- ニトリ
+- Nitori
+ntt_docomo:
+- NTTドコモ
+- docomo
+odakyu_store:
+- 小田急OX
+- Odakyu OX
+ok:
+- オーケー
+- OK
+- オーケーストア
+pasmo:
+- PASMO
+- パスモ
+pitapa:
+- PiTaPa
+poplar:
+- ポプラ
+- Poplar
+pronto:
+- プロント
+- Pronto
+rakuten:
+- 楽天
+- Rakuten
+- 楽天市場
+rakuten_mobile:
+- 楽天モバイル
+royal_host:
+- ロイヤルホスト
+- Royal Host
+saizeriya:
+- サイゼリヤ
+- Saizeriya
+seicomart:
+- セイコーマート
+- Seicomart
+seiyu:
+- 西友
+- SEIYU
+seven_eleven:
+- セブン-イレブン
+- セブンイレブン
+- 7-ELEVEN
+- 7-11
+- ｾﾌﾞﾝｲﾚﾌﾞﾝ
+shimamura:
+- しまむら
+- Shimamura
+skylark:
+- すかいらーく
+- ガスト
+- バーミヤン
+- しゃぶ葉
+- ジョナサン
+softbank:
+- ソフトバンク
+- SoftBank
+starbucks:
+- スターバックス
+- Starbucks
+- スタバ
+sugi:
+- スギ薬局
+- スギドラッグ
+- Sugi
+suica:
+- Suica
+- スイカ
+sukiya:
+- すき家
+- Sukiya
+summit:
+- サミット
+- Summit
+sun_drug:
+- サンドラッグ
+- Sun Drug
+sushiro:
+- スシロー
+- Sushiro
+tepco:
+- 東京電力
+- TEPCO
+three_f:
+- スリーエフ
+- 3F
+toei_subway:
+- 都営地下鉄
+- 都営
+tokyo_gas:
+- 東京ガス
+tokyo_metro:
+- 東京メトロ
+- メトロ
+tokyu_store:
+- 東急ストア
+- Tokyu Store
+trial:
+- トライアル
+- Trial
+tsuruha:
+- ツルハ
+- Tsuruha
+- ツルハドラッグ
+tullys:
+- タリーズ
+- Tully's
+uber:
+- Uber
+- ウーバー
+- Uber Eats
+- ウーバーイーツ
+uniqlo:
+- ユニクロ
+- UNIQLO
+valor:
+- バロー
+- Valor
+- ホームセンターバロー
+welcia:
+- ウエルシア
+- Welcia
+- ハックドラッグ
+- ダックス
+yahoo_shopping:
+- Yahoo!ショッピング
+- PayPayモール
+yamada_denki:
+- ヤマダデンキ
+- ヤマダ電機
+yamazaki_bakery:
+- ヤマザキパン
+yaoko:
+- ヤオコー
+- Yaoko
+yodobashi:
+- ヨドバシカメラ
+- Yodobashi
+york:
+- ヨーク
+- York
+- ヨークベニマル
+yoshinoya:
+- 吉野家
+- Yoshinoya
