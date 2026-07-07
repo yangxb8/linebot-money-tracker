@@ -474,10 +474,13 @@ async def _format_warnings_with_llm(
     *,
     language: str,
     gemini: Any,
+    tenant: TenantContext,
 ) -> List[PaceWarning]:
+    from services.bot_persona import resolve_persona_for_tenant
     from services.budget_pace_prompt import build_budget_pace_prompt
     from services.usage_metering import llm_operation_scope
 
+    persona = resolve_persona_for_tenant(tenant)
     formatted: List[PaceWarning] = []
     for warning in warnings:
         try:
@@ -488,6 +491,7 @@ async def _format_warnings_with_llm(
                 remaining=float(warning.remaining),
                 days_remaining=warning.days_remaining,
                 daily_allowance=warning.daily_allowance,
+                persona=persona,
             )
             with llm_operation_scope('budget_pace'):
                 text = (await gemini.generate_reply(prompt)).strip()
@@ -529,7 +533,9 @@ async def maybe_prepend_budget_pace_warning(
             return body
 
         if gemini is not None:
-            warnings = await _format_warnings_with_llm(warnings, language=language, gemini=gemini)
+            warnings = await _format_warnings_with_llm(
+                warnings, language=language, gemini=gemini, tenant=tenant
+            )
 
         warning_block = format_pace_warnings(warnings)
         if not warning_block:

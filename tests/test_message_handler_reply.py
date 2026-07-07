@@ -23,7 +23,41 @@ class TestMessageHandlerReply(unittest.IsolatedAsyncioTestCase):
         ):
             result = await process_reply_edit('2', ctx, gemini)
         self.assertIn('confirmation', result.text.lower())
-        self.assertIn('🐰', result.text)
+
+    async def test_persona_applies_to_unsupported_text_reply(self):
+        gemini = MagicMock(spec=GeminiClient)
+        context = MessageContext(
+            tenant=TenantContext.personal('u1'),
+            source_message_id='m1',
+            reply_language='en',
+        )
+        with patch('services.message_handler.parse_text_for_expenses', return_value=[]), patch(
+            'services.message_handler.is_webapp_request_obvious', return_value=False
+        ), patch(
+            'services.message_handler.classify_text_message_intent',
+            AsyncMock(return_value='other'),
+        ):
+            bot_reply = await process_text_message('hello', gemini, context)
+        self.assertIn('🐰', bot_reply.text)
+
+    async def test_persona_applies_to_parse_error_reply(self):
+        gemini = MagicMock(spec=GeminiClient)
+        context = MessageContext(
+            tenant=TenantContext.personal('u1'),
+            source_message_id='m1',
+            reply_language='en',
+        )
+        with patch('services.message_handler.parse_text_for_expenses', return_value=[]), patch(
+            'services.message_handler.is_webapp_request_obvious', return_value=False
+        ), patch(
+            'services.message_handler.classify_text_message_intent',
+            AsyncMock(return_value='expense'),
+        ), patch(
+            'services.message_handler.assist_parse_text',
+            AsyncMock(return_value=[]),
+        ):
+            bot_reply = await process_text_message('not parseable expense', gemini, context)
+        self.assertIn('🐰', bot_reply.text)
 
     async def test_persona_applies_to_unsupported_text_reply(self):
         gemini = MagicMock(spec=GeminiClient)

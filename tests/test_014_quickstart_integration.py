@@ -10,6 +10,7 @@ from services.message_context import MessageContext
 from services.merchant_resolve import merchant_key_from_expense_row, resolve_raw_merchant
 from services.receipt_store_name import propagate_receipt_store_name
 from services.tenant_context import TenantContext
+from tests.persona_test_utils import PERSONA_EXPENSE_HEADER_EN
 
 
 def sc001_line_share_rate(items: list[dict]) -> float:
@@ -150,7 +151,7 @@ class Test014QuickstartIntegration(unittest.IsolatedAsyncioTestCase):
         ):
             reply = await process_image_message(b'fake', gemini, context=context)
 
-        self.assertIn('Detected expense(s):', reply.text)
+        self.assertIn(PERSONA_EXPENSE_HEADER_EN, reply.text)
 
 
 if __name__ == '__main__':
