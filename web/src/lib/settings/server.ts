@@ -7,7 +7,42 @@ import type { TenantSettings } from "@/lib/settings/types";
 
 export { parseTenantParams };
 
-const DEFAULT_SETTINGS: TenantSettings = { fiscal_start_day: 1 };
+const DEFAULT_SETTINGS: TenantSettings = {
+  fiscal_start_day: 1,
+  bot_persona_preset: null,
+  bot_persona_custom_text: null,
+  bot_persona_emoji_level: null,
+};
+
+const PERSONA_PRESETS = new Set(["judy_hopps_cute_firm"]);
+
+function normalizePersonaPreset(value: unknown): string | null {
+  const preset = String(value ?? "").trim();
+  if (!preset) return null;
+  if (!PERSONA_PRESETS.has(preset)) {
+    throw new Response("invalid_bot_persona_preset", { status: 400 });
+  }
+  return preset;
+}
+
+function normalizePersonaCustomText(value: unknown): string | null {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  // Keep short to prevent broken UX and reduce risk.
+  if (text.length > 200) {
+    throw new Response("invalid_bot_persona_custom_text", { status: 400 });
+  }
+  return text;
+}
+
+function normalizeEmojiLevel(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const level = Number(value);
+  if (!Number.isInteger(level) || level < 0 || level > 2) {
+    throw new Response("invalid_bot_persona_emoji_level", { status: 400 });
+  }
+  return level;
+}
 
 export async function requireSettingsUser() {
   const supabase = await createClient();
@@ -29,7 +64,9 @@ export async function fetchTenantSettings(
 
   const { data, error } = await supabase
     .from("tenant_settings")
-    .select("fiscal_start_day")
+    .select(
+      "fiscal_start_day,bot_persona_preset,bot_persona_custom_text,bot_persona_emoji_level",
+    )
     .eq("tenant_type", tenantType)
     .eq("tenant_id", tenantId)
     .maybeSingle();
@@ -42,7 +79,15 @@ export async function fetchTenantSettings(
     return DEFAULT_SETTINGS;
   }
 
-  return { fiscal_start_day: Number(data.fiscal_start_day) };
+  return {
+    fiscal_start_day: Number(data.fiscal_start_day),
+    bot_persona_preset: data.bot_persona_preset ?? null,
+    bot_persona_custom_text: data.bot_persona_custom_text ?? null,
+    bot_persona_emoji_level:
+      data.bot_persona_emoji_level === null || data.bot_persona_emoji_level === undefined
+        ? null
+        : Number(data.bot_persona_emoji_level),
+  };
 }
 
 export async function upsertTenantSettings(
@@ -62,6 +107,12 @@ export async function upsertTenantSettings(
     throw new Response("invalid_fiscal_start_day", { status: 400 });
   }
 
+  const botPersonaPreset = normalizePersonaPreset(settings.bot_persona_preset);
+  const botPersonaCustomText = normalizePersonaCustomText(
+    settings.bot_persona_custom_text,
+  );
+  const botPersonaEmojiLevel = normalizeEmojiLevel(settings.bot_persona_emoji_level);
+
   const { data, error } = await supabase
     .from("tenant_settings")
     .upsert(
@@ -69,16 +120,30 @@ export async function upsertTenantSettings(
         tenant_type: tenantType,
         tenant_id: tenantId,
         fiscal_start_day: fiscalStartDay,
+        bot_persona_preset: botPersonaPreset,
+        bot_persona_custom_text: botPersonaCustomText,
+        bot_persona_emoji_level: botPersonaEmojiLevel,
         updated_at: new Date().toISOString(),
+        bot_persona_updated_at: new Date().toISOString(),
       },
       { onConflict: "tenant_type,tenant_id" },
     )
-    .select("fiscal_start_day")
+    .select(
+      "fiscal_start_day,bot_persona_preset,bot_persona_custom_text,bot_persona_emoji_level",
+    )
     .single();
 
   if (error) {
     throw new Response(error.message, { status: 400 });
   }
 
-  return { fiscal_start_day: Number(data.fiscal_start_day) };
+  return {
+    fiscal_start_day: Number(data.fiscal_start_day),
+    bot_persona_preset: data.bot_persona_preset ?? null,
+    bot_persona_custom_text: data.bot_persona_custom_text ?? null,
+    bot_persona_emoji_level:
+      data.bot_persona_emoji_level === null || data.bot_persona_emoji_level === undefined
+        ? null
+        : Number(data.bot_persona_emoji_level),
+  };
 }

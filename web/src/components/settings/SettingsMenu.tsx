@@ -5,8 +5,11 @@ import { useLanguage } from "@/components/LanguageProvider";
 
 type SettingsItem = {
   href: string;
-  labelKey: "navCategories" | "settingsFiscalMonth";
-  descriptionKey: "settingsCategoriesHint" | "settingsFiscalMonthHint";
+  labelKey: "navCategories" | "settingsFiscalMonth" | "settingsBotBehavior";
+  descriptionKey:
+    | "settingsCategoriesHint"
+    | "settingsFiscalMonthHint"
+    | "settingsBotBehaviorHint";
 };
 
 const SETTINGS_ITEMS: SettingsItem[] = [
@@ -19,6 +22,11 @@ const SETTINGS_ITEMS: SettingsItem[] = [
     href: "/settings/fiscal-month",
     labelKey: "settingsFiscalMonth",
     descriptionKey: "settingsFiscalMonthHint",
+  },
+  {
+    href: "/settings/bot-behavior",
+    labelKey: "settingsBotBehavior",
+    descriptionKey: "settingsBotBehaviorHint",
   },
 ];
 

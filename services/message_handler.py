@@ -39,6 +39,8 @@ from services.reply_edit import apply_edit_intent, parse_edit_intent
 from services.reply_summary import format_duplicate_reply, format_unknown_confirmation
 from services.user_language import maybe_update_from_user_message
 from services.budget_pace import expense_rows_from_enriched, maybe_prepend_budget_pace_warning
+from services.bot_persona import PersonaConfig, apply_persona_style
+from services.tenant_settings import fetch_tenant_bot_settings
 
 logger = logging.getLogger(__name__)
 
@@ -231,6 +233,31 @@ def _text_reply(
     return BotReply(text=text, confirmation=confirmation, retryable_failure=retryable_failure)
 
 
+def _text_reply_with_persona(
+    text: str,
+    *,
+    context: Optional[MessageContext],
+    language: str,
+    confirmation: Optional[ConfirmationSavePayload] = None,
+    retryable_failure: Optional[str] = None,
+) -> BotReply:
+    return _text_reply(
+        _apply_persona_if_possible(text, context=context, language=language),
+        confirmation,
+        retryable_failure=retryable_failure,
+    )
+
+def _apply_persona_if_possible(text: str, *, context: Optional[MessageContext], language: str) -> str:
+    if context is None:
+        return apply_persona_style(text, language=language, persona=PersonaConfig())
+    try:
+        settings = fetch_tenant_bot_settings(context.tenant)
+        return apply_persona_style(text, language=language, persona=settings.persona)
+    except Exception:
+        logger.warning('persona settings lookup failed; using defaults', exc_info=True)
+        return apply_persona_style(text, language=language, persona=PersonaConfig())
+
+
 async def _finalize_expense_reply(
     reply_text: Optional[str],
     items: List[Dict[str, Any]],
@@ -240,7 +267,12 @@ async def _finalize_expense_reply(
 ) -> BotReply:
     language = context.reply_language if context else 'ja'
     if not reply_text:
-        return _text_reply(error_reply_text(language), retryable_failure='processing_error')
+        return _text_reply_with_persona(
+            error_reply_text(language),
+            context=context,
+            language=language,
+            retryable_failure='processing_error',
+        )
     if context is not None:
         reply_text = await maybe_prepend_budget_pace_warning(
             reply_text,
@@ -249,6 +281,7 @@ async def _finalize_expense_reply(
             language=language,
             gemini=gemini,
         )
+        reply_text = _apply_persona_if_possible(reply_text, context=context, language=language)
     return _text_reply(reply_text, confirmation_payload)
 
 
@@ -263,14 +296,26 @@ async def process_reply_edit(
         language = explicit
 
     if not try_mark_reply_processed(reply_context.tenant, reply_context.user_reply_message_id):
-        return ReplyEditResult(text=format_duplicate_reply(language))
+        return ReplyEditResult(
+            text=_apply_persona_if_possible(
+                format_duplicate_reply(language),
+                context=MessageContext(reply_context.tenant, reply_context.user_reply_message_id, language),
+                language=language,
+            )
+        )
 
     confirmation = get_confirmation_by_bot_message_id(
         reply_context.quoted_bot_message_id,
         reply_context.tenant,
     )
     if confirmation is None:
-        return ReplyEditResult(text=format_unknown_confirmation(language))
+        return ReplyEditResult(
+            text=_apply_persona_if_possible(
+                format_unknown_confirmation(language),
+                context=MessageContext(reply_context.tenant, reply_context.user_reply_message_id, language),
+                language=language,
+            )
+        )
 
     try:
         intent = await parse_edit_intent(
@@ -290,8 +335,9 @@ async def process_reply_edit(
             result.status,
             result.summary,
         )
+        styled = _apply_persona_if_possible(result.summary, context=MessageContext(reply_context.tenant, reply_context.user_reply_message_id, language), language=language)
         return ReplyEditResult(
-            text=result.summary,
+            text=styled,
             confirmation_id=confirmation.id,
             anchor_reply_to_sent_message=result.anchor_reply_to_sent_message,
         )
@@ -300,9 +346,13 @@ async def process_reply_edit(
         from services.reply_summary import EditSummaryInput, format_edit_result
 
         return ReplyEditResult(
-            text=format_edit_result(
-                language,
-                EditSummaryInput(status='error', action='update', error_message=None),
+            text=_apply_persona_if_possible(
+                format_edit_result(
+                    language,
+                    EditSummaryInput(status='error', action='update', error_message=None),
+                ),
+                context=MessageContext(reply_context.tenant, reply_context.user_reply_message_id, language),
+                language=language,
             ),
             confirmation_id=confirmation.id,
         )
@@ -335,13 +385,13 @@ async def process_text_message(
 
         if is_webapp_request_obvious(text):
             logger.info('Text pipeline: obvious webapp request (shortcut)')
-            return _text_reply(webapp_link_reply(language))
+            return _text_reply_with_persona(webapp_link_reply(language), context=context, language=language)
 
         message_intent = await classify_text_message_intent(text, gemini)
 
         if message_intent == 'webapp':
             logger.info('Text pipeline: webapp intent detected')
-            return _text_reply(webapp_link_reply(language))
+            return _text_reply_with_persona(webapp_link_reply(language), context=context, language=language)
 
         if message_intent == 'expense':
             confirmation_payload = None
@@ -365,17 +415,30 @@ async def process_text_message(
                 )
 
             logger.warning('Text pipeline: expense intent but no parseable items')
-            return _text_reply(receipt_parse_error_reply(language))
+            return _text_reply_with_persona(
+                receipt_parse_error_reply(language),
+                context=context,
+                language=language,
+            )
 
         logger.info('Text pipeline: message rejected as non-expense intent')
-        return _text_reply(canned_unsupported_reply(language))
+        return _text_reply_with_persona(
+            canned_unsupported_reply(language),
+            context=context,
+            language=language,
+        )
     except UserUsageLimitExceeded as exc:
-        return _text_reply(str(exc))
+        return _text_reply_with_persona(str(exc), context=context, language=language)
     except GeminiUsageLimitError:
-        return _text_reply(usage_limit_reply(language))
+        return _text_reply_with_persona(usage_limit_reply(language), context=context, language=language)
     except Exception:
         logger.exception('Text message processing failed')
-        return _text_reply(error_reply_text(language), retryable_failure='processing_error')
+        return _text_reply_with_persona(
+            error_reply_text(language),
+            context=context,
+            language=language,
+            retryable_failure='processing_error',
+        )
 
 
 async def _extract_expense_items_from_ocr(
@@ -460,10 +523,10 @@ async def process_image_message(
         try:
             items = await _extract_expense_items_from_image(image_bytes, gemini, resolved_mime)
         except UserUsageLimitExceeded as exc:
-            return _text_reply(str(exc))
+            return _text_reply_with_persona(str(exc), context=context, language=language)
         except GeminiUsageLimitError:
             logger.warning('Image pipeline: Gemini usage limit reached for receipt parse')
-            return _text_reply(usage_limit_reply(language))
+            return _text_reply_with_persona(usage_limit_reply(language), context=context, language=language)
 
         if not items:
             logger.warning(
@@ -471,7 +534,11 @@ async def process_image_message(
                 describe_bytes(image_bytes),
                 resolved_mime,
             )
-            return _text_reply(receipt_parse_error_reply(language))
+            return _text_reply_with_persona(
+                receipt_parse_error_reply(language),
+                context=context,
+                language=language,
+            )
 
         items, confirmation_payload = await _enrich_and_persist_items(items, gemini, context)
         reply_text = format_expense_items(
@@ -481,7 +548,12 @@ async def process_image_message(
         )
         if not reply_text:
             logger.warning('Image pipeline: format_expense_items returned empty for %d item(s)', len(items))
-            return _text_reply(error_reply_text(language), retryable_failure='processing_error')
+            return _text_reply_with_persona(
+                error_reply_text(language),
+                context=context,
+                language=language,
+                retryable_failure='processing_error',
+            )
 
         logger.info('Image pipeline: success with %d item(s)', len(items))
         return await _finalize_expense_reply(
@@ -497,5 +569,10 @@ async def process_image_message(
             describe_bytes(image_bytes),
             resolved_mime,
         )
-        return _text_reply(error_reply_text(language), retryable_failure='processing_error')
+        return _text_reply_with_persona(
+            error_reply_text(language),
+            context=context,
+            language=language,
+            retryable_failure='processing_error',
+        )
 

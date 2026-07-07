@@ -34,6 +34,9 @@ export async function PUT(request: Request) {
 
     const settings = await upsertTenantSettings(tenantType, tenantId, {
       fiscal_start_day: Number(body.fiscal_start_day),
+      bot_persona_preset: body.bot_persona_preset ?? null,
+      bot_persona_custom_text: body.bot_persona_custom_text ?? null,
+      bot_persona_emoji_level: body.bot_persona_emoji_level ?? null,
     });
     return NextResponse.json(settings);
   } catch (error) {

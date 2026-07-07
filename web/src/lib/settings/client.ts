@@ -26,6 +26,9 @@ export async function saveTenantSettings(
       tenant_type: tenant.tenantType,
       tenant_id: tenant.tenantId,
       fiscal_start_day: settings.fiscal_start_day,
+      bot_persona_preset: settings.bot_persona_preset ?? null,
+      bot_persona_custom_text: settings.bot_persona_custom_text ?? null,
+      bot_persona_emoji_level: settings.bot_persona_emoji_level ?? null,
     }),
   });
   if (!response.ok) {

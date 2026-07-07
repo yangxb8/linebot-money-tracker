@@ -72,7 +72,40 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
         gemini = MagicMock(spec=GeminiClient)
         with patch('services.message_handler.classify_text_message_intent', AsyncMock(return_value='other')):
             reply = await process_text_message('Hello bot', gemini, self._english_context())
-        self.assertEqual(reply.text, canned_unsupported_reply('en'))
+        self.assertIn(canned_unsupported_reply('en'), reply.text)
+        self.assertIn('🐰', reply.text)
+
+    async def test_process_text_persona_lookup_failure_falls_back(self):
+        gemini = MagicMock(spec=GeminiClient)
+        with patch(
+            'services.message_handler.fetch_tenant_bot_settings',
+            side_effect=RuntimeError('fail'),
+        ), patch('services.message_handler.classify_text_message_intent', AsyncMock(return_value='other')):
+            reply = await process_text_message('Hello bot', gemini, self._english_context())
+        self.assertIn(canned_unsupported_reply('en'), reply.text)
+        self.assertIn('🐰', reply.text)
+
+    async def test_process_text_uses_group_tenant_for_persona_lookup(self):
+        gemini = MagicMock(spec=GeminiClient)
+        context = MessageContext(
+            tenant=TenantContext.group('g1', 'u1'),
+            source_message_id='m1',
+            reply_language='en',
+        )
+        with patch('services.message_handler.classify_text_message_intent', AsyncMock(return_value='other')), patch(
+            'services.message_handler.fetch_tenant_bot_settings'
+        ) as fetch_mock:
+            fetch_mock.return_value = __import__('services.tenant_settings', fromlist=['TenantBotSettings']).TenantBotSettings(
+                persona=__import__('services.bot_persona', fromlist=['PersonaConfig']).PersonaConfig(
+                    emoji_level=0
+                )
+            )
+            reply = await process_text_message('Hello bot', gemini, context)
+        fetch_mock.assert_called_once()
+        called_tenant = fetch_mock.call_args.args[0]
+        self.assertEqual(called_tenant.tenant_type, 'group')
+        self.assertEqual(called_tenant.tenant_id, 'g1')
+        self.assertIn(canned_unsupported_reply('en'), reply.text)
 
     async def test_process_text_webapp_obvious_skips_intent_llm(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -110,7 +143,8 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             'services.message_handler.parse_text_for_expenses', return_value=[]
         ), patch('services.message_handler.assist_parse_text', AsyncMock(return_value=[])):
             reply = await process_text_message('maybe an expense?', gemini, self._english_context())
-        self.assertEqual(reply.text, receipt_parse_error_reply('en'))
+        self.assertIn(receipt_parse_error_reply('en'), reply.text)
+        self.assertIn('🐰', reply.text)
         gemini.generate_reply.assert_not_called()
 
     async def test_process_text_error(self):
@@ -120,7 +154,8 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             AsyncMock(side_effect=RuntimeError('fail')),
         ):
             reply = await process_text_message('maybe an expense?', gemini, self._english_context())
-        self.assertEqual(reply.text, error_reply_text('en'))
+        self.assertIn(error_reply_text('en'), reply.text)
+        self.assertIn('🐰', reply.text)
 
     async def test_process_image_receipt(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -177,7 +212,8 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
         gemini = MagicMock(spec=GeminiClient)
         with patch('services.message_handler.assist_parse_image', AsyncMock(return_value=None)):
             reply = await process_image_message(b'cat-photo', gemini, context=self._english_context())
-        self.assertEqual(reply.text, receipt_parse_error_reply('en'))
+        self.assertIn(receipt_parse_error_reply('en'), reply.text)
+        self.assertIn('🐰', reply.text)
 
     async def test_process_image_parse_error_when_validation_fails(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -187,13 +223,15 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
         )
         with patch('services.message_handler.assist_parse_image', AsyncMock(return_value=llm_result)):
             reply = await process_image_message(b'receipt', gemini, context=self._english_context())
-        self.assertEqual(reply.text, receipt_parse_error_reply('en'))
+        self.assertIn(receipt_parse_error_reply('en'), reply.text)
+        self.assertIn('🐰', reply.text)
 
     async def test_process_image_parse_error_when_llm_returns_none(self):
         gemini = MagicMock(spec=GeminiClient)
         with patch('services.message_handler.assist_parse_image', AsyncMock(return_value=None)):
             reply = await process_image_message(b'receipt', gemini, context=self._english_context())
-        self.assertEqual(reply.text, receipt_parse_error_reply('en'))
+        self.assertIn(receipt_parse_error_reply('en'), reply.text)
+        self.assertIn('🐰', reply.text)
 
     async def test_process_image_usage_limit_returns_dedicated_message(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -202,7 +240,8 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             AsyncMock(side_effect=GeminiUsageLimitError('quota')),
         ):
             reply = await process_image_message(b'receipt', gemini, context=self._english_context())
-        self.assertEqual(reply.text, usage_limit_reply('en'))
+        self.assertIn(usage_limit_reply('en'), reply.text)
+        self.assertIn('🐰', reply.text)
 
     async def test_process_image_error(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -211,7 +250,8 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             AsyncMock(side_effect=RuntimeError('fail')),
         ):
             reply = await process_image_message(b'bad', gemini, context=self._english_context())
-        self.assertEqual(reply.text, error_reply_text('en'))
+        self.assertIn(error_reply_text('en'), reply.text)
+        self.assertIn('🐰', reply.text)
 
 
 if __name__ == '__main__':

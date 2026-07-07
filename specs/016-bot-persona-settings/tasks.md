@@ -10,9 +10,9 @@
 
 **Purpose**: Establish scaffolding and shared constants for persona settings across bot + web.
 
-- [ ] T001 Define persona preset(s) + validation constants in `services/bot_persona.py`
-- [ ] T002 [P] Extend web settings types to include persona fields in `web/src/lib/settings/types.ts`
-- [ ] T003 [P] Add shared i18n strings for new settings UI labels in `web/src/lib/i18n/messages.ts`
+- [x] T001 Define persona preset(s) + validation constants in `services/bot_persona.py`
+- [x] T002 [P] Extend web settings types to include persona fields in `web/src/lib/settings/types.ts`
+- [x] T003 [P] Add shared i18n strings for new settings UI labels in `web/src/lib/i18n/messages.ts`
 
 ---
 
@@ -22,11 +22,11 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T004 Add migration to extend `tenant_settings` with persona columns in `supabase/migrations/` (new migration file)
-- [ ] T005 Update settings read/write server logic to include persona fields in `web/src/lib/settings/server.ts`
-- [ ] T006 Update settings API route to accept/return persona fields in `web/src/app/api/settings/route.ts`
-- [ ] T007 Add bot-side tenant settings fetch abstraction in `services/tenant_settings.py` (read persona fields; fail-open defaults)
-- [ ] T008 Add bot-side persona resolution + normalization in `services/bot_persona.py` (preset allowlist, emoji level bounds, custom text length)
+- [x] T004 Add migration to extend `tenant_settings` with persona columns in `supabase/migrations/` (new migration file)
+- [x] T005 Update settings read/write server logic to include persona fields in `web/src/lib/settings/server.ts`
+- [x] T006 Update settings API route to accept/return persona fields in `web/src/app/api/settings/route.ts`
+- [x] T007 Add bot-side tenant settings fetch abstraction in `services/tenant_settings.py` (read persona fields; fail-open defaults)
+- [x] T008 Add bot-side persona resolution + normalization in `services/bot_persona.py` (preset allowlist, emoji level bounds, custom text length)
 
 **Checkpoint**: Settings storage + API return persona fields; bot can resolve an effective persona for any tenant (with safe defaults).
 
@@ -40,11 +40,11 @@
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Implement centralized persona “final reply styling” function in `services/bot_persona.py` (input raw text + language + persona config → styled text)
-- [ ] T010 [US1] Apply persona styling in the final reply assembly for expense confirmations in `services/message_handler.py`
-- [ ] T011 [US1] Apply persona styling for reply-edit responses in `services/message_handler.py` (ensure edit summary path is covered)
-- [ ] T012 [US1] Apply persona styling for canned/error/help replies in `services/message_handler.py` (unsupported/error/parse/usage-limit/webapp link paths)
-- [ ] T013 [US1] Add automated tests asserting persona is applied for 3+ reply types in `tests/test_message_handler_reply.py`
+- [x] T009 [US1] Implement centralized persona “final reply styling” function in `services/bot_persona.py` (input raw text + language + persona config → styled text)
+- [x] T010 [US1] Apply persona styling in the final reply assembly for expense confirmations in `services/message_handler.py`
+- [x] T011 [US1] Apply persona styling for reply-edit responses in `services/message_handler.py` (ensure edit summary path is covered)
+- [x] T012 [US1] Apply persona styling for canned/error/help replies in `services/message_handler.py` (unsupported/error/parse/usage-limit/webapp link paths)
+- [x] T013 [US1] Add automated tests asserting persona is applied for 3+ reply types in `tests/test_message_handler_reply.py`
 
 **Checkpoint**: With no persona configured, bot replies consistently reflect default persona across reply types, and tests pass.
 
@@ -58,12 +58,12 @@
 
 ### Implementation for User Story 2
 
-- [ ] T014 [P] [US2] Add “LINE bot behavior” entry in settings navigation in `web/src/components/settings/SettingsMenu.tsx`
-- [ ] T015 [P] [US2] Create a new settings UI component for persona configuration in `web/src/components/settings/BotBehaviorSetting.tsx`
-- [ ] T016 [US2] Add a new settings route/page for bot behavior in `web/src/app/(app)/settings/bot-behavior/page.tsx`
-- [ ] T017 [US2] Wire settings client calls for persona fields in `web/src/lib/settings/client.ts`
-- [ ] T018 [US2] Implement reset-to-default behavior in UI (clears persona fields) in `web/src/components/settings/BotBehaviorSetting.tsx`
-- [ ] T019 [US2] Add bot-side settings lookup integration (tenant → fetch persona fields) in `services/tenant_settings.py` and use in `services/message_context.py` / `services/message_handler.py` as the source of active persona
+- [x] T014 [P] [US2] Add “LINE bot behavior” entry in settings navigation in `web/src/components/settings/SettingsMenu.tsx`
+- [x] T015 [P] [US2] Create a new settings UI component for persona configuration in `web/src/components/settings/BotBehaviorSetting.tsx`
+- [x] T016 [US2] Add a new settings route/page for bot behavior in `web/src/app/(app)/settings/bot-behavior/page.tsx`
+- [x] T017 [US2] Wire settings client calls for persona fields in `web/src/lib/settings/client.ts`
+- [x] T018 [US2] Implement reset-to-default behavior in UI (clears persona fields) in `web/src/components/settings/BotBehaviorSetting.tsx`
+- [x] T019 [US2] Add bot-side settings lookup integration (tenant → fetch persona fields) in `services/tenant_settings.py` and use in `services/message_context.py` / `services/message_handler.py` as the source of active persona
 
 **Checkpoint**: Web settings page can read/write persona fields; bot reads tenant persona settings and reflects changes in replies.
 
@@ -77,11 +77,11 @@
 
 ### Implementation for User Story 3
 
-- [ ] T020 [US3] Add server-side validation for persona fields (preset allowlist, custom text max length, emoji level bounds) in `web/src/lib/settings/server.ts`
-- [ ] T021 [US3] Add API error mapping + UI error display for invalid persona inputs in `web/src/components/settings/BotBehaviorSetting.tsx`
-- [ ] T022 [US3] Ensure bot persona styling never changes numbers/IDs by implementing conservative styling rules in `services/bot_persona.py`
-- [ ] T023 [US3] Add bot tests for fail-open behavior (settings load failure → default persona) in `tests/test_message_handler.py`
-- [ ] T024 [US3] Add tests for tenant scoping (user vs group/room) persona selection in `tests/test_tenant_context.py`
+- [x] T020 [US3] Add server-side validation for persona fields (preset allowlist, custom text max length, emoji level bounds) in `web/src/lib/settings/server.ts`
+- [x] T021 [US3] Add API error mapping + UI error display for invalid persona inputs in `web/src/components/settings/BotBehaviorSetting.tsx`
+- [x] T022 [US3] Ensure bot persona styling never changes numbers/IDs by implementing conservative styling rules in `services/bot_persona.py`
+- [x] T023 [US3] Add bot tests for fail-open behavior (settings load failure → default persona) in `tests/test_message_handler.py`
+- [x] T024 [US3] Add tests for tenant scoping (user vs group/room) persona selection in `tests/test_message_handler.py`
 
 **Checkpoint**: Invalid inputs are rejected clearly; bot never fails to reply due to persona; defaults apply reliably; tenant scoping works.
 
@@ -92,8 +92,8 @@
 **Purpose**: Documentation alignment, performance checks, and final validation.
 
 - [ ] T025 [P] Update docs to reference new bot behavior setting in `specs/016-bot-persona-settings/quickstart.md` (if implementation details changed)
-- [ ] T026 Run full bot test suite and ensure no regressions: `python3 -m pytest -q`
-- [ ] T027 Run web checks: `cd web && npm run lint && npm test && npm run build`
+- [x] T026 Run full bot test suite and ensure no regressions: `python3 -m pytest -q`
+- [x] T027 Run web checks: `cd web && npm run lint && npm test && npm run build`
 - [ ] T028 Review UX for emoji usage and error clarity; adjust defaults in `services/bot_persona.py` and UI copy in `web/src/lib/i18n/messages.ts`
 
 ---
