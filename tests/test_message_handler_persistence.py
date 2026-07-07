@@ -7,6 +7,7 @@ from services.expense_repository import PersistResult
 from services.gemini_client import GeminiClient
 from services.message_context import MessageContext
 from services.tenant_context import TenantContext
+from tests.persona_test_utils import PERSONA_EXPENSE_HEADER_EN
 from services.message_handler import format_expense_items, process_text_message
 
 
@@ -38,7 +39,7 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
         ) as insert_mock:
             reply = await process_text_message('Lunch 120 THB', gemini, context)
         insert_mock.assert_called_once()
-        self.assertIn('Detected expense(s):', reply.text)
+        self.assertIn(PERSONA_EXPENSE_HEADER_EN, reply.text)
         self.assertIn('Category (guess):', reply.text)
 
     async def test_skips_persist_without_context(self):
@@ -52,7 +53,7 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
         ), patch('services.message_handler.insert_expenses') as insert_mock:
             reply = await process_text_message('Lunch 120 THB', gemini)
         insert_mock.assert_not_called()
-        self.assertIn('検出した支出:', reply.text)
+        self.assertIn('見つけた支出', reply.text)
 
     async def test_storage_error_still_returns_reply(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -72,7 +73,7 @@ class TestMessageHandlerPersistence(unittest.IsolatedAsyncioTestCase):
             return_value=PersistResult(inserted=0, skipped=0, error='db error'),
         ):
             reply = await process_text_message('Lunch 120 THB', gemini, context)
-        self.assertIn('Detected expense(s):', reply.text)
+        self.assertIn(PERSONA_EXPENSE_HEADER_EN, reply.text)
 
     async def test_memory_path_sets_category_source(self):
         gemini = MagicMock(spec=GeminiClient)

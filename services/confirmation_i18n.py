@@ -60,6 +60,29 @@ _STRINGS: Dict[str, Dict[str, str]] = {
             '家計簿のWebページは現在ご利用いただけません。'
             'しばらくしてからもう一度お試しください。'
         ),
+        'edit_error': '変更を保存できませんでした。{detail}',
+        'edit_no_op': '変更はありませんでした。',
+        'edit_no_op_restore': '復元する項目がありません（すでに有効な可能性があります）。',
+        'delete_all_prompt': 'この確認の支出をすべて削除します。YES と返信して確定してください。',
+        'delete_many': '{count} 件の支出を削除しました。',
+        'delete_one': '削除しました：{label}',
+        'restore_many': '{count} 件の支出を復元しました。',
+        'restore_one': '復元しました：{label}',
+        'update_header': '更新しました：{item}',
+        'update_header_plain': '更新しました',
+        'applied_generic': '変更を反映しました。',
+        'unknown_confirmation': '編集するには、ボットの支出確認メッセージに返信してください。',
+        'duplicate_reply': 'この返信はすでに処理済みです。',
+        'bulk_category': '{count} 件の支出のカテゴリを更新しました：{category}',
+        'intent_confirm_suffix': (
+            '正しければ YES と返信してください。\n'
+            '違う場合は、支出確認メッセージに再度返信して、より明確に書いてください。'
+        ),
+        'category_pick_header': 'カテゴリを選んでください（「{query}」）：',
+        'category_pick_header_items': '第 {labels} 項目のカテゴリを選んでください（「{query}」）：',
+        'category_pick_footer': '1〜3 で返信してカテゴリを選んでください。',
+        'category_bulk_all': 'この確認のすべての支出のカテゴリを「{category_query}」に変更します。',
+        'category_bulk_items': '第 {labels} 項目のカテゴリを「{category_query}」に変更します。',
     },
     'en': {
         'header': 'Detected expense(s):',
@@ -100,6 +123,29 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         'webapp_unavailable': (
             'The expense dashboard is not available right now. Please try again later.'
         ),
+        'edit_error': "Couldn't save your changes. {detail}",
+        'edit_no_op': 'No changes were made.',
+        'edit_no_op_restore': 'Nothing to restore — the expense may already be active.',
+        'delete_all_prompt': 'This will soft-delete all expenses on this confirmation. Reply YES to confirm.',
+        'delete_many': 'Soft-deleted {count} expense(s).',
+        'delete_one': 'Soft-deleted: {label}',
+        'restore_many': 'Restored {count} expense(s).',
+        'restore_one': 'Restored: {label}',
+        'update_header': 'Updated: {item}',
+        'update_header_plain': 'Updated',
+        'applied_generic': 'Changes applied.',
+        'unknown_confirmation': 'Please reply to the bot expense confirmation message to make edits.',
+        'duplicate_reply': 'This reply was already processed.',
+        'bulk_category': 'Updated category for {count} expense(s) to: {category}',
+        'intent_confirm_suffix': (
+            'Reply YES if this is correct.\n'
+            'If not, reply to the expense confirmation message again with a clearer description.'
+        ),
+        'category_pick_header': 'Pick a category ("{query}"):',
+        'category_pick_header_items': 'Pick a category for item(s) {labels} ("{query}"):',
+        'category_pick_footer': 'Reply with 1–3 to select a category.',
+        'category_bulk_all': 'Change the category to "{category_query}" for all expenses on this confirmation.',
+        'category_bulk_items': 'Change the category to "{category_query}" for item(s) {labels}.',
     },
     'zh': {
         'header': '检测到的支出:',
@@ -138,6 +184,29 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         'webapp_unavailable': (
             '家计簿网页暂时无法使用，请稍后再试。'
         ),
+        'edit_error': '无法保存更改。{detail}',
+        'edit_no_op': '没有进行任何更改。',
+        'edit_no_op_restore': '没有可恢复的记录（可能已经是有效状态）。',
+        'delete_all_prompt': '将软删除此确认中的所有支出。回复 YES 确认。',
+        'delete_many': '已软删除 {count} 笔支出。',
+        'delete_one': '已软删除：{label}',
+        'restore_many': '已恢复 {count} 笔支出。',
+        'restore_one': '已恢复：{label}',
+        'update_header': '已更新：{item}',
+        'update_header_plain': '已更新',
+        'applied_generic': '已应用更改。',
+        'unknown_confirmation': '请回复机器人发送的支出确认消息以进行编辑。',
+        'duplicate_reply': '此回复已处理过。',
+        'bulk_category': '已将 {count} 笔支出的类别更新为：{category}',
+        'intent_confirm_suffix': (
+            '如果理解正确，请回复 YES 确认。\n'
+            '如果不正确，请重新回复支出确认消息并写得更清楚。'
+        ),
+        'category_pick_header': '请选择类别（「{query}」）：',
+        'category_pick_header_items': '请为第 {labels} 项选择类别（「{query}」）：',
+        'category_pick_footer': '请回复 1–3 选择类别。',
+        'category_bulk_all': '将把此确认中所有支出的类别改为「{category_query}」。',
+        'category_bulk_items': '将把第 {labels} 项支出的类别改为「{category_query}」。',
     },
 }
 
@@ -163,9 +232,17 @@ def item_number_label(index: int) -> str:
 
 
 def t(language: str, key: str, **kwargs: str) -> str:
+    from services.bot_persona import get_active_persona
+    from services.persona_i18n import lookup_persona_string
+
     lang = normalize_reply_language(language)
-    table = _STRINGS.get(lang, _STRINGS['ja'])
-    text = table.get(key, _STRINGS['ja'].get(key, key))
+    persona = get_active_persona()
+    persona_text = lookup_persona_string(persona, lang, key)
+    if persona_text is not None:
+        text = persona_text
+    else:
+        table = _STRINGS.get(lang, _STRINGS['ja'])
+        text = table.get(key, _STRINGS['ja'].get(key, key))
     if kwargs:
         return text.format(**kwargs)
     return text

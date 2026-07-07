@@ -23,7 +23,6 @@ class TestMessageHandlerReply(unittest.IsolatedAsyncioTestCase):
         ):
             result = await process_reply_edit('2', ctx, gemini)
         self.assertIn('confirmation', result.text.lower())
-        self.assertIn('🐰', result.text)
 
     async def test_persona_applies_to_unsupported_text_reply(self):
         gemini = MagicMock(spec=GeminiClient)

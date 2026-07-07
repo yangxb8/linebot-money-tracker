@@ -4,6 +4,7 @@ import logging
 import re
 from typing import Awaitable, Callable, Optional
 
+from services.bot_persona import persona_scope, resolve_persona_for_tenant
 from services.confirmation_i18n import t
 from services.gemini_client import GeminiClient
 from services.inbound_message_repository import get_failure_retry_anchor, get_inbound_message
@@ -55,56 +56,58 @@ async def process_message_retry(
     logged_by_display_name: Optional[str] = None,
 ) -> BotReply:
     language = retry_context.reply_language
-    anchor = get_failure_retry_anchor(
-        retry_context.bot_error_message_id,
-        retry_context.tenant,
-    )
-    if anchor is None:
-        return BotReply(text=retry_not_found_reply(language))
+    persona = resolve_persona_for_tenant(retry_context.tenant)
+    with persona_scope(persona):
+        anchor = get_failure_retry_anchor(
+            retry_context.bot_error_message_id,
+            retry_context.tenant,
+        )
+        if anchor is None:
+            return BotReply(text=retry_not_found_reply(language))
 
-    inbound = get_inbound_message(anchor.original_message_id)
-    if inbound is None:
-        return BotReply(text=retry_expired_reply(language))
-
-    original_tenant = _tenant_for_anchor(anchor)
-    message_context = MessageContext(
-        tenant=original_tenant,
-        source_message_id=anchor.original_message_id,
-        reply_language=language,
-        logged_by_display_name=logged_by_display_name if original_tenant.is_shared else None,
-    )
-
-    if inbound.message_type == 'text':
-        text = (inbound.text_content or '').strip()
-        if not text:
-            logger.warning(
-                'Retry anchor %s references empty text inbound %s',
-                anchor.bot_error_message_id,
-                anchor.original_message_id,
-            )
+        inbound = get_inbound_message(anchor.original_message_id)
+        if inbound is None:
             return BotReply(text=retry_expired_reply(language))
-        logger.info(
-            'Retrying text message original_message_id=%s via bot_error_message_id=%s',
-            anchor.original_message_id,
-            anchor.bot_error_message_id,
-        )
-        return await process_text_message(text, gemini, message_context)
 
-    if inbound.message_type == 'image':
-        try:
-            image_bytes = await fetch_image_bytes(anchor.original_message_id)
-        except Exception:
-            logger.exception(
-                'Retry image fetch failed original_message_id=%s',
+        original_tenant = _tenant_for_anchor(anchor)
+        message_context = MessageContext(
+            tenant=original_tenant,
+            source_message_id=anchor.original_message_id,
+            reply_language=language,
+            logged_by_display_name=logged_by_display_name if original_tenant.is_shared else None,
+        )
+
+        if inbound.message_type == 'text':
+            text = (inbound.text_content or '').strip()
+            if not text:
+                logger.warning(
+                    'Retry anchor %s references empty text inbound %s',
+                    anchor.bot_error_message_id,
+                    anchor.original_message_id,
+                )
+                return BotReply(text=retry_expired_reply(language))
+            logger.info(
+                'Retrying text message original_message_id=%s via bot_error_message_id=%s',
                 anchor.original_message_id,
+                anchor.bot_error_message_id,
             )
-            return BotReply(text=retry_image_expired_reply(language))
-        logger.info(
-            'Retrying image message original_message_id=%s via bot_error_message_id=%s',
-            anchor.original_message_id,
-            anchor.bot_error_message_id,
-        )
-        return await process_image_message(image_bytes, gemini, context=message_context)
+            return await process_text_message(text, gemini, message_context)
 
-    logger.warning('Unsupported inbound message_type=%s for retry', inbound.message_type)
-    return BotReply(text=retry_expired_reply(language))
+        if inbound.message_type == 'image':
+            try:
+                image_bytes = await fetch_image_bytes(anchor.original_message_id)
+            except Exception:
+                logger.exception(
+                    'Retry image fetch failed original_message_id=%s',
+                    anchor.original_message_id,
+                )
+                return BotReply(text=retry_image_expired_reply(language))
+            logger.info(
+                'Retrying image message original_message_id=%s via bot_error_message_id=%s',
+                anchor.original_message_id,
+                anchor.bot_error_message_id,
+            )
+            return await process_image_message(image_bytes, gemini, context=message_context)
+
+        logger.warning('Unsupported inbound message_type=%s for retry', inbound.message_type)
+        return BotReply(text=retry_expired_reply(language))

@@ -33,11 +33,29 @@ _STRINGS: Dict[str, Dict[str, str]] = {
     },
 }
 
+_PERSONA_KEY_BY_LIMIT_KEY = {
+    'payload_too_large_text': 'usage_payload_text',
+    'payload_too_large_image': 'usage_payload_image',
+    'user_rate_limit_minute': 'usage_rate_minute',
+    'user_rate_limit_day': 'usage_rate_day',
+    'user_quota_monthly': 'usage_quota_monthly',
+    'user_receipt_quota_monthly': 'usage_receipt_quota_monthly',
+}
+
 
 def usage_limit_message(language: str, key: str, **kwargs: str) -> str:
+    from services.bot_persona import get_active_persona
+    from services.persona_i18n import lookup_persona_string
+
     lang = normalize_reply_language(language)
-    table = _STRINGS.get(lang, _STRINGS['ja'])
-    text = table.get(key, _STRINGS['ja'].get(key, key))
+    persona = get_active_persona()
+    persona_key = _PERSONA_KEY_BY_LIMIT_KEY.get(key, key)
+    persona_text = lookup_persona_string(persona, lang, persona_key)
+    if persona_text is not None:
+        text = persona_text
+    else:
+        table = _STRINGS.get(lang, _STRINGS['ja'])
+        text = table.get(key, _STRINGS['ja'].get(key, key))
     if kwargs:
         return text.format(**kwargs)
     return text

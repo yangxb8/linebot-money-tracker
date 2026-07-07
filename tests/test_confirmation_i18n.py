@@ -1,6 +1,7 @@
 import unittest
 
 from services.confirmation_i18n import format_expense_confirmation, item_number_label
+from tests.persona_test_utils import with_neutral_persona
 
 
 class TestConfirmationI18n(unittest.TestCase):
@@ -36,10 +37,11 @@ class TestConfirmationI18n(unittest.TestCase):
         self.assertIn('  1) 娯楽', text)
 
     def test_english_header(self):
-        text = format_expense_confirmation(
-            [{'description': 'Lunch', 'amount': 120, 'currency': 'JPY'}],
-            language='en',
-        )
+        with with_neutral_persona():
+            text = format_expense_confirmation(
+                [{'description': 'Lunch', 'amount': 120, 'currency': 'JPY'}],
+                language='en',
+            )
         self.assertIn('Detected expense(s):', text)
         self.assertIn('Total: 120 JPY', text or '')
         self.assertIn('1️⃣ Lunch:', text)

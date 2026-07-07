@@ -106,7 +106,7 @@ class TestLineWebhook(unittest.IsolatedAsyncioTestCase):
             response = await handle_callback(request)
 
         message_text = reply_mock.call_args[0][0].messages[0].text
-        self.assertIn('Sorry, I couldn\'t generate a response right now', message_text)
+        self.assertIn("couldn't reply just now", message_text)
         self.assertEqual(response, 'OK')
 
     async def test_handle_callback_rejects_non_expense_text(self):
@@ -123,7 +123,7 @@ class TestLineWebhook(unittest.IsolatedAsyncioTestCase):
 
         reply_mock.assert_awaited_once()
         message_text = reply_mock.call_args[0][0].messages[0].text
-        self.assertIn('only accept expense submissions', message_text)
+        self.assertIn('only help log expenses', message_text)
         self.assertEqual(response, 'OK')
 
     async def test_handle_callback_processes_image_message(self):
@@ -163,7 +163,7 @@ class TestLineWebhook(unittest.IsolatedAsyncioTestCase):
 
         reply_mock.assert_awaited_once()
         message_text = reply_mock.call_args[0][0].messages[0].text
-        self.assertIn('only accept expense submissions', message_text)
+        self.assertIn('only help log expenses', message_text)
         self.assertEqual(response, 'OK')
 
 
