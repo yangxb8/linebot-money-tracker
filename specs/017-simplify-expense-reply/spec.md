@@ -8,6 +8,12 @@
 
 **Input**: User description: Simplify the LINE bot’s expense confirmation reply to be shorter and easier to read (receipt-style). Use an independent message-composition layer with separate sections and separators. Remove the always-visible “edit instructions” block; instead support concise help responses when users ask how-to questions. Hide category suggestions by default; allow users to correct category via natural-language category input, with a guess+confirmation step if input doesn’t exactly match a category. Default display should show category subtotals instead of per-item lines; provide a web setting to show per-item details. Visually emphasize the amount number in the reply (using LINE-supported emphasis).
 
+## Clarifications
+
+### Session 2026-07-08
+
+- Q: When the user replies with a category that doesn’t exactly match a category name, how should the bot request confirmation before applying the edit? → A: Bot states the guessed category path and asks the user to reply `YES` to confirm (no numbered alternatives).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Receipt-style confirmation for single-item expenses (Priority: P1)
@@ -36,7 +42,7 @@ After receiving a confirmation, the user replies with the desired category (in t
 **Acceptance Scenarios**:
 
 1. **Given** a confirmation message and an edit reply that contains an exact/close category request, **When** the bot processes the reply, **Then** the expense category is updated and the bot acknowledges the result.
-2. **Given** a user reply that does not exactly match a category name, **When** the bot guesses a category, **Then** the bot asks the user to confirm before applying the edit.
+2. **Given** a user reply that does not exactly match a category name, **When** the bot guesses a category, **Then** the bot states the guessed category path and asks the user to reply `YES` to confirm before applying the edit.
 3. **Given** the user replies to an unknown/non-confirmation message, **When** the bot processes the reply, **Then** no edit is applied and the bot returns guidance that reply-to-confirmation is required.
 
 ---
@@ -74,7 +80,7 @@ When users send messages that ask how to edit an expense (e.g., “How do I dele
 ### Edge Cases
 
 - **Multi-category ambiguity**: When multiple category subtotal rows are displayed and the user replies with a desired category but doesn’t indicate which subtotal row they mean, the bot must ask which row to apply the edit to.
-- **Low-confidence category guess**: If the system cannot confidently map the user’s category input, it must ask for confirmation (and must not apply the edit without confirmation).
+- **Low-confidence category guess**: If the system cannot confidently map the user’s category input, it must state the guessed category path and ask the user to confirm (and must not apply the edit without explicit confirmation).
 - **Language handling**: If the user language is unclear, the bot must fall back to a default language and keep responses consistent with the user’s chosen/guessed language.
 - **Budget/pacing warning coexistence**: If a pacing/budget warning is applicable, it must appear as a distinct short section and must not make the confirmation unreadable.
 
@@ -88,7 +94,7 @@ When users send messages that ask how to edit an expense (e.g., “How do I dele
 - **FR-004**: System MUST, by default, display category subtotals for multi-item receipts instead of listing each individual item line.
 - **FR-005**: System MUST provide a web setting that lets users enable per-item detail display in the confirmation reply.
 - **FR-006**: System MUST support category correction by letting users reply with the desired category in natural language.
-- **FR-007**: System MUST guess the intended category when the user’s input is not an exact category match, and MUST request confirmation before applying the edit.
+- **FR-007**: System MUST guess the intended category when the user’s input is not an exact category match, and MUST request confirmation by stating the guessed category path and asking the user to reply with an explicit confirmation (e.g., `YES`) before applying the edit.
 - **FR-008**: System MUST disambiguate edits for multi-category confirmations when the user’s reply does not specify which displayed category subtotal row to modify.
 - **FR-009**: System MUST respond to how-to/help questions about expense confirmations and edits with concise actionable guidance, instead of rejecting these requests.
 - **FR-010**: System MUST preserve existing reply-edit safety constraints: edits apply only when the user’s message is a reply to a known confirmation message.
