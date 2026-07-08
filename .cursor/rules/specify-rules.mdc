@@ -5,8 +5,8 @@ alwaysApply: true
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan at
-`specs/016-bot-persona-settings/plan.md` and the developer quickstart at
-`specs/016-bot-persona-settings/quickstart.md`.
+`specs/017-simplify-expense-reply/plan.md` and the developer quickstart at
+`specs/017-simplify-expense-reply/quickstart.md`.
 
 Primary local dev workflow: `python local_run.py --text "..."` or
 `python local_run.py --image path/to/receipt.jpg` (requires GEMINI_API_KEY only;
