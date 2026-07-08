@@ -150,7 +150,7 @@ class Test014QuickstartIntegration(unittest.IsolatedAsyncioTestCase):
         ):
             reply = await process_image_message(b'fake', gemini, context=context)
 
-        self.assertIn('Detected expense(s):', reply.text)
+        self.assertIn('✅', reply.text)
 
 
 if __name__ == '__main__':

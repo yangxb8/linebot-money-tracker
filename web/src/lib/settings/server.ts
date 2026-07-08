@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS: TenantSettings = {
   bot_persona_preset: null,
   bot_persona_custom_text: null,
   bot_persona_emoji_level: null,
+  confirmation_show_item_details: false,
 };
 
 const PERSONA_PRESETS = new Set(["judy_hopps_cute_firm"]);
@@ -33,6 +34,10 @@ function normalizePersonaCustomText(value: unknown): string | null {
     throw new Response("invalid_bot_persona_custom_text", { status: 400 });
   }
   return text;
+}
+
+function normalizeConfirmationShowItemDetails(value: unknown): boolean {
+  return Boolean(value);
 }
 
 function normalizeEmojiLevel(value: unknown): number | null {
@@ -65,7 +70,7 @@ export async function fetchTenantSettings(
   const { data, error } = await supabase
     .from("tenant_settings")
     .select(
-      "fiscal_start_day,bot_persona_preset,bot_persona_custom_text,bot_persona_emoji_level",
+      "fiscal_start_day,bot_persona_preset,bot_persona_custom_text,bot_persona_emoji_level,confirmation_show_item_details",
     )
     .eq("tenant_type", tenantType)
     .eq("tenant_id", tenantId)
@@ -87,6 +92,7 @@ export async function fetchTenantSettings(
       data.bot_persona_emoji_level === null || data.bot_persona_emoji_level === undefined
         ? null
         : Number(data.bot_persona_emoji_level),
+    confirmation_show_item_details: Boolean(data.confirmation_show_item_details),
   };
 }
 
@@ -112,6 +118,9 @@ export async function upsertTenantSettings(
     settings.bot_persona_custom_text,
   );
   const botPersonaEmojiLevel = normalizeEmojiLevel(settings.bot_persona_emoji_level);
+  const confirmationShowItemDetails = normalizeConfirmationShowItemDetails(
+    settings.confirmation_show_item_details,
+  );
 
   const { data, error } = await supabase
     .from("tenant_settings")
@@ -123,13 +132,14 @@ export async function upsertTenantSettings(
         bot_persona_preset: botPersonaPreset,
         bot_persona_custom_text: botPersonaCustomText,
         bot_persona_emoji_level: botPersonaEmojiLevel,
+        confirmation_show_item_details: confirmationShowItemDetails,
         updated_at: new Date().toISOString(),
         bot_persona_updated_at: new Date().toISOString(),
       },
       { onConflict: "tenant_type,tenant_id" },
     )
     .select(
-      "fiscal_start_day,bot_persona_preset,bot_persona_custom_text,bot_persona_emoji_level",
+      "fiscal_start_day,bot_persona_preset,bot_persona_custom_text,bot_persona_emoji_level,confirmation_show_item_details",
     )
     .single();
 
@@ -145,5 +155,6 @@ export async function upsertTenantSettings(
       data.bot_persona_emoji_level === null || data.bot_persona_emoji_level === undefined
         ? null
         : Number(data.bot_persona_emoji_level),
+    confirmation_show_item_details: Boolean(data.confirmation_show_item_details),
   };
 }

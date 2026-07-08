@@ -20,9 +20,9 @@
 
 **Purpose**: Confirm baseline test harness + identify existing formatting call sites
 
-- [ ] T001 Inventory current confirmation formatting entry points in `services/message_handler.py` and `services/confirmation_i18n.py`
-- [ ] T002 [P] Add/extend test fixtures for sample expenses (single + multi-item) in `tests/` for confirmation formatting
-- [ ] T003 [P] Document the new reply formats in `specs/017-simplify-expense-reply/contracts/reply-composition.md` examples (keep in sync during implementation)
+- [x] T001 Inventory current confirmation formatting entry points in `services/message_handler.py` and `services/confirmation_i18n.py`
+- [x] T002 [P] Add/extend test fixtures for sample expenses (single + multi-item) in `tests/` for confirmation formatting
+- [x] T003 [P] Document the new reply formats in `specs/017-simplify-expense-reply/contracts/reply-composition.md` examples (keep in sync during implementation)
 
 ---
 
@@ -32,10 +32,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Create a reply composer module for confirmation replies in `services/reply_composer.py`
-- [ ] T005 [P] Define a minimal “confirmation display preference” interface in `services/tenant_settings.py` or a new helper `services/confirmation_display_settings.py`
-- [ ] T006 Add contract-level unit tests for section joining and separator rules in `tests/test_reply_composer.py`
-- [ ] T007 Wire the composer into the existing confirmation reply path in `services/message_handler.py` (behind a feature flag or default-on switch as decided in implementation)
+- [x] T004 Create a reply composer module for confirmation replies in `services/reply_composer.py`
+- [x] T005 [P] Define a minimal “confirmation display preference” interface in `services/tenant_settings.py` or a new helper `services/confirmation_display_settings.py`
+- [x] T006 Add contract-level unit tests for section joining and separator rules in `tests/test_reply_composer.py`
+- [x] T007 Wire the composer into the existing confirmation reply path in `services/message_handler.py` (behind a feature flag or default-on switch as decided in implementation)
 
 **Checkpoint**: Foundation ready — composer exists, is unit-tested, and is called from the confirmation path
 
@@ -49,14 +49,14 @@
 
 ### Tests for User Story 1
 
-- [ ] T008 [P] [US1] Add unit tests for compact single-item rendering in `tests/test_confirmation_i18n.py` (or new `tests/test_confirmation_compact.py`)
-- [ ] T009 [P] [US1] Add integration-level tests for `process_text_message()` confirmation output in `tests/test_message_handler_reply.py`
+- [x] T008 [P] [US1] Add unit tests for compact single-item rendering in `tests/test_confirmation_i18n.py` (or new `tests/test_confirmation_compact.py`)
+- [x] T009 [P] [US1] Add integration-level tests for `process_text_message()` confirmation output in `tests/test_message_handler_reply.py`
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Implement compact single-item summary format in `services/reply_composer.py`
-- [ ] T011 [US1] Remove always-on instruction paragraph from confirmation output (ensure help still available via US4) in `services/confirmation_i18n.py` or composer layer
-- [ ] T012 [US1] Ensure budget pace warning (if present) remains a distinct short section before the compact summary in `services/budget_pace.py` integration point
+- [x] T010 [US1] Implement compact single-item summary format in `services/reply_composer.py`
+- [x] T011 [US1] Remove always-on instruction paragraph from confirmation output (ensure help still available via US4) in `services/confirmation_i18n.py` or composer layer
+- [x] T012 [US1] Ensure budget pace warning (if present) remains a distinct short section before the compact summary in `services/budget_pace.py` integration point
 
 **Checkpoint**: US1 complete — single-item confirmations are compact and tests prove no instruction wall-of-text appears
 
@@ -70,13 +70,13 @@
 
 ### Tests for User Story 2
 
-- [ ] T013 [P] [US2] Add tests for the `YES` confirmation prompt copy and behavior in `tests/test_reply_edit.py`
-- [ ] T014 [P] [US2] Add tests for “no apply without YES” safety in `tests/test_reply_edit.py`
+- [x] T013 [P] [US2] Add tests for the `YES` confirmation prompt copy and behavior in `tests/test_reply_edit.py`
+- [x] T014 [P] [US2] Add tests for “no apply without YES” safety in `tests/test_reply_edit.py`
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] Implement `YES` confirmation prompt formatting per `specs/017-simplify-expense-reply/contracts/category-confirmation.md` in `services/reply_summary.py` (or a new helper)
-- [ ] T016 [US2] Update reply-edit intent/application path to require explicit `YES` before applying guessed-category edits (where applicable) in `services/reply_edit.py`
+- [x] T015 [US2] Implement `YES` confirmation prompt formatting per `specs/017-simplify-expense-reply/contracts/category-confirmation.md` in `services/reply_summary.py` (or a new helper)
+- [x] T016 [US2] Update reply-edit intent/application path to require explicit `YES` before applying guessed-category edits (where applicable) in `services/reply_edit.py`
 
 **Checkpoint**: US2 complete — category mismatch requires `YES` confirmation and is covered by tests
 
@@ -90,15 +90,15 @@
 
 ### Tests for User Story 3
 
-- [ ] T017 [P] [US3] Add unit tests for subtotal grouping logic in `tests/test_reply_composer.py`
-- [ ] T018 [P] [US3] Add tests for preference toggle (default off vs on) in `tests/test_message_handler_reply.py`
+- [x] T017 [P] [US3] Add unit tests for subtotal grouping logic in `tests/test_reply_composer.py`
+- [x] T018 [P] [US3] Add tests for preference toggle (default off vs on) in `tests/test_message_handler_reply.py`
 
 ### Implementation for User Story 3
 
-- [ ] T019 [US3] Implement category subtotal computation and rendering in `services/reply_composer.py`
-- [ ] T020 [US3] Add per-item detail rendering (compact) controlled by `confirmation_show_item_details` preference in `services/reply_composer.py`
-- [ ] T021 [US3] Add bot-side preference resolution (tenant-scoped) with safe defaults in `services/tenant_settings.py` (or `services/confirmation_display_settings.py`)
-- [ ] T022 [US3] Extend the web settings API/UI to allow toggling the preference in `web/src/` settings area (and persist via existing settings storage)
+- [x] T019 [US3] Implement category subtotal computation and rendering in `services/reply_composer.py`
+- [x] T020 [US3] Add per-item detail rendering (compact) controlled by `confirmation_show_item_details` preference in `services/reply_composer.py`
+- [x] T021 [US3] Add bot-side preference resolution (tenant-scoped) with safe defaults in `services/tenant_settings.py` (or `services/confirmation_display_settings.py`)
+- [x] T022 [US3] Extend the web settings API/UI to allow toggling the preference in `web/src/` settings area (and persist via existing settings storage)
 
 **Checkpoint**: US3 complete — subtotals default, per-item details gated by setting, tests cover both
 
@@ -112,14 +112,14 @@
 
 ### Tests for User Story 4
 
-- [ ] T023 [P] [US4] Add tests for help intent detection and response in `tests/test_message_handler_reply.py`
-- [ ] T024 [P] [US4] Add localization tests for help responses in `tests/` (ja/en/zh baseline)
+- [x] T023 [P] [US4] Add tests for help intent detection and response in `tests/test_message_handler_reply.py`
+- [x] T024 [P] [US4] Add localization tests for help responses in `tests/` (ja/en/zh baseline)
 
 ### Implementation for User Story 4
 
-- [ ] T025 [US4] Implement help intent detection and routing in `services/intent.py` or `services/message_handler.py`
-- [ ] T026 [US4] Add concise help message templates (ja/en/zh) per `specs/017-simplify-expense-reply/contracts/help-intent.md` in `services/confirmation_i18n.py` (or a new i18n module)
-- [ ] T027 [US4] Ensure unsupported/non-expense messages remain rejected when not help-related in `services/message_handler.py`
+- [x] T025 [US4] Implement help intent detection and routing in `services/intent.py` or `services/message_handler.py`
+- [x] T026 [US4] Add concise help message templates (ja/en/zh) per `specs/017-simplify-expense-reply/contracts/help-intent.md` in `services/confirmation_i18n.py` (or a new i18n module)
+- [x] T027 [US4] Ensure unsupported/non-expense messages remain rejected when not help-related in `services/message_handler.py`
 
 **Checkpoint**: US4 complete — how-to questions get short help, other non-expense stays unsupported
 
@@ -129,10 +129,10 @@
 
 **Purpose**: Consistency, docs, and validation against quickstart
 
-- [ ] T028 [P] Align reply-edit summaries to the same sectioned composer style (where appropriate) in `services/reply_summary.py`
-- [ ] T029 Update documentation examples in `specs/017-simplify-expense-reply/contracts/*.md` to match final behavior
-- [ ] T030 Run the end-to-end quickstart steps and update `specs/017-simplify-expense-reply/quickstart.md` with any discovered gotchas
-- [ ] T031 Run full bot test suite and fix regressions in `tests/`
+- [x] T028 [P] Align reply-edit summaries to the same sectioned composer style (where appropriate) in `services/reply_summary.py`
+- [x] T029 Update documentation examples in `specs/017-simplify-expense-reply/contracts/*.md` to match final behavior
+- [x] T030 Run the end-to-end quickstart steps and update `specs/017-simplify-expense-reply/quickstart.md` with any discovered gotchas
+- [x] T031 Run full bot test suite and fix regressions in `tests/`
 
 ---
 

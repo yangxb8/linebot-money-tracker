@@ -1,6 +1,7 @@
 import unittest
 
-from services.confirmation_i18n import format_expense_confirmation, item_number_label
+from services.confirmation_i18n import format_expense_confirmation, item_number_label, t
+from services.help_intent import help_reply, is_help_request_obvious
 
 
 class TestConfirmationI18n(unittest.TestCase):
@@ -9,7 +10,7 @@ class TestConfirmationI18n(unittest.TestCase):
         self.assertEqual(item_number_label(3), '3️⃣')
         self.assertEqual(item_number_label(11), '11)')
 
-    def test_instructions_once_at_top(self):
+    def test_compact_single_item(self):
         text = format_expense_confirmation(
             [
                 {
@@ -17,39 +18,41 @@ class TestConfirmationI18n(unittest.TestCase):
                     'amount': 450,
                     'currency': 'JPY',
                     'category_guess_path': '食費',
-                    'category_alternative_paths': ['娯楽'],
-                },
-                {
-                    'description': 'Tea',
-                    'amount': 300,
-                    'currency': 'JPY',
-                    'category_guess_path': '食費',
-                    'category_alternative_paths': ['不明'],
-                },
+                }
             ],
             language='ja',
         )
-        self.assertIsNotNone(text)
-        self.assertEqual(text.count('このメッセージに返信'), 1)
-        self.assertIn('1️⃣ Coffee:', text)
-        self.assertIn('2️⃣ Tea:', text)
-        self.assertIn('  1) 娯楽', text)
+        self.assertIn('✅ Coffee ¥450', text)
+        self.assertNotIn('このメッセージに返信', text or '')
 
-    def test_english_header(self):
+    def test_english_compact(self):
         text = format_expense_confirmation(
-            [{'description': 'Lunch', 'amount': 120, 'currency': 'JPY'}],
+            [{'description': 'Lunch', 'amount': 120, 'currency': 'JPY', 'category_guess_path': 'Food'}],
             language='en',
         )
-        self.assertIn('Detected expense(s):', text)
-        self.assertIn('Total: 120 JPY', text or '')
-        self.assertIn('1️⃣ Lunch:', text)
+        self.assertIn('✅ Lunch ¥120', text)
+        self.assertIn('Food', text)
 
-    def test_total_sums_multiple_items(self):
+    def test_multi_item_subtotals(self):
         text = format_expense_confirmation(
             [
-                {'description': 'Coffee', 'amount': 450, 'currency': 'JPY'},
-                {'description': 'Tea', 'amount': 300, 'currency': 'JPY'},
+                {'description': 'Coffee', 'amount': 450, 'currency': 'JPY', 'category_guess_path': '食費'},
+                {'description': 'Tea', 'amount': 300, 'currency': 'JPY', 'category_guess_path': '食費'},
             ],
             language='ja',
         )
-        self.assertIn('合計: 750 JPY', text)
+        self.assertIn('合計 ¥750（2件）', text)
+        self.assertIn('食費 ¥750', text)
+
+
+class TestHelpIntent(unittest.TestCase):
+    def test_help_request_detected(self):
+        self.assertTrue(is_help_request_obvious('How do I delete an expense?'))
+
+    def test_help_reply_localized(self):
+        self.assertIn('YES', help_reply('en'))
+        self.assertIn('YES', help_reply('ja'))
+        self.assertIn('YES', help_reply('zh'))
+
+    def test_help_strings_exist(self):
+        self.assertIn('Reply to the expense confirmation', t('en', 'help_edit'))

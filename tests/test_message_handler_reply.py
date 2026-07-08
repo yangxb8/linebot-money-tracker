@@ -87,7 +87,7 @@ class TestMessageHandlerReply(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn('Logged by:', text or '')
 
-    async def test_confirmation_footer_updated(self):
+    async def test_confirmation_is_compact_without_instructions(self):
         text = format_expense_items(
             [
                 {
@@ -100,7 +100,21 @@ class TestMessageHandlerReply(unittest.IsolatedAsyncioTestCase):
             ],
             language='ja',
         )
-        self.assertIn('このメッセージに返信', text)
+        self.assertIn('✅ Coffee ¥450', text)
+        self.assertNotIn('このメッセージに返信', text)
+
+    async def test_help_request_returns_guidance(self):
+        gemini = MagicMock(spec=GeminiClient)
+        context = MessageContext(
+            tenant=TenantContext.personal('u1'),
+            source_message_id='m1',
+            reply_language='en',
+        )
+        with patch('services.message_handler.parse_text_for_expenses', return_value=[]), patch(
+            'services.message_handler.is_webapp_request_obvious', return_value=False
+        ):
+            bot_reply = await process_text_message('How do I delete an expense?', gemini, context)
+        self.assertIn('Reply to the expense confirmation', bot_reply.text)
 
     @patch('services.message_handler.fetch_expense_ids_for_message', return_value=[{'id': 'e1', 'line_item_index': 0}])
     async def test_process_text_returns_confirmation_payload(self, _fetch):

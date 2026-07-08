@@ -40,4 +40,6 @@ From `web/`:
 - `npm install`
 - `npm run dev`
 
-In the Settings area, toggle the confirmation display preference (show per-item details). Then re-run the harness multi-item flow and confirm the reply includes per-item lines when enabled.
+In the Settings area, toggle **Show item details in confirmations** under LINE bot behavior and persist via `/api/settings`.
+
+Apply migration `supabase/migrations/20260708120000_confirmation_show_item_details.sql` before using the web toggle in production.

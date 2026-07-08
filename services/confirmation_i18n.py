@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Dict, List, Optional
+
+from services.reply_composer import compose_confirmation_reply
 
 ITEM_EMOJI = (
     '1️⃣',
@@ -60,6 +61,11 @@ _STRINGS: Dict[str, Dict[str, str]] = {
             '家計簿のWebページは現在ご利用いただけません。'
             'しばらくしてからもう一度お試しください。'
         ),
+        'help_edit': (
+            '支出確認メッセージに返信して編集できます。'
+            '例: 「3800円」「取消」「食料品」。'
+            'カテゴリが曖昧な場合は推測結果を表示するので YES で確定してください。'
+        ),
     },
     'en': {
         'header': 'Detected expense(s):',
@@ -100,6 +106,11 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         'webapp_unavailable': (
             'The expense dashboard is not available right now. Please try again later.'
         ),
+        'help_edit': (
+            'Reply to the expense confirmation message to edit. '
+            'Examples: "3800", "delete", or "Groceries". '
+            'If I guess the category, reply YES to confirm.'
+        ),
     },
     'zh': {
         'header': '检测到的支出:',
@@ -138,6 +149,11 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         'webapp_unavailable': (
             '家计簿网页暂时无法使用，请稍后再试。'
         ),
+        'help_edit': (
+            '回复支出确认消息即可编辑。'
+            '例: 「3800円」「删除」「食料品」。'
+            '若类别不确定，我会给出推测结果，请回复 YES 确认。'
+        ),
     },
 }
 
@@ -171,23 +187,6 @@ def t(language: str, key: str, **kwargs: str) -> str:
     return text
 
 
-def _items_total(items: List[dict]) -> tuple[str, str]:
-    total = Decimal('0')
-    currency = ''
-    for item in items:
-        total += Decimal(str(item.get('amount', 0)))
-        if not currency:
-            raw_currency = item.get('currency')
-            if raw_currency:
-                currency = str(raw_currency).strip()
-    quantized = total.quantize(Decimal('0.01'))
-    if quantized == quantized.to_integral_value():
-        amount_text = str(int(quantized))
-    else:
-        amount_text = format(quantized, 'f').rstrip('0').rstrip('.')
-    return amount_text, currency
-
-
 def format_expense_confirmation(
     items: List[dict],
     *,
@@ -195,41 +194,17 @@ def format_expense_confirmation(
     logged_by_line_user_id: Optional[str] = None,
     logged_by_display_name: Optional[str] = None,
     is_shared_tenant: bool = False,
+    show_item_details: bool = False,
 ) -> Optional[str]:
-    if not items:
-        return None
-
     lang = normalize_reply_language(language)
-    lines: List[str] = [t(lang, 'header')]
-
-    total_amount, currency = _items_total(items)
-    currency_text = f' {currency}' if currency else ''
-    lines.append(t(lang, 'total', amount=total_amount, currency=currency_text))
-
+    logged_by_line: Optional[str] = None
     if is_shared_tenant and logged_by_line_user_id:
         name = (logged_by_display_name or '').strip() or logged_by_line_user_id
-        lines.append(t(lang, 'logged_by', name=name))
+        logged_by_line = t(lang, 'logged_by', name=name)
 
-    has_category_block = any((item.get('category_alternative_paths') or []) for item in items)
-    if has_category_block:
-        lines.append(t(lang, 'instructions'))
-        lines.append('')
-
-    for index, item in enumerate(items, start=1):
-        description = str(item.get('description', 'Expense')).strip()
-        amount = item.get('amount', '')
-        currency = item.get('currency', '')
-        currency_text = f' {currency}' if currency else ''
-        lines.append(f'{item_number_label(index)} {description}: {amount}{currency_text}')
-
-        guess_path = item.get('category_guess_path')
-        if guess_path:
-            lines.append(f"  {t(lang, 'category_guess', path=guess_path)}")
-
-        alt_paths = item.get('category_alternative_paths') or []
-        if alt_paths:
-            lines.append(f"  {t(lang, 'pick_another')}")
-            for alt_index, alt_path in enumerate(alt_paths[:3], start=1):
-                lines.append(f'  {alt_index}) {alt_path}')
-
-    return '\n'.join(lines)
+    return compose_confirmation_reply(
+        items,
+        language=language,
+        show_item_details=show_item_details,
+        logged_by_line=logged_by_line,
+    )

@@ -44,6 +44,34 @@ One line per item (compact):
 
 - `{n}) {description} ¥{amount} · {category_path}`
 
+## Example outputs (implemented)
+
+Single item (ja):
+
+```text
+✅ まいばすけっと ¥3210 · 食費 > 食料品
+```
+
+Multi-item default (ja):
+
+```text
+✅ 合計 ¥5430（3件）
+食費 > 食料品 ¥3210
+生活 > 日用品 ¥2220
+```
+
+Multi-item with per-item details enabled (ja):
+
+```text
+✅ 合計 ¥5430（3件）
+食費 > 食料品 ¥3210
+生活 > 日用品 ¥2220
+
+1) まいばすけっと ¥3210 · 食費 > 食料品
+2) ドラッグストア ¥890 · 生活 > 日用品
+3) コンビニ ¥1330 · 生活 > 日用品
+```
+
 ## Help behavior (out of band)
 
 Help responses are not part of confirmations. When the user asks how-to questions, return a short actionable tip (language-matched).

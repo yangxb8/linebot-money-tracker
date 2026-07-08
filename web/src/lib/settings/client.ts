@@ -29,6 +29,7 @@ export async function saveTenantSettings(
       bot_persona_preset: settings.bot_persona_preset ?? null,
       bot_persona_custom_text: settings.bot_persona_custom_text ?? null,
       bot_persona_emoji_level: settings.bot_persona_emoji_level ?? null,
+      confirmation_show_item_details: settings.confirmation_show_item_details ?? false,
     }),
   });
   if (!response.ok) {

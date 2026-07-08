@@ -35,6 +35,8 @@ from services.receipt_store_name import propagate_receipt_store_name
 from services.receipt_normalize import normalize_receipt_items
 from services.receipt_validate import validate_receipt_items
 from services.confirmation_i18n import format_expense_confirmation, t
+from services.confirmation_display_settings import confirmation_show_item_details
+from services.help_intent import help_reply, is_help_request_obvious
 from services.reply_edit import apply_edit_intent, parse_edit_intent
 from services.reply_summary import format_duplicate_reply, format_unknown_confirmation
 from services.user_language import maybe_update_from_user_message
@@ -91,6 +93,7 @@ def format_expense_items(
     logged_by_line_user_id: Optional[str] = None,
     logged_by_display_name: Optional[str] = None,
     is_shared_tenant: bool = False,
+    show_item_details: bool = False,
 ) -> Optional[str]:
     return format_expense_confirmation(
         items or [],
@@ -98,6 +101,7 @@ def format_expense_items(
         logged_by_line_user_id=logged_by_line_user_id,
         logged_by_display_name=logged_by_display_name,
         is_shared_tenant=is_shared_tenant,
+        show_item_details=show_item_details,
     )
 
 
@@ -107,11 +111,13 @@ def _confirmation_format_kwargs(context: Optional[MessageContext]) -> Dict[str, 
             'logged_by_line_user_id': None,
             'logged_by_display_name': None,
             'is_shared_tenant': False,
+            'show_item_details': False,
         }
     return {
         'logged_by_line_user_id': context.tenant.logged_by_line_user_id,
         'logged_by_display_name': context.logged_by_display_name,
         'is_shared_tenant': context.tenant.is_shared,
+        'show_item_details': confirmation_show_item_details(context.tenant),
     }
 
 
@@ -386,6 +392,10 @@ async def process_text_message(
         if is_webapp_request_obvious(text):
             logger.info('Text pipeline: obvious webapp request (shortcut)')
             return _text_reply_with_persona(webapp_link_reply(language), context=context, language=language)
+
+        if is_help_request_obvious(text):
+            logger.info('Text pipeline: help/how-to request (shortcut)')
+            return _text_reply_with_persona(help_reply(language), context=context, language=language)
 
         message_intent = await classify_text_message_intent(text, gemini)
 

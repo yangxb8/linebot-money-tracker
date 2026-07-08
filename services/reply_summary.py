@@ -219,6 +219,17 @@ def format_intent_confirmation_prompt(
     )
 
 
+def format_category_guess_confirmation(
+    language: str,
+    guessed_category_path: str,
+) -> str:
+    if language == 'zh':
+        return f'类别是「{guessed_category_path}」吗？回复 YES 确认。'
+    if language == 'en':
+        return f'Category: "{guessed_category_path}" — reply YES to confirm.'
+    return f'カテゴリは「{guessed_category_path}」でOK？ YES で確定'
+
+
 def format_category_options_prompt(
     language: str,
     category_query: str,
