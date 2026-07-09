@@ -546,7 +546,7 @@ class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
         gemini = MagicMock(spec=GeminiClient)
         result = await apply_edit_intent(intent, confirmation, '餐饮', gemini)
         self.assertEqual(result.status, 'applied')
-        self.assertIn('1)', result.summary)
+        self.assertIn('YES', result.summary)
         set_pending.assert_called_once()
         map_category.assert_awaited_once()
 

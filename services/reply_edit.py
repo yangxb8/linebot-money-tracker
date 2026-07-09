@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from jsonschema import Draft7Validator, ValidationError
 
 from services.categorize import map_category_from_text
+from services.category_taxonomy import format_category_path, load_category_taxonomy_for_tenant, resolve_code
 from services.category_memory import record_user_correction_from_description
 from services.confirmation_repository import (
     ConfirmationRecord,
@@ -36,6 +37,7 @@ from services.reply_summary import (
     describe_category_bulk_intent,
     detect_reply_language,
     format_amount,
+    format_category_guess_confirmation,
     format_category_options_prompt,
     format_edit_result,
     format_intent_confirmation_prompt,
@@ -811,6 +813,85 @@ def _parse_expense_date(raw: Any) -> Optional[date]:
         return None
 
 
+def _exact_category_code_from_query(category_query: str, tenant) -> Optional[str]:
+    query = (category_query or '').strip().casefold()
+    if not query:
+        return None
+    taxonomy = load_category_taxonomy_for_tenant(tenant)
+    for code, node in taxonomy.items():
+        path = format_category_path(node).casefold()
+        if query == path or query == node.name_ja.casefold():
+            return code
+    return None
+
+
+async def _apply_category_to_line_indices(
+    *,
+    line_indices: List[int],
+    category_code: str,
+    confirmation: ConfirmationRecord,
+    user_text: str,
+    items_snapshot: List[Dict[str, Any]],
+    expenses: Dict[str, ExpenseRow],
+    gemini: GeminiClient,
+    intent: Dict[str, Any],
+) -> EditApplyResult:
+    language = detect_reply_language(user_text)
+    target_items = _items_for_line_indices(line_indices, items_snapshot, expenses)
+    if not target_items:
+        summary = format_edit_result(
+            language,
+            EditSummaryInput(
+                status='clarification',
+                action='category_bulk',
+                clarification_message=_clarify_message(language, 'no_active'),
+            ),
+        )
+        return EditApplyResult(status='clarification', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+
+    updated_count = 0
+    for item in target_items:
+        expense_id = str(item['expense_id'])
+        result = update_expense_fields(
+            expense_id,
+            category_code=category_code,
+            tenant=confirmation.tenant,
+        )
+        if not result.success:
+            summary = format_edit_result(
+                language,
+                EditSummaryInput(status='error', action='category_bulk', error_message=result.error),
+            )
+            return EditApplyResult(status='error', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+        updated_count += 1
+        expense_row = expenses.get(expense_id)
+        description = expense_row.description if expense_row else str(item.get('description', ''))
+        await _record_category_memory_correction(
+            confirmation,
+            description=description,
+            category_code=category_code,
+            gemini=gemini,
+            store_name=_store_name_from_expense_row(expense_row),
+        )
+        for snap in items_snapshot:
+            if str(snap.get('expense_id')) == expense_id:
+                snap['category_guess_code'] = category_code
+                break
+
+    clear_pending_state(confirmation.id)
+    update_items_snapshot(confirmation.id, items_snapshot)
+    summary = format_edit_result(
+        language,
+        EditSummaryInput(
+            status='applied',
+            action='category_bulk',
+            affected_count=updated_count,
+            changes=(FieldChange('category', '', category_path_for_code(category_code, confirmation.tenant)),),
+        ),
+    )
+    return EditApplyResult(status='applied', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+
+
 async def _begin_category_bulk_flow(
     intent: Dict[str, Any],
     confirmation: ConfirmationRecord,
@@ -878,20 +959,31 @@ async def _begin_category_bulk_flow(
         )
         return EditApplyResult(status='clarification', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
 
-    target_labels = tuple(_item_labels_for_line_indices(line_indices, items_snapshot))
+    exact_code = _exact_category_code_from_query(category_query, confirmation.tenant)
+    if exact_code:
+        clear_pending_state(confirmation.id)
+        return await _apply_category_to_line_indices(
+            line_indices=line_indices,
+            category_code=exact_code,
+            confirmation=confirmation,
+            user_text=user_text,
+            items_snapshot=items_snapshot,
+            expenses=expenses,
+            gemini=gemini,
+            intent=intent,
+        )
+
+    guessed_code = str(options[0])
+    guessed_path = category_path_for_code(guessed_code, confirmation.tenant)
     payload = {
-        'category_query': category_query,
-        'category_options': list(options),
+        'interpreted_action': 'apply_category_guess',
+        'guessed_category_code': guessed_code,
         'target_line_item_indices': line_indices,
+        'category_query': category_query,
+        'guessed_path': guessed_path,
     }
-    set_pending_state(confirmation.id, 'category_bulk', payload)
-    summary = format_category_options_prompt(
-        language,
-        category_query,
-        options,
-        target_labels,
-        tenant=confirmation.tenant,
-    )
+    set_pending_state(confirmation.id, 'confirm_intent', payload)
+    summary = format_category_guess_confirmation(language, guessed_path)
     return EditApplyResult(
         status='applied',
         summary=summary,
@@ -1022,6 +1114,26 @@ async def apply_edit_intent(
 
     if action == 'confirm_pending' and confirmation.pending_action == 'confirm_intent':
         interpreted_action = pending_payload.get('interpreted_action')
+        if interpreted_action == 'apply_category_guess':
+            guessed_code = str(pending_payload.get('guessed_category_code', '')).strip()
+            line_indices = [int(index) for index in (pending_payload.get('target_line_item_indices') or [])]
+            clear_pending_state(confirmation.id)
+            if not guessed_code or not line_indices:
+                summary = format_edit_result(
+                    language,
+                    EditSummaryInput(status='error', action='category_bulk', error_message=None),
+                )
+                return EditApplyResult(status='error', summary=summary, intent_json=intent, items_snapshot=items_snapshot)
+            return await _apply_category_to_line_indices(
+                line_indices=line_indices,
+                category_code=guessed_code,
+                confirmation=confirmation,
+                user_text=user_text,
+                items_snapshot=items_snapshot,
+                expenses=expenses,
+                gemini=gemini,
+                intent=intent,
+            )
         if interpreted_action == 'category_bulk':
             follow_up = {
                 'action': 'category_bulk',

@@ -37,6 +37,7 @@ export async function PUT(request: Request) {
       bot_persona_preset: body.bot_persona_preset ?? null,
       bot_persona_custom_text: body.bot_persona_custom_text ?? null,
       bot_persona_emoji_level: body.bot_persona_emoji_level ?? null,
+      confirmation_show_item_details: Boolean(body.confirmation_show_item_details),
     });
     return NextResponse.json(settings);
   } catch (error) {

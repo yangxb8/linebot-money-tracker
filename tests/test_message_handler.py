@@ -17,7 +17,6 @@ from services.message_handler import (
     process_text_message,
 )
 from services.tenant_context import TenantContext
-from tests.persona_test_utils import PERSONA_EXPENSE_HEADER_EN
 
 
 class TestFormatExpenseItems(unittest.TestCase):
@@ -26,9 +25,8 @@ class TestFormatExpenseItems(unittest.TestCase):
             [{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
             language='en',
         )
-        self.assertIn(PERSONA_EXPENSE_HEADER_EN, text)
-        self.assertIn('1️⃣ Lunch:', text)
-        self.assertIn('120.0', text)
+        self.assertIn('✅ Lunch', text)
+        self.assertIn('120', text)
 
 
 class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
@@ -66,7 +64,7 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             return_value=[{'description': 'Lunch', 'amount': 120.0, 'currency': 'THB'}],
         ), patch('services.message_handler.insert_expenses'):
             reply = await process_text_message('Lunch 120 THB', gemini, self._english_context())
-        self.assertIn(PERSONA_EXPENSE_HEADER_EN, reply.text)
+        self.assertIn('✅ Lunch', reply.text)
         gemini.generate_reply.assert_not_called()
 
     async def test_process_text_non_expense(self):
@@ -132,7 +130,7 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             reply = await process_text_message('Lunch at cafe', gemini, self._english_context())
         assist_mock.assert_awaited_once()
         gemini.generate_reply.assert_not_called()
-        self.assertIn(PERSONA_EXPENSE_HEADER_EN, reply.text)
+        self.assertIn('✅', reply.text)
 
     async def test_process_text_expense_intent_unparseable_returns_parse_error(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -170,7 +168,7 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             reply = await process_image_message(b'fake-image', gemini, context=self._english_context())
         preprocess_mock.assert_called_once_with(b'fake-image')
         parse_mock.assert_awaited_once_with(b'processed-jpeg', gemini, 'image/jpeg')
-        self.assertIn(PERSONA_EXPENSE_HEADER_EN, reply.text)
+        self.assertIn('✅', reply.text)
 
     async def test_process_image_propagates_store_name_to_items(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -200,7 +198,7 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
         ):
             reply = await process_image_message(b'fake-image', gemini, context=self._english_context())
 
-        self.assertIn(PERSONA_EXPENSE_HEADER_EN, reply.text)
+        self.assertIn('✅', reply.text)
         self.assertEqual(len(captured_items), 2)
         self.assertEqual(captured_items[0].get('store_name'), 'イオン')
         self.assertEqual(captured_items[1].get('store_name'), 'イオン')

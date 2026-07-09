@@ -23,6 +23,7 @@ export function BotBehaviorSetting() {
   const [preset, setPreset] = useState<string | null>(null);
   const [customText, setCustomText] = useState<string>("");
   const [emojiLevel, setEmojiLevel] = useState<number | null>(null);
+  const [showItemDetails, setShowItemDetails] = useState(false);
   const [fiscalStartDay, setFiscalStartDay] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -56,6 +57,7 @@ export function BotBehaviorSetting() {
           ? null
           : (settings.bot_persona_emoji_level ?? null),
       );
+      setShowItemDetails(Boolean(settings.confirmation_show_item_details));
     } catch {
       setError("load_failed");
     } finally {
@@ -71,6 +73,7 @@ export function BotBehaviorSetting() {
     preset: string | null;
     customText: string;
     emojiLevel: number | null;
+    showItemDetails: boolean;
   }) {
     if (!selectedTenant) return;
     setSaving(true);
@@ -82,11 +85,13 @@ export function BotBehaviorSetting() {
         bot_persona_preset: next.preset,
         bot_persona_custom_text: next.customText,
         bot_persona_emoji_level: next.emojiLevel,
+        confirmation_show_item_details: next.showItemDetails,
       });
       setFiscalStartDay(settings.fiscal_start_day);
       setPreset(settings.bot_persona_preset ?? null);
       setCustomText(settings.bot_persona_custom_text ?? "");
       setEmojiLevel(settings.bot_persona_emoji_level ?? null);
+      setShowItemDetails(Boolean(settings.confirmation_show_item_details));
       setSaved(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "save_failed";
@@ -97,7 +102,7 @@ export function BotBehaviorSetting() {
   }
 
   async function handleReset() {
-    await handleSave({ preset: null, customText: "", emojiLevel: null });
+    await handleSave({ preset: null, customText: "", emojiLevel: null, showItemDetails: false });
   }
 
   if (!selectedTenant) return null;
@@ -172,10 +177,29 @@ export function BotBehaviorSetting() {
         />
       </div>
 
+      <div className="space-y-1">
+        <label htmlFor="confirmation-item-details" className="text-sm font-medium text-gray-900">
+          {t("confirmationShowItemDetailsLabel")}
+        </label>
+        <p className="text-xs text-gray-500">{t("confirmationShowItemDetailsHint")}</p>
+        <input
+          id="confirmation-item-details"
+          type="checkbox"
+          checked={showItemDetails}
+          onChange={(event) => {
+            setShowItemDetails(event.target.checked);
+            setSaved(false);
+          }}
+          className="h-4 w-4 rounded border-gray-300"
+        />
+      </div>
+
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => void handleSave({ preset, customText, emojiLevel })}
+          onClick={() =>
+            void handleSave({ preset, customText, emojiLevel, showItemDetails })
+          }
           disabled={saving}
           className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
         >
