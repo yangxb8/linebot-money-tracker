@@ -42,6 +42,7 @@ from services.line_event import (
     extract_text_message,
 )
 from services.tenant_context import TenantContext, resolve_tenant_from_event
+from services.bot_persona import persona_scope, resolve_persona_for_tenant
 from services.message_context import BotReply, MessageContext, ReplyContext, ReplyEditResult, RetryContext
 from services.line_profile import fetch_line_display_name, fetch_line_profile_language
 from services.line_chat import fetch_chat_display_name
@@ -171,6 +172,11 @@ async def _resolve_reply_language(line_user_id: Optional[str], user_text: Option
     return resolve_reply_language(line_user_id, user_text)
 
 
+def _localized_for_tenant(tenant: Optional[TenantContext], builder):
+    with persona_scope(resolve_persona_for_tenant(tenant)):
+        return builder()
+
+
 async def _reply_and_save_confirmation(
     reply_token: str,
     bot_reply: BotReply,
@@ -290,7 +296,10 @@ async def handle_callback(request: Request):
                     if not usage_prep.allowed:
                         await _reply_text(
                             event.reply_token,
-                            format_denial_reply(reply_language, usage_prep.reason),
+                            _localized_for_tenant(
+                                tenant,
+                                lambda: format_denial_reply(reply_language, usage_prep.reason),
+                            ),
                         )
                         continue
                     with usage_billing_scope(usage_prep.billing_context):
@@ -315,7 +324,13 @@ async def handle_callback(request: Request):
 
                 if is_retry_intent(user_text):
                     if not try_mark_reply_processed(tenant, source_message_id):
-                        await _reply_text(event.reply_token, format_duplicate_reply(reply_language))
+                        await _reply_text(
+                            event.reply_token,
+                            _localized_for_tenant(
+                                tenant,
+                                lambda: format_duplicate_reply(reply_language),
+                            ),
+                        )
                         continue
 
                     retry_context = RetryContext(
@@ -335,7 +350,10 @@ async def handle_callback(request: Request):
                     if not usage_prep.allowed:
                         await _reply_text(
                             event.reply_token,
-                            format_denial_reply(reply_language, usage_prep.reason),
+                            _localized_for_tenant(
+                                tenant,
+                                lambda: format_denial_reply(reply_language, usage_prep.reason),
+                            ),
                         )
                         continue
 
@@ -391,7 +409,10 @@ async def handle_callback(request: Request):
                 if not usage_prep.allowed:
                     await _reply_text(
                         event.reply_token,
-                        format_denial_reply(reply_language, usage_prep.reason),
+                        _localized_for_tenant(
+                            tenant,
+                            lambda: format_denial_reply(reply_language, usage_prep.reason),
+                        ),
                     )
                     continue
                 with usage_billing_scope(usage_prep.billing_context):
@@ -419,7 +440,10 @@ async def handle_callback(request: Request):
             except Exception:
                 logger.exception('Image fetch failed')
                 error_reply = BotReply(
-                    text=error_reply_text(reply_language),
+                    text=_localized_for_tenant(
+                        tenant,
+                        lambda: error_reply_text(reply_language),
+                    ),
                     retryable_failure='image_fetch_error',
                 )
                 await _reply_and_save_confirmation(
@@ -443,7 +467,10 @@ async def handle_callback(request: Request):
                 if not usage_prep.allowed:
                     await _reply_text(
                         event.reply_token,
-                        format_denial_reply(reply_language, usage_prep.reason),
+                        _localized_for_tenant(
+                            tenant,
+                            lambda: format_denial_reply(reply_language, usage_prep.reason),
+                        ),
                     )
                     continue
                 with usage_billing_scope(usage_prep.billing_context):
@@ -462,10 +489,14 @@ async def handle_callback(request: Request):
 
         logger.info('Unsupported or empty message event received')
         unsupported_language = await _resolve_reply_language(line_user_id)
+        unsupported_text = _localized_for_tenant(
+            tenant,
+            lambda: canned_unsupported_reply(unsupported_language),
+        )
         await line_bot_api.reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=canned_unsupported_reply(unsupported_language))]
+                messages=[TextMessage(text=unsupported_text)]
             )
         )
 

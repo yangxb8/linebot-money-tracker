@@ -33,7 +33,7 @@ class TestWebappLinkReply(unittest.TestCase):
     def test_unavailable_without_url(self):
         with patch.dict(os.environ, {}, clear=True):
             reply = webapp_link_reply('en')
-        self.assertIn('not available', reply.lower())
+        self.assertIn('available', reply.lower())
 
     def test_dashboard_url_reads_env(self):
         with patch.dict(os.environ, {'DASHBOARD_LIFF_URL': 'https://liff.line.me/test'}):

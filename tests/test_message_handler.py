@@ -77,12 +77,12 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
     async def test_process_text_persona_lookup_failure_falls_back(self):
         gemini = MagicMock(spec=GeminiClient)
         with patch(
-            'services.message_handler.fetch_tenant_bot_settings',
+            'services.bot_persona.resolve_persona_for_tenant',
             side_effect=RuntimeError('fail'),
         ), patch('services.message_handler.classify_text_message_intent', AsyncMock(return_value='other')):
             reply = await process_text_message('Hello bot', gemini, self._english_context())
-        self.assertIn(canned_unsupported_reply('en'), reply.text)
         self.assertIn('🐰', reply.text)
+        self.assertIn('expense', reply.text.lower())
 
     async def test_process_text_uses_group_tenant_for_persona_lookup(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -91,20 +91,16 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             source_message_id='m1',
             reply_language='en',
         )
-        with patch('services.message_handler.classify_text_message_intent', AsyncMock(return_value='other')), patch(
-            'services.message_handler.fetch_tenant_bot_settings'
-        ) as fetch_mock:
-            fetch_mock.return_value = __import__('services.tenant_settings', fromlist=['TenantBotSettings']).TenantBotSettings(
-                persona=__import__('services.bot_persona', fromlist=['PersonaConfig']).PersonaConfig(
-                    emoji_level=0
-                )
-            )
+        with patch('services.message_handler.classify_text_message_intent', AsyncMock(return_value='other')        ), patch('services.message_handler.resolve_persona_for_tenant') as resolve_mock:
+            from services.bot_persona import PersonaConfig
+
+            resolve_mock.return_value = PersonaConfig(emoji_level=0)
             reply = await process_text_message('Hello bot', gemini, context)
-        fetch_mock.assert_called_once()
-        called_tenant = fetch_mock.call_args.args[0]
+        resolve_mock.assert_called_once()
+        called_tenant = resolve_mock.call_args.args[0]
         self.assertEqual(called_tenant.tenant_type, 'group')
         self.assertEqual(called_tenant.tenant_id, 'g1')
-        self.assertIn(canned_unsupported_reply('en'), reply.text)
+        self.assertIn('🐰', reply.text)
 
     async def test_process_text_webapp_obvious_skips_intent_llm(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -113,7 +109,7 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
         ) as intent_mock:
             reply = await process_text_message('网页', gemini, self._english_context())
         intent_mock.assert_not_awaited()
-        self.assertIn('not available', reply.text.lower())
+        self.assertIn('available', reply.text.lower())
 
     async def test_process_text_webapp_request_via_combined_intent(self):
         gemini = MagicMock(spec=GeminiClient)

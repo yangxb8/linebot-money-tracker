@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import contextvars
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Optional
+from typing import Iterator, Optional
+
+from services.tenant_context import TenantContext
 
 
 DEFAULT_PERSONA_PRESET = 'judy_hopps_cute_firm'
@@ -20,6 +24,11 @@ EMOJI_LEVELS = {EMOJI_LEVEL_OFF, EMOJI_LEVEL_LIGHT, EMOJI_LEVEL_NORMAL}
 
 # Keep short to reduce prompt-injection and UX risk.
 MAX_CUSTOM_TEXT_LEN = 200
+
+_active_persona: contextvars.ContextVar[Optional['PersonaConfig']] = contextvars.ContextVar(
+    'active_persona',
+    default=None,
+)
 
 
 @dataclass(frozen=True)
@@ -53,46 +62,52 @@ def normalize_persona_config(
     return PersonaConfig(preset=normalized_preset, custom_text=text, emoji_level=level)
 
 
-def _persona_suffix(language: str, *, emoji_level: int) -> str:
-    # Keep these short and deterministic to avoid changing meaning.
-    if emoji_level == EMOJI_LEVEL_OFF:
-        emoji = ''
-    elif emoji_level == EMOJI_LEVEL_LIGHT:
-        emoji = ' 🐰'
-    else:
-        emoji = ' 🐰✨'
+def get_active_persona() -> PersonaConfig:
+    persona = _active_persona.get()
+    return persona if persona is not None else PersonaConfig()
 
+
+@contextmanager
+def persona_scope(persona: PersonaConfig) -> Iterator[None]:
+    token = _active_persona.set(persona)
+    try:
+        yield
+    finally:
+        _active_persona.reset(token)
+
+
+def resolve_persona_for_tenant(tenant: Optional[TenantContext]) -> PersonaConfig:
+    if tenant is None:
+        return PersonaConfig()
+    from services.tenant_settings import fetch_tenant_bot_settings
+
+    try:
+        return fetch_tenant_bot_settings(tenant).persona
+    except Exception:
+        return PersonaConfig()
+
+
+def persona_voice_instructions(persona: PersonaConfig, language: str) -> str:
+    """Short style guidance for LLM-generated user-facing text."""
     lang = (language or 'ja').lower()
-    if lang.startswith('en'):
-        return f'Got it.{emoji}'
-    if lang.startswith('zh'):
-        return f'收到。{emoji}'.strip()
-    # default ja
-    return f'了解だよ。{emoji}'.strip()
+    custom = (persona.custom_text or '').strip()
+    if persona.preset == DEFAULT_PERSONA_PRESET:
+        if lang.startswith('en'):
+            base = (
+                'Voice: Judy Hopps-inspired — upbeat, cute but firm, encouraging. '
+                'Use light emoji when natural.'
+            )
+        elif lang.startswith('zh'):
+            base = '语气：朱迪·霍普斯风格——可爱但坚定、积极鼓励，自然点缀少量 emoji。'
+        else:
+            base = '口調：ジュディ風——かわいくもはっきり、励ましつつ。自然に軽い絵文字を使う。'
+    else:
+        base = 'Voice: friendly household expense assistant.'
 
-
-def apply_persona_style(
-    raw_reply_text: str,
-    *,
-    language: str,
-    persona: PersonaConfig,
-) -> str:
-    """Apply a lightweight persona wrapper without changing factual content.
-
-    Rules:
-    - Only add a short prefix and spacing.
-    - Never rewrite the body (avoids corrupting amounts/IDs).
-    """
-    body = (raw_reply_text or '').strip()
-    if not body:
-        return body
-
-    # v1: only one preset, but keep gate for future presets.
-    if persona.preset not in PERSONA_PRESETS:
-        persona = PersonaConfig()
-
-    suffix = _persona_suffix(language, emoji_level=persona.emoji_level)
-    if not suffix.strip():
-        return body
-
-    return f'{body}\n\n{suffix}'
+    if persona.emoji_level == EMOJI_LEVEL_OFF:
+        base += ' Avoid emoji.'
+    elif persona.emoji_level == EMOJI_LEVEL_LIGHT:
+        base += ' Use at most one emoji.'
+    if custom:
+        base += f' Tenant style note: {custom}'
+    return base

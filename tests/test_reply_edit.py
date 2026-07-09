@@ -217,7 +217,7 @@ class TestReplySummary(unittest.TestCase):
                 ),
             ),
         )
-        self.assertIn('更新しました', summary)
+        self.assertIn('更新したよ', summary)
         self.assertIn('→', summary)
 
 
