@@ -31,4 +31,5 @@
 
 ## Notes
 
-- Validation pass 1 (2026-07-14): All items pass. Clarifications from planning session recorded in spec. Ready for `/speckit-clarify` (optional) or `/speckit-plan`.
+- Validation pass 1 (2026-07-14): All items pass after `/speckit-specify`.
+- Re-validation after `/speckit-clarify` (2026-07-14): 5 clarifications integrated; all checklist items still pass (16/16). Ready for `/speckit-plan`.
