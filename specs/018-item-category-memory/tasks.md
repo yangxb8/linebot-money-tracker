@@ -125,7 +125,7 @@
 
 - [ ] T027 [US3] Ensure lookup order store_item → item_only in `services/categorize.py` returns item_only hits with `source='item_memory'` and weight ≥ 1.0 skip
 - [ ] T028 [US3] Verify `record_item_user_correction` in `services/category_memory.py` always upserts item_only; LLM/silent/backfill helpers never touch item_only
-- [ ] T029 [US3] Make T026 tests pass
+- [ ] T029 [US3] Make T026 tests pass in `tests/test_categorize_item_memory.py`
 
 **Checkpoint**: Cross-store commodity reuse works for trusted corrections only
 
