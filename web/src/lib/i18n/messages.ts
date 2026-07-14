@@ -305,7 +305,7 @@ export const messages = {
     dashboardUpcomingPeriodics: "Upcoming recurring",
     dashboardViewPeriodics: "Open recurring",
     dashboardTopMerchants: "Top merchants",
-    dashboardRunCount: "×",
+    dashboardRunCount: " runs",
     periodicCreateTitle: "Add periodic expense",
     periodicEditTitle: "Edit periodic expense",
     periodicSave: "Save",
