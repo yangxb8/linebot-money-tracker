@@ -12,6 +12,8 @@ export type ExpenseRecord = {
   tenant_type: string;
   tenant_id: string;
   merchant_display: string | null;
+  /** Set when the row was created by a periodic schedule run. */
+  periodic_schedule_id: string | null;
   /** ISO timestamp used as tiebreaker for newest/oldest date sort. */
   created_at: string;
 };
