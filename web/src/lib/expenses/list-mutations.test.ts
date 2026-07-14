@@ -22,6 +22,7 @@ function expense(
     tenant_type: "personal",
     tenant_id: "t1",
     merchant_display: null,
+    periodic_schedule_id: null,
     created_at: "2026-06-01T00:00:00.000Z",
     ...overrides,
   };

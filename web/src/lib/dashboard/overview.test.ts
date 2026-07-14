@@ -5,6 +5,7 @@ import {
   buildTopMerchants,
   dailyRemainingAllowance,
   selectAttentionL1Categories,
+  selectLargestNonPeriodicExpenses,
   selectUpcomingPeriodics,
   shouldShowUnbudgeted,
 } from "@/lib/dashboard/overview";
@@ -214,5 +215,53 @@ describe("selectUpcomingPeriodics", () => {
     expect(items[0]?.id).toBe("netflix");
     expect(items[0]?.dates[0]).toBe("2026-06-10");
     expect(items[0]?.dates.at(-1)).toBe("2026-06-24");
+  });
+});
+
+describe("selectLargestNonPeriodicExpenses", () => {
+  it("ranks by amount and skips periodic rows", () => {
+    const top = selectLargestNonPeriodicExpenses(
+      [
+        {
+          id: "1",
+          description: "Rent",
+          amount: 80000,
+          expense_date: "2026-06-01",
+          merchant_display: null,
+          periodic_schedule_id: "sched-1",
+          category_l2_name: null,
+          category_l1_name: "Housing",
+          category_name_ja: "Housing",
+        },
+        {
+          id: "2",
+          description: "Laptop",
+          amount: 120000,
+          expense_date: "2026-06-05",
+          merchant_display: "Apple",
+          periodic_schedule_id: null,
+          category_l2_name: null,
+          category_l1_name: "Shopping",
+          category_name_ja: "Shopping",
+        },
+        {
+          id: "3",
+          description: "Dinner",
+          amount: 9000,
+          expense_date: "2026-06-08",
+          merchant_display: null,
+          periodic_schedule_id: null,
+          category_l2_name: "Dining",
+          category_l1_name: "Food",
+          category_name_ja: "Dining",
+        },
+      ],
+      { limit: 5 },
+    );
+    expect(top.map((row) => row.id)).toEqual(["2", "3"]);
+    expect(top[0]).toMatchObject({
+      merchant_display: "Apple",
+      category_label: "Shopping",
+    });
   });
 });
