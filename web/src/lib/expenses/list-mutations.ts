@@ -1,4 +1,5 @@
 import { fiscalPeriodEnd, fiscalPeriodStartForDate } from "@/lib/budget/format";
+import { compareExpenses } from "@/lib/expenses/sort-group";
 import type { ExpenseRecord, FiscalMonthOption } from "@/lib/expenses/types";
 
 export function expenseInBudgetMonth(
@@ -17,16 +18,12 @@ export function budgetMonthForExpense(
   return fiscalPeriodStartForDate(year, month, day, fiscalStartDay);
 }
 
-function compareExpenseDesc(a: ExpenseRecord, b: ExpenseRecord): number {
-  return b.expense_date.localeCompare(a.expense_date);
-}
-
 export function upsertExpense(
   rows: ExpenseRecord[],
   expense: ExpenseRecord,
 ): ExpenseRecord[] {
   const next = [...rows.filter((row) => row.id !== expense.id), expense];
-  next.sort(compareExpenseDesc);
+  next.sort((a, b) => compareExpenses(a, b, "date", "desc"));
   return next;
 }
 

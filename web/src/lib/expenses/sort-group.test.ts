@@ -23,6 +23,7 @@ function expense(
     tenant_type: "personal",
     tenant_id: "t1",
     merchant_display: null,
+    created_at: "2026-06-01T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -127,12 +128,81 @@ describe("sortExpenses", () => {
       "a",
     ]);
   });
+
+  it("sorts same-day expenses by created_at for newest first", () => {
+    const rows = [
+      expense({
+        id: "older-id",
+        expense_date: "2026-06-01",
+        amount: 100,
+        created_at: "2026-06-01T09:00:00.000Z",
+      }),
+      expense({
+        id: "newer-id",
+        expense_date: "2026-06-01",
+        amount: 200,
+        created_at: "2026-06-01T15:00:00.000Z",
+      }),
+    ];
+    expect(sortExpenses(rows, "date", "desc").map((row) => row.id)).toEqual([
+      "newer-id",
+      "older-id",
+    ]);
+  });
+
+  it("sorts same-day expenses by created_at for oldest first", () => {
+    const rows = [
+      expense({
+        id: "newer-id",
+        expense_date: "2026-06-01",
+        amount: 200,
+        created_at: "2026-06-01T15:00:00.000Z",
+      }),
+      expense({
+        id: "older-id",
+        expense_date: "2026-06-01",
+        amount: 100,
+        created_at: "2026-06-01T09:00:00.000Z",
+      }),
+    ];
+    expect(sortExpenses(rows, "date", "asc").map((row) => row.id)).toEqual([
+      "older-id",
+      "newer-id",
+    ]);
+  });
 });
 
 describe("compareExpenses", () => {
-  it("uses id as tiebreaker for same date", () => {
-    const a = expense({ id: "a", expense_date: "2026-06-01", amount: 100 });
-    const b = expense({ id: "b", expense_date: "2026-06-01", amount: 100 });
+  it("uses created_at as tiebreaker for same date", () => {
+    const earlier = expense({
+      id: "z",
+      expense_date: "2026-06-01",
+      amount: 100,
+      created_at: "2026-06-01T09:00:00.000Z",
+    });
+    const later = expense({
+      id: "a",
+      expense_date: "2026-06-01",
+      amount: 100,
+      created_at: "2026-06-01T15:00:00.000Z",
+    });
+    expect(compareExpenses(earlier, later, "date", "asc")).toBeLessThan(0);
+    expect(compareExpenses(earlier, later, "date", "desc")).toBeGreaterThan(0);
+  });
+
+  it("falls back to id when date and created_at match", () => {
+    const a = expense({
+      id: "a",
+      expense_date: "2026-06-01",
+      amount: 100,
+      created_at: "2026-06-01T12:00:00.000Z",
+    });
+    const b = expense({
+      id: "b",
+      expense_date: "2026-06-01",
+      amount: 100,
+      created_at: "2026-06-01T12:00:00.000Z",
+    });
     expect(compareExpenses(a, b, "date", "asc")).toBeLessThan(0);
     expect(compareExpenses(a, b, "date", "desc")).toBeGreaterThan(0);
   });

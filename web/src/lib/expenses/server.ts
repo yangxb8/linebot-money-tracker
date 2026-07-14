@@ -18,7 +18,7 @@ import { DEFAULT_EXPENSE_LIST_SORT } from "@/lib/expenses/sort-group";
 export { parseTenantParams };
 
 const EXPENSE_SELECT =
-  "id, expense_date, description, amount, currency, category_node_id, category_name_ja, category_l1_name, category_l2_name, logged_by_line_user_id, tenant_type, tenant_id, metadata";
+  "id, expense_date, description, amount, currency, category_node_id, category_name_ja, category_l1_name, category_l2_name, logged_by_line_user_id, tenant_type, tenant_id, metadata, created_at";
 
 export async function requireExpenseUser() {
   const supabase = await createClient();
@@ -47,6 +47,7 @@ function mapExpenseRow(row: Record<string, unknown>): ExpenseRecord {
     tenant_type: String(row.tenant_type),
     tenant_id: String(row.tenant_id),
     merchant_display: resolveExpenseMerchantDisplay(row.metadata, description),
+    created_at: String(row.created_at),
   };
 }
 
@@ -109,9 +110,16 @@ export async function listExpenses(
 
   const ascending = sort.dir === "asc";
   if (sort.field === "amount") {
-    query = query.order("amount", { ascending }).order("id", { ascending });
+    query = query
+      .order("amount", { ascending })
+      .order("created_at", { ascending })
+      .order("id", { ascending });
   } else {
-    query = query.order("expense_date", { ascending }).order("id", { ascending });
+    // Newest/oldest: calendar date first, then log time within the same day.
+    query = query
+      .order("expense_date", { ascending })
+      .order("created_at", { ascending })
+      .order("id", { ascending });
   }
 
   const { data, error } = await query.range(offset, offset + limit - 1);
