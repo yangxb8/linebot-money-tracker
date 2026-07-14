@@ -24,9 +24,9 @@
 
 **Purpose**: Align repo artifacts and migration scaffold for 018
 
-- [ ] T001 Confirm feature docs present under `specs/018-item-category-memory/` (plan.md, research.md, data-model.md, contracts/, quickstart.md) and `.specify/feature.json` points at this feature
-- [ ] T002 [P] Add migration stub `supabase/migrations/20260714140000_category_item_memory.sql` from `specs/018-item-category-memory/contracts/supabase-schema-delta.md` (table + indexes + expenses.category_source check; do not apply remotely until polish)
-- [ ] T003 [P] Add empty module stubs `services/item_normalize.py` and `scripts/backfill_category_item_memory.py` with module docstrings referencing contracts
+- [x] T001 Confirm feature docs present under `specs/018-item-category-memory/` (plan.md, research.md, data-model.md, contracts/, quickstart.md) and `.specify/feature.json` points at this feature
+- [x] T002 [P] Add migration stub `supabase/migrations/20260714140000_category_item_memory.sql` from `specs/018-item-category-memory/contracts/supabase-schema-delta.md` (table + indexes + expenses.category_source check; do not apply remotely until polish)
+- [x] T003 [P] Add empty module stubs `services/item_normalize.py` and `scripts/backfill_category_item_memory.py` with module docstrings referencing contracts
 
 ---
 
@@ -36,13 +36,13 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Finalize DDL in `supabase/migrations/20260714140000_category_item_memory.sql` per `contracts/supabase-schema-delta.md` (partial unique indexes, kind/merchant CHECK, service_role grants, safe drop/recreate of `expenses_category_source_check`)
-- [ ] T005 [P] Implement `normalize_item_key()` and generic denylist in `services/item_normalize.py` per `contracts/item-normalize.md` (build on `services/receipt_parser.clean_receipt_description`)
-- [ ] T006 [P] Write failing tests for item key normalization in `tests/test_item_normalize.py` (planter/toilet-paper fixtures, generic → None, size/pack strip)
-- [ ] T007 Implement item-memory repository helpers in `services/category_memory.py`: `lookup_item_memory`, `upsert_item_llm_seed` (store_item only), `record_item_user_correction` (store_item + item_only), `apply_item_silent_confirm` (store_item only) per `data-model.md`
-- [ ] T008 [P] Write failing tests for item-memory write gates in `tests/test_category_item_memory.py` (LLM never writes item_only; correction writes both; weight ≥ 1.0 semantics)
-- [ ] T009 Extend `CategoryResultWithProvenance` in `services/categorize.py` with `source` including `item_memory`, plus optional `item_key` / `item_memory_kind` fields per `contracts/categorize-item-memory.md`
-- [ ] T010 Allow `category_source='item_memory'` through `services/expense_repository.py` insert/build paths (types + persistence payload)
+- [x] T004 Finalize DDL in `supabase/migrations/20260714140000_category_item_memory.sql` per `contracts/supabase-schema-delta.md` (partial unique indexes, kind/merchant CHECK, service_role grants, safe drop/recreate of `expenses_category_source_check`)
+- [x] T005 [P] Implement `normalize_item_key()` and generic denylist in `services/item_normalize.py` per `contracts/item-normalize.md` (build on `services/receipt_parser.clean_receipt_description`)
+- [x] T006 [P] Write failing tests for item key normalization in `tests/test_item_normalize.py` (planter/toilet-paper fixtures, generic → None, size/pack strip)
+- [x] T007 Implement item-memory repository helpers in `services/category_memory.py`: `lookup_item_memory`, `upsert_item_llm_seed` (store_item only), `record_item_user_correction` (store_item + item_only), `apply_item_silent_confirm` (store_item only) per `data-model.md`
+- [x] T008 [P] Write failing tests for item-memory write gates in `tests/test_category_item_memory.py` (LLM never writes item_only; correction writes both; weight ≥ 1.0 semantics)
+- [x] T009 Extend `CategoryResultWithProvenance` in `services/categorize.py` with `source` including `item_memory`, plus optional `item_key` / `item_memory_kind` fields per `contracts/categorize-item-memory.md`
+- [x] T010 Allow `category_source='item_memory'` through `services/expense_repository.py` insert/build paths (types + persistence payload)
 
 **Checkpoint**: Foundation ready — normalize + item memory APIs + provenance types in place
 
@@ -56,16 +56,16 @@
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] Add failing tests in `tests/test_categorize_item_memory.py` for `memory_mode='item'`: merchant hard-skip must not apply; soft prior passed to classify; missing item_key still classifies
-- [ ] T012 [P] [US1] Add failing tests in `tests/test_message_handler.py` (or new `tests/test_message_handler_item_memory.py`) asserting image pipeline calls classify with `memory_mode='item'` and text pipeline uses default `merchant`
+- [x] T011 [P] [US1] Add failing tests in `tests/test_categorize_item_memory.py` for `memory_mode='item'`: merchant hard-skip must not apply; soft prior passed to classify; missing item_key still classifies
+- [x] T012 [P] [US1] Add failing tests in `tests/test_message_handler.py` (or new `tests/test_message_handler_item_memory.py`) asserting image pipeline calls classify with `memory_mode='item'` and text pipeline uses default `merchant`
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Add optional `category_hint` to `classify_expense()` prompt in `services/categorize.py` per research Decision 4 / contracts
-- [ ] T014 [US1] Implement `memory_mode='item'` branch in `classify_expense_with_memory()` in `services/categorize.py`: resolve merchant + item_key; on miss call classify with merchant soft prior; upsert store_item LLM seed only; never merchant hard-skip
-- [ ] T015 [US1] Pass `memory_mode='item'` from image/receipt enrich path in `services/message_handler.py` (`_enrich_and_persist_items` / image success path); keep text path default `merchant`
-- [ ] T016 [US1] Persist `category_source='item_memory'|'llm'` correctly for receipt lines in `services/message_handler.py` via existing insert row builder
-- [ ] T017 [US1] Make T011–T012 tests pass; add structured log on soft-prior miss vs item hit in `services/categorize.py`
+- [x] T013 [US1] Add optional `category_hint` to `classify_expense()` prompt in `services/categorize.py` per research Decision 4 / contracts
+- [x] T014 [US1] Implement `memory_mode='item'` branch in `classify_expense_with_memory()` in `services/categorize.py`: resolve merchant + item_key; on miss call classify with merchant soft prior; upsert store_item LLM seed only; never merchant hard-skip
+- [x] T015 [US1] Pass `memory_mode='item'` from image/receipt enrich path in `services/message_handler.py` (`_enrich_and_persist_items` / image success path); keep text path default `merchant`
+- [x] T016 [US1] Persist `category_source='item_memory'|'llm'` correctly for receipt lines in `services/message_handler.py` via existing insert row builder
+- [x] T017 [US1] Make T011–T012 tests pass; add structured log on soft-prior miss vs item hit in `services/categorize.py`
 
 **Checkpoint**: Mixed receipt cold-start no longer forces one merchant category onto all lines (MVP)
 
@@ -79,13 +79,13 @@
 
 ### Tests for User Story 2
 
-- [ ] T018 [P] [US2] Extend `tests/test_categorize_item_memory.py` with failing cases: weight ≥ 1.0 store_item hit skips LLM; weight < 1.0 falls through; two different items at same store use distinct memories
+- [x] T018 [P] [US2] Extend `tests/test_categorize_item_memory.py` with failing cases: weight ≥ 1.0 store_item hit skips LLM; weight < 1.0 falls through; two different items at same store use distinct memories
 
 ### Implementation for User Story 2
 
-- [ ] T019 [US2] Complete store_item lookup + skip path in `services/categorize.py` (`source='item_memory'`, empty alternatives)
-- [ ] T020 [US2] Implement store_item silent confirm (+0.5) in `services/categorize.py` / `services/category_memory.py` using prior expense with same store+item identity (`exclude_source_message_id`)
-- [ ] T021 [US2] Make T018 tests pass; assert no `item_only` row created on LLM/silent paths in `tests/test_category_item_memory.py`
+- [x] T019 [US2] Complete store_item lookup + skip path in `services/categorize.py` (`source='item_memory'`, empty alternatives)
+- [x] T020 [US2] Implement store_item silent confirm (+0.5) in `services/categorize.py` / `services/category_memory.py` using prior expense with same store+item identity (`exclude_source_message_id`)
+- [x] T021 [US2] Make T018 tests pass; assert no `item_only` row created on LLM/silent paths in `tests/test_category_item_memory.py`
 
 **Checkpoint**: Repeat product at same store skips categorize when confident
 
@@ -99,13 +99,13 @@
 
 ### Tests for User Story 4
 
-- [ ] T022 [P] [US4] Extend `tests/test_reply_edit.py` with failing cases: receipt lineage (`metadata.store_name`) triggers `record_item_user_correction` and skips merchant `record_user_correction`; unrelated item memory untouched
+- [x] T022 [P] [US4] Extend `tests/test_reply_edit.py` with failing cases: receipt lineage (`metadata.store_name`) triggers `record_item_user_correction` and skips merchant `record_user_correction`; unrelated item memory untouched
 
 ### Implementation for User Story 4
 
-- [ ] T023 [US4] Branch category-correction hooks in `services/reply_edit.py` to call `record_item_user_correction` when expense has `metadata.store_name`; do not call merchant `record_user_correction` on that path
-- [ ] T024 [US4] Ensure bulk category change in `services/reply_edit.py` applies the same per-expense receipt vs text rule
-- [ ] T025 [US4] Make T022 tests pass in `tests/test_reply_edit.py`; assert correction `weight=1.0` / `last_source=user_correction` for both memory_kinds when store known via `services/category_memory.py`
+- [x] T023 [US4] Branch category-correction hooks in `services/reply_edit.py` to call `record_item_user_correction` when expense has `metadata.store_name`; do not call merchant `record_user_correction` on that path
+- [x] T024 [US4] Ensure bulk category change in `services/reply_edit.py` applies the same per-expense receipt vs text rule
+- [x] T025 [US4] Make T022 tests pass in `tests/test_reply_edit.py`; assert correction `weight=1.0` / `last_source=user_correction` for both memory_kinds when store known via `services/category_memory.py`
 
 **Checkpoint**: Single-line receipt correction cannot poison whole-store merchant memory
 
@@ -119,13 +119,13 @@
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] Extend `tests/test_categorize_item_memory.py` with failing cases: item_only hit after correction; store_item preferred over item_only; LLM seed does not create item_only affecting other store
+- [x] T026 [P] [US3] Extend `tests/test_categorize_item_memory.py` with failing cases: item_only hit after correction; store_item preferred over item_only; LLM seed does not create item_only affecting other store
 
 ### Implementation for User Story 3
 
-- [ ] T027 [US3] Ensure lookup order store_item → item_only in `services/categorize.py` returns item_only hits with `source='item_memory'` and weight ≥ 1.0 skip
-- [ ] T028 [US3] Verify `record_item_user_correction` in `services/category_memory.py` always upserts item_only; LLM/silent/backfill helpers never touch item_only
-- [ ] T029 [US3] Make T026 tests pass in `tests/test_categorize_item_memory.py`
+- [x] T027 [US3] Ensure lookup order store_item → item_only in `services/categorize.py` returns item_only hits with `source='item_memory'` and weight ≥ 1.0 skip
+- [x] T028 [US3] Verify `record_item_user_correction` in `services/category_memory.py` always upserts item_only; LLM/silent/backfill helpers never touch item_only
+- [x] T029 [US3] Make T026 tests pass in `tests/test_categorize_item_memory.py`
 
 **Checkpoint**: Cross-store commodity reuse works for trusted corrections only
 
@@ -139,12 +139,12 @@
 
 ### Tests for User Story 5
 
-- [ ] T030 [P] [US5] Extend `tests/test_categorize_memory.py` / `tests/test_message_handler.py` asserting text path still uses merchant memory hit/skip and does not call item-memory lookup
+- [x] T030 [P] [US5] Extend `tests/test_categorize_memory.py` / `tests/test_message_handler.py` asserting text path still uses merchant memory hit/skip and does not call item-memory lookup
 
 ### Implementation for User Story 5
 
-- [ ] T031 [US5] Confirm text enrich path in `services/message_handler.py` never passes `memory_mode='item'`; leave 013 merchant flow intact in `services/categorize.py`
-- [ ] T032 [US5] Make T030 + existing merchant regression tests pass (`python3 -m pytest -q tests/test_categorize_memory.py tests/test_message_handler.py`)
+- [x] T031 [US5] Confirm text enrich path in `services/message_handler.py` never passes `memory_mode='item'`; leave 013 merchant flow intact in `services/categorize.py`
+- [x] T032 [US5] Make T030 + existing merchant regression tests pass (`python3 -m pytest -q tests/test_categorize_memory.py tests/test_message_handler.py`)
 
 **Checkpoint**: Text merchant memory regression suite green
 
@@ -154,12 +154,12 @@
 
 **Purpose**: Backfill, migration apply, docs, full verification
 
-- [ ] T033 Implement `scripts/backfill_category_item_memory.py` (dry-run + apply; expenses with `metadata.store_name` only; store_item last-writer; never item_only) per plan/quickstart
-- [ ] T034 [P] Add `tests/test_backfill_category_item_memory.py` covering dry-run counting and item_only-not-written assertion (mocked Supabase)
-- [ ] T035 Apply migration to Supabase project (SQL editor or CLI) from `supabase/migrations/20260714140000_category_item_memory.sql` and verify `\d category_item_memory` + expenses check constraint
-- [ ] T036 [P] Update `specs/018-item-category-memory/quickstart.md` with any final command/constraint-name fixes discovered during apply
-- [ ] T037 Run full targeted pytest suite: `python3 -m pytest -q tests/test_item_normalize.py tests/test_category_item_memory.py tests/test_categorize_item_memory.py tests/test_categorize_memory.py tests/test_reply_edit.py tests/test_message_handler.py tests/test_backfill_category_item_memory.py`
-- [ ] T038 Manual smoke per `specs/018-item-category-memory/quickstart.md` (image mixed receipt + reply-edit + text Starbucks) when `GEMINI_API_KEY` + Supabase creds available; record results in PR notes
+- [x] T033 Implement `scripts/backfill_category_item_memory.py` (dry-run + apply; expenses with `metadata.store_name` only; store_item last-writer; never item_only) per plan/quickstart
+- [x] T034 [P] Add `tests/test_backfill_category_item_memory.py` covering dry-run counting and item_only-not-written assertion (mocked Supabase)
+- [x] T035 Apply migration to Supabase project (SQL editor or CLI) from `supabase/migrations/20260714140000_category_item_memory.sql` and verify `\d category_item_memory` + expenses check constraint
+- [x] T036 [P] Update `specs/018-item-category-memory/quickstart.md` with any final command/constraint-name fixes discovered during apply
+- [x] T037 Run full targeted pytest suite: `python3 -m pytest -q tests/test_item_normalize.py tests/test_category_item_memory.py tests/test_categorize_item_memory.py tests/test_categorize_memory.py tests/test_reply_edit.py tests/test_message_handler.py tests/test_backfill_category_item_memory.py`
+- [x] T038 Manual smoke per `specs/018-item-category-memory/quickstart.md` (image mixed receipt + reply-edit + text Starbucks) when `GEMINI_API_KEY` + Supabase creds available; record results in PR notes
 
 ---
 
