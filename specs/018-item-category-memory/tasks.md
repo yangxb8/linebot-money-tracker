@@ -105,7 +105,7 @@
 
 - [ ] T023 [US4] Branch category-correction hooks in `services/reply_edit.py` to call `record_item_user_correction` when expense has `metadata.store_name`; do not call merchant `record_user_correction` on that path
 - [ ] T024 [US4] Ensure bulk category change in `services/reply_edit.py` applies the same per-expense receipt vs text rule
-- [ ] T025 [US4] Make T022 tests pass; set correction weight 1.0 / `last_source=user_correction` for both memory_kinds when store known
+- [ ] T025 [US4] Make T022 tests pass in `tests/test_reply_edit.py`; assert correction `weight=1.0` / `last_source=user_correction` for both memory_kinds when store known via `services/category_memory.py`
 
 **Checkpoint**: Single-line receipt correction cannot poison whole-store merchant memory
 
@@ -159,7 +159,7 @@
 - [ ] T035 Apply migration to Supabase project (SQL editor or CLI) from `supabase/migrations/20260714140000_category_item_memory.sql` and verify `\d category_item_memory` + expenses check constraint
 - [ ] T036 [P] Update `specs/018-item-category-memory/quickstart.md` with any final command/constraint-name fixes discovered during apply
 - [ ] T037 Run full targeted pytest suite: `python3 -m pytest -q tests/test_item_normalize.py tests/test_category_item_memory.py tests/test_categorize_item_memory.py tests/test_categorize_memory.py tests/test_reply_edit.py tests/test_message_handler.py tests/test_backfill_category_item_memory.py`
-- [ ] T038 Manual smoke per quickstart (image mixed receipt + reply-edit + text Starbucks) when `GEMINI_API_KEY` + Supabase creds available; record results in PR notes
+- [ ] T038 Manual smoke per `specs/018-item-category-memory/quickstart.md` (image mixed receipt + reply-edit + text Starbucks) when `GEMINI_API_KEY` + Supabase creds available; record results in PR notes
 
 ---
 
