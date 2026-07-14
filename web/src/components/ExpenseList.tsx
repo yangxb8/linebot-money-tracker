@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLanguage } from "@/components/LanguageProvider";
+import { DashboardOverview } from "@/components/dashboard/DashboardOverview";
 import { ExpenseForm } from "@/components/expenses/ExpenseForm";
 import { ExpenseGroupList } from "@/components/expenses/ExpenseGroupList";
 import { ExpenseListControls } from "@/components/expenses/ExpenseListControls";
@@ -330,6 +331,8 @@ export function ExpenseList({ tenant, isNewUser }: Props) {
         availableMonths={availableMonths}
         onChange={setBudgetMonth}
       />
+
+      <DashboardOverview tenant={tenant} budgetMonth={budgetMonth} />
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-gray-600">
