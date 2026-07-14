@@ -2,8 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { BudgetCategoryNode } from "@/lib/budget/types";
 import {
   buildL1SpendSlices,
+  buildTopMerchants,
+  dailyRemainingAllowance,
   selectAttentionL1Categories,
+  selectUpcomingPeriodics,
+  shouldShowUnbudgeted,
 } from "@/lib/dashboard/overview";
+import type { PeriodicScheduleResponse } from "@/lib/periodic/types";
 
 function l1(
   partial: Partial<BudgetCategoryNode> &
@@ -17,6 +22,37 @@ function l1(
     spent_assigned: partial.spent_assigned ?? 0,
     suggested_from_children: null,
     has_limit: partial.has_limit ?? partial.limit != null,
+    ...partial,
+  };
+}
+
+function schedule(
+  partial: Partial<PeriodicScheduleResponse> &
+    Pick<PeriodicScheduleResponse, "id" | "name" | "amount" | "next_run_date">,
+): PeriodicScheduleResponse {
+  return {
+    tenant_type: "user",
+    tenant_id: "u1",
+    currency: "JPY",
+    assigned_level: 1,
+    category_node_id: "c1",
+    category_l1_id: "c1",
+    category_l2_id: null,
+    recurrence: { kind: "interval_days", interval: 7 },
+    start_date: "2026-06-01",
+    timezone: "Asia/Tokyo",
+    end_kind: "never",
+    end_date: null,
+    end_amount_cap: null,
+    end_repeat_limit: null,
+    status: "active",
+    pause_reason: null,
+    occurrence_count: 0,
+    cumulative_amount: 0,
+    created_by_line_user_id: "u1",
+    created_at: "2026-06-01T00:00:00Z",
+    updated_at: "2026-06-01T00:00:00Z",
+    recurrence_summary: "every 7 days",
     ...partial,
   };
 }
@@ -108,5 +144,75 @@ describe("buildL1SpendSlices", () => {
     expect(slices[3]?.label).toBe("その他");
     const sumPct = slices.reduce((s, row) => s + row.pct, 0);
     expect(sumPct).toBeCloseTo(1, 5);
+  });
+});
+
+describe("dailyRemainingAllowance", () => {
+  it("returns null without remaining or days", () => {
+    expect(dailyRemainingAllowance(null, 10)).toBeNull();
+    expect(dailyRemainingAllowance(3000, 0)).toBeNull();
+  });
+
+  it("floors remaining across days left", () => {
+    expect(dailyRemainingAllowance(10000, 3)).toBe(3333);
+  });
+});
+
+describe("shouldShowUnbudgeted", () => {
+  it("requires a configured budget and positive spend", () => {
+    expect(shouldShowUnbudgeted(500, true)).toBe(true);
+    expect(shouldShowUnbudgeted(0, true)).toBe(false);
+    expect(shouldShowUnbudgeted(500, false)).toBe(false);
+  });
+});
+
+describe("buildTopMerchants", () => {
+  it("aggregates by merchant label and ranks by amount", () => {
+    const top = buildTopMerchants(
+      [
+        { merchant_display: "セブン", amount: 500 },
+        { merchant_display: null, amount: 9999 },
+        { merchant_display: "セブン", amount: 300 },
+        { merchant_display: "スタバ", amount: 1200 },
+      ],
+      { limit: 5 },
+    );
+    expect(top.map((row) => row.label)).toEqual(["スタバ", "セブン"]);
+    expect(top[1]).toMatchObject({ amount: 800, count: 2 });
+  });
+});
+
+describe("selectUpcomingPeriodics", () => {
+  it("expands remaining runs inside the fiscal period", () => {
+    const items = selectUpcomingPeriodics(
+      [
+        schedule({
+          id: "netflix",
+          name: "Netflix",
+          amount: 1500,
+          next_run_date: "2026-06-10",
+          recurrence: { kind: "interval_days", interval: 7 },
+          start_date: "2026-06-03",
+        }),
+        schedule({
+          id: "paused",
+          name: "Paused",
+          amount: 100,
+          next_run_date: "2026-06-12",
+          status: "paused",
+        }),
+        schedule({
+          id: "later",
+          name: "Later",
+          amount: 200,
+          next_run_date: "2026-07-05",
+        }),
+      ],
+      { periodEnd: "2026-06-30", fromDate: "2026-06-10" },
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]?.id).toBe("netflix");
+    expect(items[0]?.dates[0]).toBe("2026-06-10");
+    expect(items[0]?.dates.at(-1)).toBe("2026-06-24");
   });
 });

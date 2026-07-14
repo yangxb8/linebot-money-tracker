@@ -7,6 +7,7 @@ import {
   progressBarClass,
 } from "@/lib/budget/health";
 import { formatPercent, formatYen } from "@/lib/budget/format";
+import { dailyRemainingAllowance } from "@/lib/dashboard/overview";
 import type { Locale } from "@/lib/i18n/messages";
 
 type Props = {
@@ -14,8 +15,10 @@ type Props = {
   spent: number;
   limit: number | null;
   hasLimit: boolean;
+  remaining?: number | null;
   elapsedDays: number;
   daysInMonth: number;
+  showDailyRemaining?: boolean;
   onClick: () => void;
 };
 
@@ -24,8 +27,10 @@ export function DashboardBudgetCard({
   spent,
   limit,
   hasLimit,
+  remaining = null,
   elapsedDays,
   daysInMonth,
+  showDailyRemaining = false,
   onClick,
 }: Props) {
   const { t, locale } = useLanguage();
@@ -35,6 +40,12 @@ export function DashboardBudgetCard({
     hasLimit && limit != null && limit > 0
       ? Math.min(100, (spent / limit) * 100)
       : 0;
+  const daysLeft = Math.max(0, daysInMonth - elapsedDays);
+  const effectiveRemaining =
+    remaining ?? (hasLimit && limit != null ? Math.max(limit - spent, 0) : null);
+  const daily = showDailyRemaining
+    ? dailyRemainingAllowance(effectiveRemaining, daysLeft)
+    : null;
 
   return (
     <button
@@ -69,11 +80,30 @@ export function DashboardBudgetCard({
               style={{ width: `${progressPct}%` }}
             />
           </div>
-          {health.spentPct != null ? (
-            <p className="mt-1 text-xs text-gray-500">
-              {formatPercent(health.spentPct)} {t("budgetSpentLabel")}
-            </p>
-          ) : null}
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-gray-500">
+            {health.spentPct != null ? (
+              <span>
+                {formatPercent(health.spentPct)} {t("budgetSpentLabel")}
+              </span>
+            ) : null}
+            {effectiveRemaining != null ? (
+              <span>
+                {fmt(effectiveRemaining)} {t("budgetRemainingShort")}
+              </span>
+            ) : null}
+            {daily != null ? (
+              <span className="font-medium text-gray-700">
+                {fmt(daily)}
+                {t("budgetPerDay")}
+              </span>
+            ) : null}
+            {daysLeft > 0 && showDailyRemaining ? (
+              <span>
+                {daysLeft}
+                {t("budgetDaysLeft")}
+              </span>
+            ) : null}
+          </div>
         </>
       ) : (
         <p className="mt-1 text-xs text-gray-500">{t("budgetNoLimit")}</p>
