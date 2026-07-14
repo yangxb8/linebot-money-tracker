@@ -27,6 +27,15 @@ export type UpcomingPeriodicItem = {
   dates: string[];
 };
 
+export type LargestExpenseItem = {
+  id: string;
+  description: string;
+  amount: number;
+  expense_date: string;
+  merchant_display: string | null;
+  category_label: string | null;
+};
+
 const ATTENTION_TONES: ReadonlySet<HealthTone> = new Set(["caution", "bad"]);
 
 /** L1 categories with a limit that are not on-track (caution / over pace). */
@@ -246,4 +255,44 @@ export function selectUpcomingPeriodics(
       return a.name.localeCompare(b.name);
     })
     .slice(0, maxItems);
+}
+
+/**
+ * Top expenses by amount, excluding rows created by periodic schedules.
+ */
+export function selectLargestNonPeriodicExpenses(
+  expenses: {
+    id: string;
+    description: string;
+    amount: number;
+    expense_date: string;
+    merchant_display: string | null;
+    periodic_schedule_id: string | null;
+    category_l2_name: string | null;
+    category_l1_name: string | null;
+    category_name_ja: string | null;
+  }[],
+  options?: { limit?: number },
+): LargestExpenseItem[] {
+  const limit = options?.limit ?? 5;
+  return expenses
+    .filter((row) => !row.periodic_schedule_id)
+    .slice()
+    .sort((a, b) => {
+      if (b.amount !== a.amount) return b.amount - a.amount;
+      return b.expense_date.localeCompare(a.expense_date);
+    })
+    .slice(0, limit)
+    .map((row) => ({
+      id: row.id,
+      description: row.description,
+      amount: row.amount,
+      expense_date: row.expense_date,
+      merchant_display: row.merchant_display,
+      category_label:
+        row.category_l2_name ??
+        row.category_l1_name ??
+        row.category_name_ja ??
+        null,
+    }));
 }

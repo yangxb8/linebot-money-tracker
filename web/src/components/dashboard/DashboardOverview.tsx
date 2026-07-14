@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/components/LanguageProvider";
 import { DashboardBudgetCard } from "@/components/dashboard/DashboardBudgetCard";
+import { DashboardLargestExpenses } from "@/components/dashboard/DashboardLargestExpenses";
 import { DashboardTopMerchants } from "@/components/dashboard/DashboardTopMerchants";
 import { DashboardUpcomingPeriodics } from "@/components/dashboard/DashboardUpcomingPeriodics";
 import { SpendDistributionRing } from "@/components/dashboard/SpendDistributionRing";
@@ -18,6 +19,7 @@ import {
   buildL1SpendSlices,
   buildTopMerchants,
   selectAttentionL1Categories,
+  selectLargestNonPeriodicExpenses,
   selectUpcomingPeriodics,
   shouldShowUnbudgeted,
 } from "@/lib/dashboard/overview";
@@ -126,6 +128,11 @@ export function DashboardOverview({ tenant, budgetMonth }: Props) {
     [expenses],
   );
 
+  const largestExpenses = useMemo(
+    () => selectLargestNonPeriodicExpenses(expenses, { limit: 5 }),
+    [expenses],
+  );
+
   const goToBudget = () => {
     router.push("/budget");
   };
@@ -145,13 +152,15 @@ export function DashboardOverview({ tenant, budgetMonth }: Props) {
   const showRing = spendSlices.length > 0;
   const showUpcoming = upcoming.length > 0;
   const showMerchants = topMerchants.length > 0;
+  const showLargest = largestExpenses.length > 0;
 
   if (
     !showBudgetCards &&
     !showUnbudgeted &&
     !showRing &&
     !showUpcoming &&
-    !showMerchants
+    !showMerchants &&
+    !showLargest
   ) {
     return null;
   }
@@ -229,6 +238,10 @@ export function DashboardOverview({ tenant, budgetMonth }: Props) {
 
       {showMerchants ? (
         <DashboardTopMerchants merchants={topMerchants} />
+      ) : null}
+
+      {showLargest ? (
+        <DashboardLargestExpenses items={largestExpenses} />
       ) : null}
     </div>
   );
