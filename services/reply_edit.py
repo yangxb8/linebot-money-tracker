@@ -54,6 +54,18 @@ async def _record_category_memory_correction(
     gemini: GeminiClient,
     store_name: Optional[str] = None,
 ) -> None:
+    if store_name:
+        from services.category_memory import record_item_user_correction_from_description
+
+        await record_item_user_correction_from_description(
+            confirmation.tenant,
+            description=description,
+            category_code=category_code,
+            gemini=gemini,
+            store_name=store_name,
+            corrected_by=confirmation.tenant.logged_by_line_user_id,
+        )
+        return
     await record_user_correction_from_description(
         confirmation.tenant,
         description=description,

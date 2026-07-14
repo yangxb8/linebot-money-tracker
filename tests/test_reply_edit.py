@@ -312,7 +312,7 @@ class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
         update_fields.assert_called_once()
         record_memory.assert_awaited_once()
 
-    @patch('services.reply_edit.record_user_correction_from_description', new_callable=AsyncMock)
+    @patch('services.category_memory.record_item_user_correction_from_description', new_callable=AsyncMock)
     @patch('services.reply_edit.update_items_snapshot')
     @patch('services.reply_edit.get_expenses_by_ids')
     @patch('services.reply_edit.update_expense_fields')
@@ -321,7 +321,7 @@ class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
         update_fields,
         get_by_ids,
         _update_snap,
-        record_memory,
+        record_item_memory,
     ):
         update_fields.return_value = UpdateResult(success=True)
         expense_row_before = ExpenseRow(
@@ -383,8 +383,8 @@ class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
         gemini = MagicMock(spec=GeminiClient)
         result = await apply_edit_intent(intent, confirmation, '1', gemini)
         self.assertEqual(result.status, 'applied')
-        record_memory.assert_awaited_once()
-        self.assertEqual(record_memory.await_args.kwargs.get('store_name'), 'イオン')
+        record_item_memory.assert_awaited_once()
+        self.assertEqual(record_item_memory.await_args.kwargs.get('store_name'), 'イオン')
 
     @patch('services.reply_edit.update_items_snapshot')
     @patch('services.reply_edit.get_expenses_by_ids')

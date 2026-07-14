@@ -182,7 +182,7 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
         )
         captured_items = []
 
-        async def capture_enrich(items, _gemini, context=None):
+        async def capture_enrich(items, _gemini, context=None, **kwargs):
             captured_items.extend(items)
             return items, None
 

@@ -165,6 +165,8 @@ async def _enrich_and_persist_items(
     items: List[Dict[str, Any]],
     gemini: GeminiClient,
     context: Optional[MessageContext],
+    *,
+    memory_mode: str = 'merchant',
 ) -> tuple[List[Dict[str, Any]], Optional[ConfirmationSavePayload]]:
     enriched: List[Dict[str, Any]] = []
     insert_rows = []
@@ -176,6 +178,7 @@ async def _enrich_and_persist_items(
             gemini,
             tenant=tenant,
             exclude_source_message_id=context.source_message_id if context is not None else None,
+            memory_mode=memory_mode,  # type: ignore[arg-type]
         )
         guess_node = resolve_code(cat_result.guessed, tenant)
         alt_paths = [
@@ -513,7 +516,12 @@ async def _process_image_message_inner(
             )
             return _text_reply(receipt_parse_error_reply(language))
 
-        items, confirmation_payload = await _enrich_and_persist_items(items, gemini, context)
+        items, confirmation_payload = await _enrich_and_persist_items(
+            items,
+            gemini,
+            context,
+            memory_mode='item',
+        )
         reply_text = format_expense_items(
             items,
             language=language,
