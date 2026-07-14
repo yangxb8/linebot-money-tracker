@@ -22,6 +22,7 @@ function expense(
     tenant_type: "personal",
     tenant_id: "t1",
     merchant_display: null,
+    created_at: "2026-06-01T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -121,6 +122,27 @@ describe("expense list mutations", () => {
     const rows = upsertExpense(
       [expense({ id: "a", expense_date: "2026-06-10", amount: 100 })],
       expense({ id: "b", expense_date: "2026-06-20", amount: 200 }),
+    );
+
+    expect(rows.map((row) => row.id)).toEqual(["b", "a"]);
+  });
+
+  it("sorts same-day expenses by created_at descending on upsert", () => {
+    const rows = upsertExpense(
+      [
+        expense({
+          id: "a",
+          expense_date: "2026-06-10",
+          amount: 100,
+          created_at: "2026-06-10T09:00:00.000Z",
+        }),
+      ],
+      expense({
+        id: "b",
+        expense_date: "2026-06-10",
+        amount: 200,
+        created_at: "2026-06-10T18:00:00.000Z",
+      }),
     );
 
     expect(rows.map((row) => row.id)).toEqual(["b", "a"]);

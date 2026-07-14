@@ -56,10 +56,14 @@ export function compareExpenses(
 ): number {
   const mul = dir === "asc" ? 1 : -1;
   if (field === "amount") {
-    return mul * (Number(a.amount) - Number(b.amount));
+    const amountCmp = Number(a.amount) - Number(b.amount);
+    if (amountCmp !== 0) return mul * amountCmp;
+  } else {
+    const dateCmp = a.expense_date.localeCompare(b.expense_date);
+    if (dateCmp !== 0) return mul * dateCmp;
   }
-  const dateCmp = a.expense_date.localeCompare(b.expense_date);
-  if (dateCmp !== 0) return mul * dateCmp;
+  const createdCmp = a.created_at.localeCompare(b.created_at);
+  if (createdCmp !== 0) return mul * createdCmp;
   return mul * a.id.localeCompare(b.id);
 }
 
