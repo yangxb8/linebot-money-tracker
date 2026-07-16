@@ -80,6 +80,23 @@ class TestReceiptValidate(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(len(result), 2)
 
+    def test_accepts_single_kanji_product_name(self):
+        """Lopia-style: 桃 alone is a valid product line, not garbage."""
+        items = [
+            {'description': '日清ヨーク ピ', 'amount': 237.0, 'currency': 'JPY'},
+            {'description': 'ウンジンアロエ', 'amount': 516.0, 'currency': 'JPY'},
+            {'description': '明治 R-1 ド', 'amount': 248.0, 'currency': 'JPY'},
+            {'description': '桃', 'amount': 1620.0, 'currency': 'JPY'},
+        ]
+        result = validate_receipt_items(items, receipt_total=Decimal('2621'))
+        self.assertIsNotNone(result)
+        self.assertEqual(len(result), 4)
+        self.assertEqual(result[3]['description'], '桃')
+
+    def test_rejects_single_ascii_noise_description(self):
+        items = [{'description': 'A', 'amount': 100.0, 'currency': 'JPY'}]
+        self.assertIsNone(validate_receipt_items(items, receipt_total=Decimal('100')))
+
 
 if __name__ == '__main__':
     unittest.main()
