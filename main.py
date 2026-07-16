@@ -27,6 +27,7 @@ from services.confirmation_repository import (
     update_interaction_bot_message_id,
 )
 from services.env_loader import load_env, require_env_vars
+from services.sentry_setup import init_sentry
 from services.inbound_message_repository import (
     get_failure_retry_anchor,
     save_failure_retry_anchor,
@@ -71,6 +72,7 @@ logging.getLogger('services').setLevel(_log_level)
 logger = logging.getLogger(__name__)
 
 load_env()
+init_sentry()
 
 WEBHOOK_REQUIRED_VARS = [
     'LINE_CHANNEL_SECRET',

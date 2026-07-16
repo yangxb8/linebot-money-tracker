@@ -2,6 +2,7 @@ line-bot-sdk
 fastapi
 google-genai
 uvicorn[standard]
+sentry-sdk[fastapi]
 pytest
 pytest-asyncio
 pytesseract

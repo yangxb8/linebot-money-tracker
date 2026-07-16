@@ -34,6 +34,7 @@ Copy [`.env.example`](.env.example) to `.env`.
 | **Console + persistence** | `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
 | **Webhook / Cloud Run** | `LINE_CHANNEL_SECRET`, `LINE_CHANNEL_ACCESS_TOKEN`, `GEMINI_API_KEY` |
 | **Webhook + persistence** | Above plus `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` |
+| **Sentry (optional)** | `SENTRY_DSN` (plus optional `SENTRY_ENVIRONMENT`) |
 
 Optional persistence: `LOCAL_LINE_USER_ID` (console mode user id, default `local-dev-user`)
 

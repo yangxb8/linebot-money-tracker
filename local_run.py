@@ -11,6 +11,7 @@ from pathlib import Path
 
 from services.confirmation_repository import get_confirmation_by_bot_message_id, save_confirmation
 from services.env_loader import load_env, require_env_vars
+from services.sentry_setup import init_sentry
 from services.inbound_message_repository import (
     save_failure_retry_anchor,
     save_inbound_image_message,
@@ -264,6 +265,7 @@ def main() -> int:
     parser = _build_parser()
     args = parser.parse_args()
     _configure_logging(debug=args.debug)
+    init_sentry(environment='local')
 
     try:
         reply, bot_message_id, error_message_id = asyncio.run(_run(args))

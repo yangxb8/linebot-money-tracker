@@ -52,6 +52,16 @@ When users ask for the web app or dashboard in chat, the bot replies with this U
 | `DOCUMENT_AI_LOCATION` | — | Processor region (e.g. `asia-northeast1`) |
 | `GOOGLE_CLOUD_PROJECT` | — | GCP project fallback |
 
+## Optional — Sentry (webhook, console, Cloud Run)
+
+When `SENTRY_DSN` is set, the app initializes the Sentry SDK and forwards stdlib logs (DEBUG and above, subject to `LOG_LEVEL`) to Sentry Logs. ERROR+ log records also create Sentry issues. FastAPI request errors are captured automatically.
+
+| Variable | Default | Purpose |
+| -------- | ------- | ------- |
+| `SENTRY_DSN` | — | Project DSN from Sentry; omit to disable |
+| `SENTRY_ENVIRONMENT` | — | Environment tag (falls back to `ENV` if set) |
+| `SENTRY_TRACES_SAMPLE_RATE` | `0.0` | Performance tracing sample rate (`0.0`–`1.0`) |
+
 ## Local setup
 
 1. Copy `.env.example` to `.env`

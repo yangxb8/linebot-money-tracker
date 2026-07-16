@@ -23,6 +23,11 @@ Minimum deploy variables:
 Optional (recommended for production receipt OCR):
 - `GOOGLE_VISION_API_KEY` — Cloud Vision `DOCUMENT_TEXT_DETECTION` fallback when Tesseract is insufficient
 
+Optional (error + log monitoring):
+- `SENTRY_DSN` — enables Sentry; sends DEBUG+ app logs to Sentry Logs
+- `SENTRY_ENVIRONMENT` — e.g. `production`
+- `SENTRY_TRACES_SAMPLE_RATE` — default `0.0`
+
 The container image includes Tesseract with Japanese support; `TESSERACT_LANG` defaults to `jpn+eng` inside the image.
 
 ## Deployment workflow
@@ -51,7 +56,9 @@ gcloud run deploy linebot-money-tracker \
   --set-env-vars LINE_CHANNEL_SECRET=$LINE_CHANNEL_SECRET,\
 LINE_CHANNEL_ACCESS_TOKEN=$LINE_CHANNEL_ACCESS_TOKEN,\
 GEMINI_API_KEY=$GEMINI_API_KEY,\
-GOOGLE_VISION_API_KEY=$GOOGLE_VISION_API_KEY
+GOOGLE_VISION_API_KEY=$GOOGLE_VISION_API_KEY,\
+SENTRY_DSN=$SENTRY_DSN,\
+SENTRY_ENVIRONMENT=production
 ```
 
 ### 3. Configure LINE webhook
