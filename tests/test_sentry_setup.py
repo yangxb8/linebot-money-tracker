@@ -31,13 +31,12 @@ class TestSentrySetup(unittest.TestCase):
         kwargs = mock_init.call_args.kwargs
         self.assertEqual(kwargs['dsn'], 'https://key@o123.ingest.sentry.io/456')
         self.assertEqual(kwargs['environment'], 'test')
-        self.assertTrue(kwargs['enable_logs'])
+        self.assertFalse(kwargs['enable_logs'])
         self.assertEqual(kwargs['traces_sample_rate'], 0.25)
         self.assertEqual(kwargs['integrations'], [mock_logging.return_value])
         mock_logging.assert_called_once_with(
-            level=logging.DEBUG,
+            level=logging.ERROR,
             event_level=logging.ERROR,
-            sentry_logs_level=logging.DEBUG,
         )
 
     def test_traces_sample_rate_clamped(self):

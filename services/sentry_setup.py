@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 def init_sentry(*, environment: Optional[str] = None) -> bool:
     """Initialize Sentry when ``SENTRY_DSN`` is set.
 
-    Sends stdlib logging records (DEBUG and above) to Sentry Logs, keeps ERROR+
-    as issue events, and enables the FastAPI/Starlette integrations when present.
+    Captures ERROR+ stdlib log records as Sentry issues only (no full log
+    forwarding). FastAPI/Starlette request errors are still captured when present.
 
     Returns True when the SDK was initialized.
     """
@@ -30,14 +30,13 @@ def init_sentry(*, environment: Optional[str] = None) -> bool:
     sentry_sdk.init(
         dsn=dsn,
         environment=env or None,
-        enable_logs=True,
+        enable_logs=False,
         traces_sample_rate=traces_sample_rate,
         send_default_pii=False,
         integrations=[
             LoggingIntegration(
-                level=logging.DEBUG,
+                level=logging.ERROR,
                 event_level=logging.ERROR,
-                sentry_logs_level=logging.DEBUG,
             ),
         ],
     )
