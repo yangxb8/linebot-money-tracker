@@ -1,7 +1,7 @@
 import unittest
 from decimal import Decimal
 
-from services.receipt_validate import validate_receipt_items
+from services.receipt_validate import _garbage_reason, validate_receipt_items
 
 MY_BASKET_OCR = '''まいばすけっと
 ジャイアントコーンショ 159※
@@ -88,6 +88,7 @@ class TestReceiptValidate(unittest.TestCase):
             {'description': '明治 R-1 ド', 'amount': 248.0, 'currency': 'JPY'},
             {'description': '桃', 'amount': 1620.0, 'currency': 'JPY'},
         ]
+        self.assertIsNone(_garbage_reason(items[3]))
         result = validate_receipt_items(items, receipt_total=Decimal('2621'))
         self.assertIsNotNone(result)
         self.assertEqual(len(result), 4)
@@ -95,6 +96,7 @@ class TestReceiptValidate(unittest.TestCase):
 
     def test_rejects_single_ascii_noise_description(self):
         items = [{'description': 'A', 'amount': 100.0, 'currency': 'JPY'}]
+        self.assertEqual(_garbage_reason(items[0]), 'short_ascii_description')
         self.assertIsNone(validate_receipt_items(items, receipt_total=Decimal('100')))
 
 

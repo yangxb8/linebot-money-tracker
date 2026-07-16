@@ -73,6 +73,11 @@ logger = logging.getLogger(__name__)
 
 load_env()
 init_sentry()
+logger.info(
+    'line-bot ready revision=%s sentry=%s',
+    os.getenv('K_REVISION') or os.getenv('GIT_COMMIT') or 'local',
+    bool((os.getenv('SENTRY_DSN') or '').strip()),
+)
 
 WEBHOOK_REQUIRED_VARS = [
     'LINE_CHANNEL_SECRET',
