@@ -43,40 +43,41 @@ def _item_log_label(item: Dict[str, Any]) -> str:
     return f'{description!r}={item.get("amount")}'
 
 
-def _description_too_short(description: str) -> bool:
-    if not description:
-        return True
-    if len(description) >= 2:
-        return False
-    return not bool(_CJK_CHAR_RE.search(description))
-
-
-def _is_garbage_item(item: Dict[str, Any]) -> bool:
+def _garbage_reason(item: Dict[str, Any]) -> Optional[str]:
+    """Return why an item is untrustworthy, or None if it looks like a product line."""
     description = str(item.get('description', '')).strip()
-    if _description_too_short(description):
-        return True
+    if not description:
+        return 'empty_description'
+    # Allow any non-empty description, including single kanji (桃). Only reject
+    # ASCII noise like "." / "A" when there is no CJK content.
+    if len(description) < 2 and not _CJK_CHAR_RE.search(description):
+        return 'short_ascii_description'
     if _MASKED_TEXT_RE.search(description):
-        return True
+        return 'masked_text'
     if _PAYMENT_SLIP_RE.search(description):
-        return True
+        return 'payment_slip_description'
     if _METADATA_DESC_RE.match(description):
-        return True
+        return 'metadata_description'
     if _PAYMENT_SLIP_RE.search(str(item.get('raw_line', ''))):
-        return True
+        return 'payment_slip_raw_line'
 
     currency = str(item.get('currency', 'JPY')).strip().upper() or 'JPY'
     try:
         amount = Decimal(str(item.get('amount', 0))).quantize(Decimal('0.01'))
     except Exception:
-        return True
+        return 'invalid_amount'
 
     if currency == 'JPY':
         if amount < _MIN_ITEM_AMOUNT_JPY:
-            return True
+            return 'amount_too_small'
         if amount > _MAX_ITEM_AMOUNT_JPY:
-            return True
+            return 'amount_too_large'
 
-    return False
+    return None
+
+
+def _is_garbage_item(item: Dict[str, Any]) -> bool:
+    return _garbage_reason(item) is not None
 
 
 def _expected_item_count(ocr_text: str) -> Optional[int]:
@@ -223,11 +224,14 @@ def validate_receipt_items(
         return None
 
     if garbage:
+        dropped_detail = ', '.join(
+            f'{_item_log_label(item)}({_garbage_reason(item)})' for item in garbage[:10]
+        )
         logger.info(
             'Receipt validate: dropped %d garbage item(s), kept %d; dropped=[%s]',
             len(garbage),
             len(cleaned),
-            ', '.join(_item_log_label(item) for item in garbage[:10]),
+            dropped_detail,
         )
 
     if receipt_total is not None:
