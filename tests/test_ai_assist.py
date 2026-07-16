@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock
 
 from services.ai_assist import (
     ReceiptImageParseResult,
+    _RECEIPT_IMAGE_PROMPT,
+    _RECEIPT_IMAGE_RETRY_PROMPT,
     assist_parse_image,
     assist_parse_ocr,
     assist_parse_text,
@@ -128,6 +130,26 @@ class TestAiAssistAsync(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.items[0]['currency'], 'JPY')
         self.assertEqual(result.total, Decimal('450'))
         gemini.generate_json_reply_with_image.assert_awaited_once()
+        self.assertEqual(
+            gemini.generate_json_reply_with_image.await_args.args[0],
+            _RECEIPT_IMAGE_PROMPT,
+        )
+
+    async def test_assist_parse_image_retry_uses_retry_prompt(self):
+        gemini = AsyncMock()
+        gemini.generate_json_reply_with_image = AsyncMock(
+            return_value=(
+                '{"items":[{"description":"Coffee","amount":450,"currency":"JPY"}],'
+                '"total":450,"currency":"JPY"}'
+            )
+        )
+
+        result = await assist_parse_image(b'fake-image', gemini, 'image/jpeg', retry=True)
+        self.assertIsInstance(result, ReceiptImageParseResult)
+        self.assertEqual(
+            gemini.generate_json_reply_with_image.await_args.args[0],
+            _RECEIPT_IMAGE_RETRY_PROMPT,
+        )
 
 
 if __name__ == '__main__':

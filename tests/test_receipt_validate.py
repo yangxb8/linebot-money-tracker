@@ -70,6 +70,16 @@ class TestReceiptValidate(unittest.TestCase):
         ]
         self.assertIsNone(validate_receipt_items(items, receipt_total=Decimal('321')))
 
+    def test_logs_dropped_garbage_and_keeps_matching_items(self):
+        items = [
+            {'description': 'お茶', 'amount': 171.0, 'currency': 'JPY'},
+            {'description': 'コーヒー', 'amount': 150.0, 'currency': 'JPY'},
+            {'description': 'カード会社 dカード', 'amount': 321.0, 'currency': 'JPY'},
+        ]
+        result = validate_receipt_items(items, receipt_total=Decimal('321'))
+        self.assertIsNotNone(result)
+        self.assertEqual(len(result), 2)
+
 
 if __name__ == '__main__':
     unittest.main()

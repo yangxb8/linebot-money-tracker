@@ -467,9 +467,36 @@ async def _extract_expense_items_from_image(
         return prepared
 
     logger.warning(
-        'Image pipeline: LLM parse failed validation (items=%d total=%s)',
+        'Image pipeline: LLM parse failed validation (items=%d total=%s); retrying once',
         len(parse_result.items),
         parse_result.total,
+    )
+    retry_result = await assist_parse_image(
+        processed_bytes,
+        gemini,
+        processed_mime,
+        retry=True,
+    )
+    if not retry_result:
+        logger.warning('Image pipeline: assist_parse_image retry returned no valid parse')
+        return []
+
+    prepared = _prepare_llm_receipt_items(retry_result.items, retry_result.total)
+    if prepared:
+        prepared = propagate_receipt_store_name(prepared, retry_result.store_name)
+        logger.info(
+            'Image pipeline: LLM retry returned %d item(s), total=%s %s store_name=%r',
+            len(prepared),
+            retry_result.total,
+            retry_result.currency,
+            retry_result.store_name,
+        )
+        return prepared
+
+    logger.warning(
+        'Image pipeline: LLM retry also failed validation (items=%d total=%s)',
+        len(retry_result.items),
+        retry_result.total,
     )
     return []
 

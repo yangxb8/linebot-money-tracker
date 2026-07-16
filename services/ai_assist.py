@@ -35,20 +35,30 @@ _RECEIPT_ITEM_PROMPT = (
 _RECEIPT_IMAGE_PROMPT = (
     'Parse this receipt image into a JSON object with four fields:\n'
     '- "store_name": the store/merchant/chain name from the receipt header or register '
-    'banner (string or null). NOT a product name. Examples: イオン, セブン-イレブン, マツモトキヨシ.\n'
+    'banner (string or null). NOT a product name. Examples: イオン, セブン-イレブン, マツモトキヨシ, ロピア.\n'
     '- "items": array of product/service line items only. Each item has '
     'description (string), amount (number), currency (3-letter code).\n'
     '- "total": the receipt final cash total (合計 / amount paid), as a number.\n'
     '- "currency": 3-letter code for the receipt total.\n\n'
     'Rules:\n'
+    '- Extract EVERY product/service row on the receipt — do not omit lines for brevity.\n'
     '- Per-item amount = tax-inclusive cash-out for that line (line total including tax). '
-    'Item amounts should sum to "total" within rounding.\n'
-    '- Exclude subtotal, tax breakdown, payment, change, and card-slip lines from items.\n'
+    'Item amounts MUST sum to "total" within ¥2.\n'
+    '- Exclude subtotal (小計), tax breakdown, payment (支払), change, points, and '
+    'card-slip lines from items. Never invent a filler item to force the sum.\n'
     '- Include quantity line totals as one item per product (e.g. 6×¥100 → amount 600).\n'
-    '- Log all product lines including bags and low-value items (≥ ¥1).\n'
-    '- Ignore points EARNED (付与); include points USED as part of total reduction only.\n'
-    '- Typical Japanese snack items are tens to hundreds of yen, not thousands.\n'
+    '- Include bags and low-value items (≥ ¥1). Grocery/meat/alcohol lines may be '
+    'hundreds to thousands of yen — keep them.\n'
+    '- Ignore points EARNED (付与); points USED reduce the cash total only.\n'
     'Return ONLY the JSON object.'
+)
+
+_RECEIPT_IMAGE_RETRY_PROMPT = (
+    _RECEIPT_IMAGE_PROMPT
+    + '\nIMPORTANT RETRY: A previous parse of this same image failed validation because '
+    'product line amounts did not sum to the receipt total (items were incomplete or '
+    'included non-product lines). Re-read the full receipt carefully and return every '
+    'product line so tax-inclusive amounts sum to "total".'
 )
 
 EXPENSE_ITEMS_SCHEMA: Dict[str, Any] = {
@@ -269,9 +279,11 @@ async def assist_parse_image(
     image_bytes: bytes,
     gemini: GeminiClient,
     mime_type: str = 'image/jpeg',
+    *,
+    retry: bool = False,
 ) -> Optional[ReceiptImageParseResult]:
     """Use Gemini vision to extract expense items and receipt total from an image."""
-    source = 'assist_parse_image'
+    source = 'assist_parse_image_retry' if retry else 'assist_parse_image'
     if not image_bytes or not gemini:
         logger.info(
             '%s: skipped (image=%s gemini=%s)',
@@ -281,16 +293,30 @@ async def assist_parse_image(
         )
         return None
 
-    logger.info('%s: parsing image=%s mime=%s', source, describe_bytes(image_bytes), mime_type)
+    prompt = _RECEIPT_IMAGE_RETRY_PROMPT if retry else _RECEIPT_IMAGE_PROMPT
+    logger.info(
+        '%s: parsing image=%s mime=%s retry=%s',
+        source,
+        describe_bytes(image_bytes),
+        mime_type,
+        retry,
+    )
 
-    response = await gemini.generate_json_reply_with_image(_RECEIPT_IMAGE_PROMPT, image_bytes, mime_type)
+    response = await gemini.generate_json_reply_with_image(prompt, image_bytes, mime_type)
     try:
         parsed = _parse_json(response, source=source)
-        return validate_receipt_image_parse(parsed, source=source)
+        result = validate_receipt_image_parse(parsed, source=source)
+        if result is None:
+            logger.warning(
+                '%s: schema/item validation failed; response=%s',
+                source,
+                truncate(response, 800),
+            )
+        return result
     except json.JSONDecodeError:
         logger.warning(
             '%s: LLM response was not valid JSON: %s',
             source,
-            truncate(response, 500),
+            truncate(response, 800),
         )
         return None
