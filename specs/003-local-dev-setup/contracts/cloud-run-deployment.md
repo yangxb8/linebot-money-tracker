@@ -24,7 +24,7 @@ Optional (recommended for production receipt OCR):
 - `GOOGLE_VISION_API_KEY` — Cloud Vision `DOCUMENT_TEXT_DETECTION` fallback when Tesseract is insufficient
 
 Optional (error + log monitoring):
-- `SENTRY_DSN` — enables Sentry; sends DEBUG+ app logs to Sentry Logs
+- `SENTRY_DSN` — enables Sentry; ERROR+ issues only (no full log forwarding)
 - `SENTRY_ENVIRONMENT` — e.g. `production`
 - `SENTRY_TRACES_SAMPLE_RATE` — default `0.0`
 

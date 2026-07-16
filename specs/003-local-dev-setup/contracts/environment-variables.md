@@ -54,7 +54,7 @@ When users ask for the web app or dashboard in chat, the bot replies with this U
 
 ## Optional — Sentry (webhook, console, Cloud Run)
 
-When `SENTRY_DSN` is set, the app initializes the Sentry SDK and forwards stdlib logs (DEBUG and above, subject to `LOG_LEVEL`) to Sentry Logs. ERROR+ log records also create Sentry issues. FastAPI request errors are captured automatically.
+When `SENTRY_DSN` is set, the app initializes the Sentry SDK and creates Sentry issues for ERROR+ stdlib log records only (full log forwarding is off). FastAPI request errors are captured automatically.
 
 | Variable | Default | Purpose |
 | -------- | ------- | ------- |
