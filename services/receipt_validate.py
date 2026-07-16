@@ -36,6 +36,11 @@ _METADATA_DESC_RE = re.compile(
 )
 
 
+def _item_log_label(item: Dict[str, Any]) -> str:
+    description = str(item.get('description', '')).strip()
+    return f'{description!r}={item.get("amount")}'
+
+
 def _is_garbage_item(item: Dict[str, Any]) -> bool:
     description = str(item.get('description', '')).strip()
     if not description or len(description) < 2:
@@ -161,10 +166,11 @@ def _sum_matches_target(items: List[Dict[str, Any]], target: Decimal) -> bool:
         return True
 
     logger.warning(
-        'Receipt validate: item sum %s does not match receipt total %s (diff=%s)',
+        'Receipt validate: item sum %s does not match receipt total %s (diff=%s) items=[%s]',
         item_sum,
         target,
         diff,
+        ', '.join(_item_log_label(item) for item in items[:20]),
     )
     return False
 
@@ -191,16 +197,27 @@ def validate_receipt_items(
         logger.warning('Receipt validate: too many items (%d)', len(items))
         return None
 
-    cleaned = [dict(item) for item in items if not _is_garbage_item(item)]
+    garbage: List[Dict[str, Any]] = []
+    cleaned: List[Dict[str, Any]] = []
+    for item in items:
+        if _is_garbage_item(item):
+            garbage.append(item)
+        else:
+            cleaned.append(dict(item))
     if not cleaned:
-        logger.warning('Receipt validate: all %d item(s) rejected as garbage', len(items))
+        logger.warning(
+            'Receipt validate: all %d item(s) rejected as garbage: [%s]',
+            len(items),
+            ', '.join(_item_log_label(item) for item in items[:20]),
+        )
         return None
 
-    if len(cleaned) < len(items):
+    if garbage:
         logger.info(
-            'Receipt validate: dropped %d garbage item(s), kept %d',
-            len(items) - len(cleaned),
+            'Receipt validate: dropped %d garbage item(s), kept %d; dropped=[%s]',
+            len(garbage),
             len(cleaned),
+            ', '.join(_item_log_label(item) for item in garbage[:10]),
         )
 
     if receipt_total is not None:

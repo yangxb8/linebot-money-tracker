@@ -239,6 +239,10 @@ class TestGeminiClient(unittest.IsolatedAsyncioTestCase):
             generate_mock.call_args_list[1].kwargs['model'],
             GEMINI_3_FLASH_MODEL,
         )
+        config = generate_mock.call_args_list[1].kwargs['config']
+        self.assertEqual(config.response_mime_type, 'application/json')
+        self.assertEqual(config.max_output_tokens, 8192)
+        self.assertTrue(config.automatic_function_calling.disable)
 
     async def test_receipt_image_raises_usage_limit_when_full_chain_quota(self):
         client = GeminiClient(api_key='test_key')

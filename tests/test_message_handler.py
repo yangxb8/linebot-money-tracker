@@ -216,10 +216,43 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
             [{'description': 'Item', 'amount': 10.0, 'currency': 'JPY'}],
             999.0,
         )
-        with patch('services.message_handler.assist_parse_image', AsyncMock(return_value=llm_result)):
+        parse_mock = AsyncMock(return_value=llm_result)
+        with patch(
+            'services.message_handler.preprocess_receipt_image',
+            return_value=(b'processed-jpeg', 'image/jpeg'),
+        ), patch(
+            'services.message_handler.assist_parse_image',
+            parse_mock,
+        ):
             reply = await process_image_message(b'receipt', gemini, context=self._english_context())
         self.assertIn(receipt_parse_error_reply('en'), reply.text)
         self.assertIn('🐰', reply.text)
+        self.assertEqual(parse_mock.await_count, 2)
+        self.assertEqual(parse_mock.await_args_list[1].kwargs.get('retry'), True)
+
+    async def test_process_image_retries_when_first_parse_fails_validation(self):
+        gemini = MagicMock(spec=GeminiClient)
+        bad = self._valid_llm_parse(
+            [{'description': 'Item', 'amount': 10.0, 'currency': 'JPY'}],
+            999.0,
+        )
+        good = self._valid_llm_parse(
+            [{'description': 'Coffee', 'amount': 450.0, 'currency': 'JPY'}],
+            450.0,
+            store_name='カフェ',
+        )
+        parse_mock = AsyncMock(side_effect=[bad, good])
+        with self._patch_categorize(), patch(
+            'services.message_handler.preprocess_receipt_image',
+            return_value=(b'processed-jpeg', 'image/jpeg'),
+        ), patch(
+            'services.message_handler.assist_parse_image',
+            parse_mock,
+        ), patch('services.message_handler.insert_expenses'):
+            reply = await process_image_message(b'receipt', gemini, context=self._english_context())
+        self.assertIn('✅', reply.text)
+        self.assertEqual(parse_mock.await_count, 2)
+        self.assertEqual(parse_mock.await_args_list[1].kwargs.get('retry'), True)
 
     async def test_process_image_parse_error_when_llm_returns_none(self):
         gemini = MagicMock(spec=GeminiClient)
