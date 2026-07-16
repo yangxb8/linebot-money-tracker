@@ -34,6 +34,8 @@ _METADATA_DESC_RE = re.compile(
     r'^(i\s*EONS|EONS|COPY|複製|領収証|register|receipt)$',
     re.I,
 )
+# Single-kanji product names are common on JP receipts (桃, 卵, 茶, …).
+_CJK_CHAR_RE = re.compile(r'[\u3040-\u30ff\u3400-\u9fff]')
 
 
 def _item_log_label(item: Dict[str, Any]) -> str:
@@ -41,9 +43,17 @@ def _item_log_label(item: Dict[str, Any]) -> str:
     return f'{description!r}={item.get("amount")}'
 
 
+def _description_too_short(description: str) -> bool:
+    if not description:
+        return True
+    if len(description) >= 2:
+        return False
+    return not bool(_CJK_CHAR_RE.search(description))
+
+
 def _is_garbage_item(item: Dict[str, Any]) -> bool:
     description = str(item.get('description', '')).strip()
-    if not description or len(description) < 2:
+    if _description_too_short(description):
         return True
     if _MASKED_TEXT_RE.search(description):
         return True
