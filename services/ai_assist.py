@@ -50,7 +50,7 @@ _RECEIPT_IMAGE_PROMPT = (
     '- Include bags and low-value items (≥ ¥1). Grocery/meat/alcohol lines may be '
     'hundreds to thousands of yen — keep them.\n'
     '- Ignore points EARNED (付与); points USED reduce the cash total only.\n'
-    'Return ONLY the JSON object.'
+    'Return ONLY a compact single-line JSON object (no markdown fences, no pretty-print).'
 )
 
 _RECEIPT_IMAGE_RETRY_PROMPT = (
@@ -114,9 +114,56 @@ def _strip_json_fence(response: str) -> str:
     return text
 
 
+def _repair_truncated_json(text: str) -> Optional[str]:
+    """Close truncated JSON when the model omits trailing ] / } (common on vision)."""
+    s = text.rstrip()
+    if not s:
+        return None
+
+    in_string = False
+    escape = False
+    stack: List[str] = []
+    for ch in s:
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == '\\':
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == '{':
+            stack.append('}')
+        elif ch == '[':
+            stack.append(']')
+        elif ch in '}]':
+            if not stack or stack[-1] != ch:
+                return None
+            stack.pop()
+
+    if in_string:
+        s += '"'
+    if not stack:
+        return None
+    return s + ''.join(reversed(stack))
+
+
 def _parse_json(response: str, *, source: str) -> Any:
     text = _strip_json_fence(response)
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        repaired = _repair_truncated_json(text)
+        if repaired is None:
+            raise
+        logger.warning(
+            '%s: repaired truncated JSON (added %d char(s))',
+            source,
+            len(repaired) - len(text.rstrip()),
+        )
+        return json.loads(repaired)
 
 
 def validate_expense_items(items: Any, *, source: str = 'unknown') -> List[Dict[str, Any]]:

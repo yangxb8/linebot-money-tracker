@@ -87,6 +87,13 @@ class GeminiClient:
                         logger.warning('Gemini %s response was empty%s', label, context)
                         raise RuntimeError("Gemini returned an empty response.")
                     text = text.strip()
+                    finish_reason = None
+                    try:
+                        candidates = getattr(response, 'candidates', None) or []
+                        if candidates:
+                            finish_reason = getattr(candidates[0], 'finish_reason', None)
+                    except Exception:
+                        finish_reason = None
                     if model_index > 0 or attempt > 1:
                         logger.info(
                             'Gemini %s succeeded with model=%s (model_try=%d attempt=%d)',
@@ -95,7 +102,13 @@ class GeminiClient:
                             model_index + 1,
                             attempt,
                         )
-                    logger.info('Gemini %s response: len=%d model=%s', label, len(text), resolved_model)
+                    logger.info(
+                        'Gemini %s response: len=%d model=%s finish_reason=%s',
+                        label,
+                        len(text),
+                        resolved_model,
+                        finish_reason,
+                    )
                     logger.debug('Gemini %s response body: %s', label, truncate(text, 1000))
                     return text
                 except RuntimeError:
