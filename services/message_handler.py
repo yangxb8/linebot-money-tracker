@@ -449,28 +449,30 @@ async def _extract_expense_items_from_image(
 ) -> List[Dict[str, Any]]:
     """Production image pipeline: preprocess → Gemini vision → validate against LLM total."""
     processed_bytes, processed_mime = preprocess_receipt_image(image_bytes)
+
     parse_result = await assist_parse_image(processed_bytes, gemini, processed_mime)
-    if not parse_result:
-        logger.warning('Image pipeline: assist_parse_image returned no valid parse')
-        return []
-
-    prepared = _prepare_llm_receipt_items(parse_result.items, parse_result.total)
-    if prepared:
-        prepared = propagate_receipt_store_name(prepared, parse_result.store_name)
-        logger.info(
-            'Image pipeline: LLM returned %d item(s), total=%s %s store_name=%r',
-            len(prepared),
+    if parse_result:
+        prepared = _prepare_llm_receipt_items(parse_result.items, parse_result.total)
+        if prepared:
+            prepared = propagate_receipt_store_name(prepared, parse_result.store_name)
+            logger.info(
+                'Image pipeline: LLM returned %d item(s), total=%s %s store_name=%r',
+                len(prepared),
+                parse_result.total,
+                parse_result.currency,
+                parse_result.store_name,
+            )
+            return prepared
+        logger.warning(
+            'Image pipeline: LLM parse failed validation (items=%d total=%s); retrying once',
+            len(parse_result.items),
             parse_result.total,
-            parse_result.currency,
-            parse_result.store_name,
         )
-        return prepared
+    else:
+        logger.warning(
+            'Image pipeline: assist_parse_image returned no valid parse; retrying once'
+        )
 
-    logger.warning(
-        'Image pipeline: LLM parse failed validation (items=%d total=%s); retrying once',
-        len(parse_result.items),
-        parse_result.total,
-    )
     retry_result = await assist_parse_image(
         processed_bytes,
         gemini,

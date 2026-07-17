@@ -205,10 +205,19 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
 
     async def test_process_image_non_receipt_returns_parse_error(self):
         gemini = MagicMock(spec=GeminiClient)
-        with patch('services.message_handler.assist_parse_image', AsyncMock(return_value=None)):
+        parse_mock = AsyncMock(return_value=None)
+        with patch(
+            'services.message_handler.preprocess_receipt_image',
+            return_value=(b'processed-jpeg', 'image/jpeg'),
+        ), patch(
+            'services.message_handler.assist_parse_image',
+            parse_mock,
+        ):
             reply = await process_image_message(b'cat-photo', gemini, context=self._english_context())
         self.assertIn(receipt_parse_error_reply('en'), reply.text)
         self.assertIn('🐰', reply.text)
+        self.assertEqual(parse_mock.await_count, 2)
+        self.assertEqual(parse_mock.await_args_list[1].kwargs.get('retry'), True)
 
     async def test_process_image_parse_error_when_validation_fails(self):
         gemini = MagicMock(spec=GeminiClient)
@@ -256,10 +265,37 @@ class TestMessageHandlerAsync(unittest.IsolatedAsyncioTestCase):
 
     async def test_process_image_parse_error_when_llm_returns_none(self):
         gemini = MagicMock(spec=GeminiClient)
-        with patch('services.message_handler.assist_parse_image', AsyncMock(return_value=None)):
+        parse_mock = AsyncMock(return_value=None)
+        with patch(
+            'services.message_handler.preprocess_receipt_image',
+            return_value=(b'processed-jpeg', 'image/jpeg'),
+        ), patch(
+            'services.message_handler.assist_parse_image',
+            parse_mock,
+        ):
             reply = await process_image_message(b'receipt', gemini, context=self._english_context())
         self.assertIn(receipt_parse_error_reply('en'), reply.text)
         self.assertIn('🐰', reply.text)
+        self.assertEqual(parse_mock.await_count, 2)
+
+    async def test_process_image_retries_when_first_parse_returns_none(self):
+        gemini = MagicMock(spec=GeminiClient)
+        good = self._valid_llm_parse(
+            [{'description': 'Coffee', 'amount': 450.0, 'currency': 'JPY'}],
+            450.0,
+        )
+        parse_mock = AsyncMock(side_effect=[None, good])
+        with self._patch_categorize(), patch(
+            'services.message_handler.preprocess_receipt_image',
+            return_value=(b'processed-jpeg', 'image/jpeg'),
+        ), patch(
+            'services.message_handler.assist_parse_image',
+            parse_mock,
+        ), patch('services.message_handler.insert_expenses'):
+            reply = await process_image_message(b'receipt', gemini, context=self._english_context())
+        self.assertIn('✅', reply.text)
+        self.assertEqual(parse_mock.await_count, 2)
+        self.assertEqual(parse_mock.await_args_list[1].kwargs.get('retry'), True)
 
     async def test_process_image_usage_limit_returns_dedicated_message(self):
         gemini = MagicMock(spec=GeminiClient)

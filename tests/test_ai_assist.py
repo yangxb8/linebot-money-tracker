@@ -6,6 +6,7 @@ from services.ai_assist import (
     ReceiptImageParseResult,
     _RECEIPT_IMAGE_PROMPT,
     _RECEIPT_IMAGE_RETRY_PROMPT,
+    _parse_json,
     assist_parse_image,
     assist_parse_ocr,
     assist_parse_text,
@@ -75,6 +76,44 @@ class TestAiAssist(unittest.TestCase):
             }
         )
         self.assertIsNone(result)
+
+    def test_parse_json_repairs_truncated_lopia_payload(self):
+        """Prod 02:34 UTC: Gemini omitted the final closing brace."""
+        truncated = (
+            '{\n'
+            '  "store_name": "ロピア",\n'
+            '  "items": [\n'
+            '    {\n'
+            '      "description": "日清ヨーク ピ",\n'
+            '      "amount": 237,\n'
+            '      "currency": "JPY"\n'
+            '    },\n'
+            '    {\n'
+            '      "description": "ウンジンアロエ",\n'
+            '      "amount": 516,\n'
+            '      "currency": "JPY"\n'
+            '    },\n'
+            '    {\n'
+            '      "description": "明治 R-1 ド",\n'
+            '      "amount": 248,\n'
+            '      "currency": "JPY"\n'
+            '    },\n'
+            '    {\n'
+            '      "description": "桃",\n'
+            '      "amount": 1620,\n'
+            '      "currency": "JPY"\n'
+            '    }\n'
+            '  ],\n'
+            '  "total": 2621,\n'
+            '  "currency": "JPY"\n'
+        )
+        parsed = _parse_json(truncated, source='test')
+        result = validate_receipt_image_parse(parsed, source='test')
+        self.assertIsNotNone(result)
+        self.assertEqual(result.store_name, 'ロピア')
+        self.assertEqual(result.total, Decimal('2621'))
+        self.assertEqual(len(result.items), 4)
+        self.assertEqual(result.items[3]['description'], '桃')
 
 
 class TestAiAssistAsync(unittest.IsolatedAsyncioTestCase):
@@ -150,6 +189,19 @@ class TestAiAssistAsync(unittest.IsolatedAsyncioTestCase):
             gemini.generate_json_reply_with_image.await_args.args[0],
             _RECEIPT_IMAGE_RETRY_PROMPT,
         )
+
+    async def test_assist_parse_image_repairs_truncated_json(self):
+        gemini = AsyncMock()
+        gemini.generate_json_reply_with_image = AsyncMock(
+            return_value=(
+                '{"store_name":"ロピア","items":[{"description":"桃","amount":1620,'
+                '"currency":"JPY"}],"total":1620,"currency":"JPY"'
+            )
+        )
+        result = await assist_parse_image(b'fake-image', gemini, 'image/jpeg')
+        self.assertIsInstance(result, ReceiptImageParseResult)
+        self.assertEqual(result.items[0]['description'], '桃')
+        self.assertEqual(result.total, Decimal('1620'))
 
 
 if __name__ == '__main__':
