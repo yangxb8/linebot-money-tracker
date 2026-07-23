@@ -13,9 +13,11 @@ const DEFAULT_SETTINGS: TenantSettings = {
   bot_persona_custom_text: null,
   bot_persona_emoji_level: null,
   confirmation_show_item_details: false,
+  reply_language: null,
 };
 
 const PERSONA_PRESETS = new Set(["judy_hopps_cute_firm"]);
+const REPLY_LANGUAGES = new Set(["en", "ja", "zh"]);
 
 function normalizePersonaPreset(value: unknown): string | null {
   const preset = String(value ?? "").trim();
@@ -49,6 +51,22 @@ function normalizeEmojiLevel(value: unknown): number | null {
   return level;
 }
 
+function parseReplyLanguage(value: unknown): "en" | "ja" | "zh" | null {
+  if (value === null || value === undefined || value === "") return null;
+  const code = String(value).trim().toLowerCase();
+  if (!REPLY_LANGUAGES.has(code)) return null;
+  return code as "en" | "ja" | "zh";
+}
+
+function normalizeReplyLanguage(value: unknown): "en" | "ja" | "zh" | null {
+  if (value === null || value === undefined || value === "") return null;
+  const code = String(value).trim().toLowerCase();
+  if (!REPLY_LANGUAGES.has(code)) {
+    throw new Response("invalid_reply_language", { status: 400 });
+  }
+  return code as "en" | "ja" | "zh";
+}
+
 export async function requireSettingsUser() {
   const supabase = await createClient();
   const {
@@ -70,7 +88,7 @@ export async function fetchTenantSettings(
   const { data, error } = await supabase
     .from("tenant_settings")
     .select(
-      "fiscal_start_day,bot_persona_preset,bot_persona_custom_text,bot_persona_emoji_level,confirmation_show_item_details",
+      "fiscal_start_day,bot_persona_preset,bot_persona_custom_text,bot_persona_emoji_level,confirmation_show_item_details,reply_language",
     )
     .eq("tenant_type", tenantType)
     .eq("tenant_id", tenantId)
@@ -93,6 +111,7 @@ export async function fetchTenantSettings(
         ? null
         : Number(data.bot_persona_emoji_level),
     confirmation_show_item_details: Boolean(data.confirmation_show_item_details),
+    reply_language: parseReplyLanguage(data.reply_language ?? null),
   };
 }
 
@@ -121,6 +140,7 @@ export async function upsertTenantSettings(
   const confirmationShowItemDetails = normalizeConfirmationShowItemDetails(
     settings.confirmation_show_item_details,
   );
+  const replyLanguage = normalizeReplyLanguage(settings.reply_language);
 
   const { data, error } = await supabase
     .from("tenant_settings")
@@ -133,13 +153,14 @@ export async function upsertTenantSettings(
         bot_persona_custom_text: botPersonaCustomText,
         bot_persona_emoji_level: botPersonaEmojiLevel,
         confirmation_show_item_details: confirmationShowItemDetails,
+        reply_language: replyLanguage,
         updated_at: new Date().toISOString(),
         bot_persona_updated_at: new Date().toISOString(),
       },
       { onConflict: "tenant_type,tenant_id" },
     )
     .select(
-      "fiscal_start_day,bot_persona_preset,bot_persona_custom_text,bot_persona_emoji_level,confirmation_show_item_details",
+      "fiscal_start_day,bot_persona_preset,bot_persona_custom_text,bot_persona_emoji_level,confirmation_show_item_details,reply_language",
     )
     .single();
 
@@ -156,5 +177,6 @@ export async function upsertTenantSettings(
         ? null
         : Number(data.bot_persona_emoji_level),
     confirmation_show_item_details: Boolean(data.confirmation_show_item_details),
+    reply_language: parseReplyLanguage(data.reply_language ?? null),
   };
 }

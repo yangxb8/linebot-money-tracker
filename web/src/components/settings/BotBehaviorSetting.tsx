@@ -7,6 +7,7 @@ import {
   fetchTenantSettings,
   saveTenantSettings,
 } from "@/lib/settings/client";
+import type { ReplyLanguage } from "@/lib/settings/types";
 
 type PresetOption = { value: string | null; label: string };
 
@@ -23,6 +24,7 @@ export function BotBehaviorSetting() {
   const [preset, setPreset] = useState<string | null>(null);
   const [customText, setCustomText] = useState<string>("");
   const [emojiLevel, setEmojiLevel] = useState<number | null>(null);
+  const [replyLanguage, setReplyLanguage] = useState<ReplyLanguage | null>(null);
   const [showItemDetails, setShowItemDetails] = useState(false);
   const [fiscalStartDay, setFiscalStartDay] = useState<number>(1);
   const [loading, setLoading] = useState(true);
@@ -57,6 +59,7 @@ export function BotBehaviorSetting() {
           ? null
           : (settings.bot_persona_emoji_level ?? null),
       );
+      setReplyLanguage(settings.reply_language ?? null);
       setShowItemDetails(Boolean(settings.confirmation_show_item_details));
     } catch {
       setError("load_failed");
@@ -73,6 +76,7 @@ export function BotBehaviorSetting() {
     preset: string | null;
     customText: string;
     emojiLevel: number | null;
+    replyLanguage: ReplyLanguage | null;
     showItemDetails: boolean;
   }) {
     if (!selectedTenant) return;
@@ -85,12 +89,14 @@ export function BotBehaviorSetting() {
         bot_persona_preset: next.preset,
         bot_persona_custom_text: next.customText,
         bot_persona_emoji_level: next.emojiLevel,
+        reply_language: next.replyLanguage,
         confirmation_show_item_details: next.showItemDetails,
       });
       setFiscalStartDay(settings.fiscal_start_day);
       setPreset(settings.bot_persona_preset ?? null);
       setCustomText(settings.bot_persona_custom_text ?? "");
       setEmojiLevel(settings.bot_persona_emoji_level ?? null);
+      setReplyLanguage(settings.reply_language ?? null);
       setShowItemDetails(Boolean(settings.confirmation_show_item_details));
       setSaved(true);
     } catch (err) {
@@ -102,7 +108,13 @@ export function BotBehaviorSetting() {
   }
 
   async function handleReset() {
-    await handleSave({ preset: null, customText: "", emojiLevel: null, showItemDetails: false });
+    await handleSave({
+      preset: null,
+      customText: "",
+      emojiLevel: null,
+      replyLanguage: null,
+      showItemDetails: false,
+    });
   }
 
   if (!selectedTenant) return null;
@@ -178,6 +190,28 @@ export function BotBehaviorSetting() {
       </div>
 
       <div className="space-y-1">
+        <label htmlFor="reply-language" className="text-sm font-medium text-gray-900">
+          {t("replyLanguageLabel")}
+        </label>
+        <p className="text-xs text-gray-500">{t("replyLanguageDescription")}</p>
+        <select
+          id="reply-language"
+          value={replyLanguage ?? ""}
+          onChange={(event) => {
+            const value = event.target.value;
+            setReplyLanguage(value === "" ? null : (value as ReplyLanguage));
+            setSaved(false);
+          }}
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900"
+        >
+          <option value="">{t("replyLanguageDefault")}</option>
+          <option value="en">{t("replyLanguageEnglish")}</option>
+          <option value="ja">{t("replyLanguageJapanese")}</option>
+          <option value="zh">{t("replyLanguageChinese")}</option>
+        </select>
+      </div>
+
+      <div className="space-y-1">
         <label htmlFor="confirmation-item-details" className="text-sm font-medium text-gray-900">
           {t("confirmationShowItemDetailsLabel")}
         </label>
@@ -198,7 +232,13 @@ export function BotBehaviorSetting() {
         <button
           type="button"
           onClick={() =>
-            void handleSave({ preset, customText, emojiLevel, showItemDetails })
+            void handleSave({
+              preset,
+              customText,
+              emojiLevel,
+              replyLanguage,
+              showItemDetails,
+            })
           }
           disabled={saving}
           className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"

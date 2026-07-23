@@ -60,6 +60,7 @@ from services.message_handler import (
     process_reply_edit,
     process_text_message,
 )
+from services.tenant_settings import resolve_tenant_reply_language
 from services.user_language import maybe_update_from_line_profile, resolve_reply_language
 
 _log_level_name = os.getenv('LOG_LEVEL', 'INFO').upper()
@@ -265,7 +266,10 @@ async def handle_callback(request: Request):
         if tenant is None and line_user_id:
             tenant = TenantContext.personal(line_user_id)
 
-        reply_language = await _resolve_reply_language(line_user_id, user_text)
+        reply_language = resolve_tenant_reply_language(
+            tenant,
+            await _resolve_reply_language(line_user_id, user_text),
+        )
 
         logged_by_display_name = None
         chat_display_name = None
@@ -495,7 +499,10 @@ async def handle_callback(request: Request):
             continue
 
         logger.info('Unsupported or empty message event received')
-        unsupported_language = await _resolve_reply_language(line_user_id)
+        unsupported_language = resolve_tenant_reply_language(
+            tenant,
+            await _resolve_reply_language(line_user_id),
+        )
         unsupported_text = _localized_for_tenant(
             tenant,
             lambda: canned_unsupported_reply(unsupported_language),
