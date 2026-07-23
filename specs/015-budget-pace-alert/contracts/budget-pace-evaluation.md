@@ -86,13 +86,13 @@ Top-level entry: one RPC call per distinct `(tenant, budget_month)` batch; dedup
 ## Pace definition
 
 ```text
-time_pct = elapsed_days / days_in_month   (clamped 0..1)
+time_pct = max(elapsed_days, 1) / days_in_month   (clamped 0..1; min 1-day floor)
 spent_pct = spent / limit
-pace_ratio = spent_pct / time_pct         (when elapsed_days > 1 and limit > 0)
+pace_ratio = spent_pct / time_pct         (when elapsed_days > 0 and limit > 0)
 is_ahead = pace_ratio > 1
 ```
 
-Day 1 neutral handling matches web: no warning on first day unless spec edge case applies (first day with heavy spend still triggers when `elapsed_days > 1` check passes — web returns neutral on day 1; bot follows same rule).
+Day 1 uses a **minimum 1-day time denominator** so front-loaded spend (rent, periodic expenses on fiscal start) can still be ahead of pace. Neutral only when `elapsed_days <= 0` or there is no limit.
 
 ## Lowest-level selection examples
 

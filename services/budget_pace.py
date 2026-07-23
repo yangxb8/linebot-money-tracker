@@ -58,8 +58,10 @@ def compute_budget_health(
     elapsed_days: int,
     days_in_month: int,
 ) -> HealthResult:
+    # Floor time at one day of the period so day-1 front-loaded spend
+    # (e.g. rent on fiscal start) can still be judged ahead of pace.
     time_pct = (
-        min(1.0, max(0.0, elapsed_days / days_in_month))
+        min(1.0, max(1.0 / days_in_month, max(0.0, elapsed_days) / days_in_month))
         if days_in_month > 0
         else 0.0
     )
@@ -69,7 +71,7 @@ def compute_budget_health(
 
     spent_pct = spent / limit
 
-    if elapsed_days <= 1 or time_pct <= 0:
+    if elapsed_days <= 0 or time_pct <= 0:
         return HealthResult(spent_pct=spent_pct, time_pct=time_pct, pace_ratio=None, is_ahead=False)
 
     pace_ratio = spent_pct / time_pct

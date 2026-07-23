@@ -6,9 +6,15 @@ export function computeBudgetHealth(
   elapsedDays: number,
   daysInMonth: number,
 ): HealthResult {
+  // Use at least one day of the period as the time baseline so day-1
+  // (and elapsed=0 edge cases) can still judge front-loaded spend
+  // without dividing by zero — e.g. rent posting on fiscal start day.
   const timePct =
     daysInMonth > 0
-      ? Math.min(1, Math.max(0, elapsedDays / daysInMonth))
+      ? Math.min(
+          1,
+          Math.max(1 / daysInMonth, Math.max(0, elapsedDays) / daysInMonth),
+        )
       : 0;
 
   if (limit == null || limit <= 0) {
@@ -23,17 +29,7 @@ export function computeBudgetHealth(
 
   const spentPct = spent / limit;
 
-  if (elapsedDays <= 1) {
-    return {
-      spentPct,
-      timePct: Math.max(timePct, 1 / Math.max(daysInMonth, 1)),
-      paceRatio: null,
-      tone: "neutral",
-      labelKey: "budgetPaceNeutral",
-    };
-  }
-
-  if (timePct <= 0) {
+  if (elapsedDays <= 0 || timePct <= 0) {
     return {
       spentPct,
       timePct: Math.max(timePct, 1 / Math.max(daysInMonth, 1)),
