@@ -42,6 +42,7 @@ from services.reply_summary import format_duplicate_reply, format_unknown_confir
 from services.user_language import maybe_update_from_user_message
 from services.budget_pace import expense_rows_from_enriched, maybe_prepend_budget_pace_warning
 from services.bot_persona import persona_scope, resolve_persona_for_tenant
+from services.tenant_settings import resolve_tenant_reply_language
 
 logger = logging.getLogger(__name__)
 
@@ -274,6 +275,7 @@ async def process_reply_edit(
     explicit = maybe_update_from_user_message(reply_context.line_user_id, text)
     if explicit:
         language = explicit
+    language = resolve_tenant_reply_language(reply_context.tenant, language)
 
     persona = resolve_persona_for_tenant(reply_context.tenant)
     with persona_scope(persona):

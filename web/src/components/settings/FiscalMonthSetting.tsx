@@ -50,7 +50,10 @@ export function FiscalMonthSetting() {
     setSaved(false);
     setError(null);
     try {
+      // Preserve other tenant_settings fields (persona, reply language, etc.).
+      const current = await fetchTenantSettings(selectedTenant);
       const settings = await saveTenantSettings(selectedTenant, {
+        ...current,
         fiscal_start_day: fiscalStartDay,
       });
       setFiscalStartDay(settings.fiscal_start_day);
