@@ -77,5 +77,26 @@ describe("enrichBudgetSummary", () => {
     expect(groceries?.spent_aggregate).toBe(1500);
     expect(food.spent_aggregate).toBe(1500);
     expect(food.spent).toBe(1500);
+    expect(summary.lazy_copied_from_previous).toBe(false);
+  });
+
+  it("passes through lazy_copied_from_previous from the RPC", () => {
+    const rpc: RpcBudgetSummary = {
+      budget_month: "2026-07-24",
+      days_in_month: 31,
+      elapsed_days: 1,
+      currency: "JPY",
+      total_limit: 100000,
+      total_spent_all: 0,
+      unbudgeted_spent: 0,
+      has_any_limit: true,
+      lazy_copied_from_previous: true,
+      budgets: [{ budget_level: "total", category_node_id: null, amount: 100000 }],
+      spent_by_bucket: {},
+    };
+
+    const summary = enrichBudgetSummary(rpc, []);
+    expect(summary.lazy_copied_from_previous).toBe(true);
+    expect(summary.has_any_limit).toBe(true);
   });
 });

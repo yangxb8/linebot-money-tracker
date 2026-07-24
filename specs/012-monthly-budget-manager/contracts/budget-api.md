@@ -81,6 +81,7 @@ Returns budget summary with limits, spent, tree breakdown, and fiscal month meta
 - `spent_assigned` on L1/L2 = cascade-assigned amount only
 - `spent_aggregate` on L1 = subtree total for informational rows
 - `has_any_limit: false` → unlimited state (FR-004)
+- When the requested month is the tenant's **current** fiscal period and has no budget rows, `get_budget_summary` lazy-copies from the previous fiscal period (if any) and may return `lazy_copied_from_previous: true`
 - Health color computed client-side from `spent_pct` + `elapsed_days` / `days_in_month`
 
 **Errors**: 400 invalid params, 401 unauthenticated, 403 forbidden tenant
