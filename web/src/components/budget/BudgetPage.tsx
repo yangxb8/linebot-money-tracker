@@ -192,6 +192,12 @@ export function BudgetPage() {
         />
       ) : null}
 
+      {summary.lazy_copied_from_previous ? (
+        <p className="rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-800">
+          {t("budgetLazyCopiedNotice")}
+        </p>
+      ) : null}
+
       <BudgetTotalCard
         total={summary.total}
         elapsedDays={summary.elapsed_days}

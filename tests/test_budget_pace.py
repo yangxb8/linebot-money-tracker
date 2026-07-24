@@ -202,6 +202,88 @@ class TestMaybePrependBudgetPaceWarning(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, 'Body')
 
 
+class TestFetchBudgetSummaryLazyCopy(unittest.TestCase):
+    @patch('services.budget_pace._build_spent_by_bucket', return_value={})
+    @patch('services.budget_pace._fetch_fiscal_start_day', return_value=24)
+    @patch('services.budget_pace.is_supabase_configured', return_value=True)
+    @patch('services.budget_pace.get_supabase_client')
+    def test_calls_lazy_copy_before_reading_budgets(
+        self,
+        get_client,
+        _configured,
+        _fiscal_day,
+        _spent,
+    ):
+        from services.budget_pace import fetch_budget_summary
+
+        rpc_execute = MagicMock()
+        rpc_execute.execute.return_value = MagicMock(data=True)
+        table_execute = MagicMock()
+        table_execute.execute.return_value = MagicMock(
+            data=[{'budget_level': 'total', 'category_node_id': None, 'amount': 100000}]
+        )
+        table_chain = MagicMock()
+        table_chain.select.return_value = table_chain
+        table_chain.eq.return_value = table_chain
+        table_chain.execute.return_value = table_execute.execute.return_value
+
+        client = MagicMock()
+        client.rpc.return_value = rpc_execute
+        client.table.return_value = table_chain
+        get_client.return_value = client
+
+        summary = fetch_budget_summary(
+            TenantContext.personal('u1'),
+            date(2026, 7, 24),
+            'JPY',
+        )
+
+        client.rpc.assert_called_once_with(
+            'lazy_copy_monthly_budgets',
+            {
+                'p_tenant_type': 'user',
+                'p_tenant_id': 'u1',
+                'p_budget_month': '2026-07-24',
+                'p_currency': 'JPY',
+            },
+        )
+        self.assertTrue(summary['has_any_limit'])
+        self.assertEqual(summary['budgets'][0]['amount'], 100000)
+
+    @patch('services.budget_pace._build_spent_by_bucket', return_value={})
+    @patch('services.budget_pace._fetch_fiscal_start_day', return_value=1)
+    @patch('services.budget_pace.is_supabase_configured', return_value=True)
+    @patch('services.budget_pace.get_supabase_client')
+    def test_continues_when_lazy_copy_rpc_fails(
+        self,
+        get_client,
+        _configured,
+        _fiscal_day,
+        _spent,
+    ):
+        from services.budget_pace import fetch_budget_summary
+
+        rpc_execute = MagicMock()
+        rpc_execute.execute.side_effect = RuntimeError('rpc down')
+        table_chain = MagicMock()
+        table_chain.select.return_value = table_chain
+        table_chain.eq.return_value = table_chain
+        table_chain.execute.return_value = MagicMock(data=[])
+
+        client = MagicMock()
+        client.rpc.return_value = rpc_execute
+        client.table.return_value = table_chain
+        get_client.return_value = client
+
+        summary = fetch_budget_summary(
+            TenantContext.personal('u1'),
+            date(2026, 7, 1),
+            'JPY',
+        )
+        self.assertIsNotNone(summary)
+        self.assertFalse(summary['has_any_limit'])
+
+
 class TestEvaluatePaceWarnings(unittest.TestCase):
     @patch('services.budget_pace.fetch_budget_summary')
     @patch('services.budget_pace.fetch_category_display_names', return_value={'l2-id': '外食'})

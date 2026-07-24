@@ -46,6 +46,7 @@ export type BudgetSummary = {
   categories: BudgetCategoryNode[];
   unbudgeted_spent: number;
   has_any_limit: boolean;
+  lazy_copied_from_previous?: boolean;
 };
 
 export type HealthTone = "neutral" | "good" | "caution" | "bad";
@@ -93,6 +94,7 @@ export type RpcBudgetSummary = {
   total_spent_all: number;
   unbudgeted_spent: number;
   has_any_limit: boolean;
+  lazy_copied_from_previous?: boolean;
   budgets: BudgetLimitRow[];
   spent_by_bucket: Record<string, number>;
 };

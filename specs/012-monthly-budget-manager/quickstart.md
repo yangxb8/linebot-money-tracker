@@ -121,3 +121,4 @@ Auto-logged periodic rows (011) appear in budget spent without extra setup — v
 | Spent not updating | Expense `currency = JPY`, `deleted_at IS NULL`, `expense_date` in current month |
 | Orphan budget row after category delete | Expected v1 — clear row in UI or SQL |
 | Health always neutral on day 1 | Fixed: day 1 uses a 1-day time floor; heavy front-loaded spend shows over-pace colors |
+| New fiscal month has no budgets | `get_budget_summary` / bot pace path lazy-copies from previous month via `lazy_copy_monthly_budgets` |

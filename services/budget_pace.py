@@ -351,13 +351,27 @@ def fetch_budget_summary(
         else:
             elapsed_days = max(1, (today - budget_month).days + 1)
 
+        currency_code = currency.upper()[:3]
+        try:
+            client.rpc(
+                'lazy_copy_monthly_budgets',
+                {
+                    'p_tenant_type': tenant.tenant_type,
+                    'p_tenant_id': tenant.tenant_id,
+                    'p_budget_month': budget_month.isoformat(),
+                    'p_currency': currency_code,
+                },
+            ).execute()
+        except Exception:
+            logger.exception('lazy_copy_monthly_budgets failed; continuing without copy')
+
         budget_response = (
             client.table('monthly_budgets')
             .select('budget_level, category_node_id, amount')
             .eq('tenant_type', tenant.tenant_type)
             .eq('tenant_id', tenant.tenant_id)
             .eq('budget_month', budget_month.isoformat())
-            .eq('currency', currency.upper()[:3])
+            .eq('currency', currency_code)
             .execute()
         )
         budgets = budget_response.data or []
@@ -367,7 +381,7 @@ def fetch_budget_summary(
             tenant,
             budget_month,
             month_end,
-            currency.upper()[:3],
+            currency_code,
             budgets,
         )
 
@@ -376,7 +390,7 @@ def fetch_budget_summary(
             'fiscal_start_day': fiscal_start_day,
             'days_in_month': days_in_month,
             'elapsed_days': elapsed_days,
-            'currency': currency.upper()[:3],
+            'currency': currency_code,
             'has_any_limit': has_any_limit,
             'budgets': budgets,
             'spent_by_bucket': {k: float(v) for k, v in spent_by_bucket.items()},

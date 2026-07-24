@@ -1,0 +1,13 @@
+-- Manual verification for lazy_copy_monthly_budgets (feature follow-up).
+-- Run with service_role / SQL editor after migration 20260724120000.
+--
+-- Expect:
+-- 1) Empty current fiscal month + prior month budgets → rows copied, returns true
+-- 2) Second call → returns false (idempotent)
+-- 3) Past fiscal month request → returns false (no copy)
+
+-- SELECT lazy_copy_monthly_budgets('user', '<line_user_id>', current_fiscal_period_start('user', '<line_user_id>'), 'JPY');
+-- SELECT count(*) FROM monthly_budgets
+--   WHERE tenant_type = 'user'
+--     AND tenant_id = '<line_user_id>'
+--     AND budget_month = current_fiscal_period_start('user', '<line_user_id>');

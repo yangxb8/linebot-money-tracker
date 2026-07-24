@@ -149,6 +149,7 @@ export function enrichBudgetSummary(
     categories,
     unbudgeted_spent: rpc.unbudgeted_spent,
     has_any_limit: rpc.has_any_limit,
+    lazy_copied_from_previous: Boolean(rpc.lazy_copied_from_previous),
   };
 }
 
