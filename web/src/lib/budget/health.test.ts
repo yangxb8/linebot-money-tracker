@@ -8,8 +8,24 @@ describe("computeBudgetHealth", () => {
     expect(h.spentPct).toBeNull();
   });
 
-  it("returns neutral on day 1 of month", () => {
-    const h = computeBudgetHealth(5000, 50000, 1, 30);
+  it("returns good on day 1 when spend is within one-day allotment", () => {
+    const h = computeBudgetHealth(1000, 50000, 1, 30);
+    expect(h.tone).toBe("good");
+    expect(h.labelKey).toBe("budgetPaceOnTrack");
+    expect(h.paceRatio).not.toBeNull();
+    expect(h.timePct).toBeCloseTo(1 / 30);
+  });
+
+  it("returns bad on day 1 when front-loaded spend exceeds pace", () => {
+    // Fixed costs often post on fiscal start day (e.g. 94% of category budget).
+    const h = computeBudgetHealth(169516, 180000, 1, 31);
+    expect(h.tone).toBe("bad");
+    expect(h.labelKey).toBe("budgetPaceOver");
+    expect(h.paceRatio).toBeGreaterThan(1.25);
+  });
+
+  it("returns neutral before the period starts", () => {
+    const h = computeBudgetHealth(5000, 50000, 0, 30);
     expect(h.tone).toBe("neutral");
     expect(h.paceRatio).toBeNull();
   });

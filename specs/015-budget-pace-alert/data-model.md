@@ -62,7 +62,7 @@ Result of health math for one candidate.
 | `elapsed_days` | int | From RPC |
 | `days_in_month` | int | From RPC |
 | `days_remaining` | int | `max(days_in_month - elapsed_days, 0)` |
-| `pace_ratio` | float \| null | null = neutral (day 1 / no limit) |
+| `pace_ratio` | float \| null | null = neutral (before period / no limit); day 1 uses 1-day time floor |
 | `is_ahead` | bool | `pace_ratio is not None and pace_ratio > 1` |
 | `daily_allowance` | int | `floor(remaining / days_remaining)` when `days_remaining > 0`, else 0 |
 

@@ -27,8 +27,20 @@ class TestComputeBudgetHealth(unittest.TestCase):
         self.assertFalse(health.is_ahead)
         self.assertIsNone(health.pace_ratio)
 
-    def test_neutral_on_day_1(self):
-        health = compute_budget_health(5000, 50000, 1, 30)
+    def test_on_pace_on_day_1_within_one_day_allotment(self):
+        health = compute_budget_health(1000, 50000, 1, 30)
+        self.assertFalse(health.is_ahead)
+        self.assertIsNotNone(health.pace_ratio)
+        self.assertAlmostEqual(health.time_pct, 1 / 30)
+
+    def test_ahead_on_day_1_with_front_loaded_spend(self):
+        # Fixed costs often post on fiscal start day.
+        health = compute_budget_health(169516, 180000, 1, 31)
+        self.assertTrue(health.is_ahead)
+        self.assertGreater(health.pace_ratio, 1.25)
+
+    def test_neutral_before_period_starts(self):
+        health = compute_budget_health(5000, 50000, 0, 30)
         self.assertFalse(health.is_ahead)
         self.assertIsNone(health.pace_ratio)
 
@@ -77,6 +89,17 @@ class TestLowestAheadSelection(unittest.TestCase):
     def test_no_warning_when_on_pace(self):
         candidates = [self._candidate('l2', 'l2-id', 50000, 10000, '外食')]
         warning = find_lowest_ahead_warning(candidates, elapsed_days=15, days_in_month=30, language='ja')
+        self.assertIsNone(warning)
+
+    def test_warns_on_day_1_when_front_loaded_ahead(self):
+        candidates = [self._candidate('l1', 'l1-id', 180000, 169516, '固定')]
+        warning = find_lowest_ahead_warning(candidates, elapsed_days=1, days_in_month=31, language='ja')
+        self.assertIsNotNone(warning)
+        self.assertEqual(warning.level, 'l1')
+
+    def test_no_warning_on_day_1_when_within_one_day_allotment(self):
+        candidates = [self._candidate('l2', 'l2-id', 50000, 1000, '外食')]
+        warning = find_lowest_ahead_warning(candidates, elapsed_days=1, days_in_month=30, language='ja')
         self.assertIsNone(warning)
 
 
