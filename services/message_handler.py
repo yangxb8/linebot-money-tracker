@@ -28,6 +28,13 @@ from services.message_context import (
     ReplyContext,
     ReplyEditResult,
 )
+from services.wish_list import (
+    WishListCandidate,
+    build_wish_list_proposal_reply,
+    extract_product_url,
+    format_wish_list_need_price,
+    looks_like_wish_list_intent,
+)
 from services.ocr import extract_text_from_image_bytes, _guess_mime_type
 from services.receipt_image_preprocess import preprocess_receipt_image
 from services.receipt_parser import parse_text_for_expenses
@@ -335,6 +342,84 @@ async def process_text_message(
         return await _process_text_message_inner(text, gemini, context)
 
 
+async def _enrich_items_without_persist(
+    items: List[Dict[str, Any]],
+    gemini: GeminiClient,
+    context: Optional[MessageContext],
+    *,
+    memory_mode: str = 'merchant',
+) -> List[Dict[str, Any]]:
+    enriched: List[Dict[str, Any]] = []
+    for item in items:
+        tenant = context.tenant if context is not None else None
+        cat_result = await classify_expense_with_memory(
+            item,
+            gemini,
+            tenant=tenant,
+            exclude_source_message_id=context.source_message_id if context is not None else None,
+            memory_mode=memory_mode,  # type: ignore[arg-type]
+        )
+        guess_node = resolve_code(cat_result.guessed, tenant)
+        enriched_item = dict(item)
+        enriched_item['category_guess_path'] = format_category_path(guess_node)
+        enriched_item['category_guess_code'] = guess_node.code
+        enriched_item['category_node_id'] = guess_node.id
+        enriched_item['assigned_level'] = guess_node.level
+        enriched_item['category_l1_id'] = guess_node.l1_id
+        enriched_item['category_l2_id'] = guess_node.l2_id
+        enriched_item['category_l3_id'] = guess_node.l3_id
+        enriched.append(enriched_item)
+    return enriched
+
+
+async def _wish_list_reply_from_items(
+    items: List[Dict[str, Any]],
+    gemini: GeminiClient,
+    context: Optional[MessageContext],
+    *,
+    source_text: Optional[str] = None,
+    memory_mode: str = 'merchant',
+) -> BotReply:
+    language = context.reply_language if context else 'ja'
+    if context is None:
+        return _text_reply(format_wish_list_need_price(language))
+
+    enriched = await _enrich_items_without_persist(
+        items,
+        gemini,
+        context,
+        memory_mode=memory_mode,
+    )
+    if not enriched:
+        return _text_reply(format_wish_list_need_price(language))
+
+    first = enriched[0]
+    amount_raw = first.get('amount')
+    try:
+        amount = Decimal(str(amount_raw)).quantize(Decimal('0.01'))
+    except Exception:
+        amount = Decimal('0')
+    if amount <= 0:
+        return _text_reply(format_wish_list_need_price(language))
+
+    name = str(first.get('description') or 'Item').strip() or 'Item'
+    product_url = extract_product_url(source_text)
+    candidate = WishListCandidate(
+        name=name,
+        amount=amount,
+        currency=str(first.get('currency') or 'JPY').strip().upper()[:3] or 'JPY',
+        assigned_level=int(first.get('assigned_level') or 1),
+        category_node_id=str(first['category_node_id']),
+        category_l1_id=str(first['category_l1_id']),
+        category_l2_id=first.get('category_l2_id'),
+        category_l3_id=first.get('category_l3_id'),
+        category_label=str(first.get('category_guess_path') or ''),
+        product_url=product_url,
+    )
+    logger.info('Wish-list pipeline: proposing add for %s ¥%s', name, amount)
+    return build_wish_list_proposal_reply(candidate, context)
+
+
 async def _process_text_message_inner(
     text: str,
     gemini: GeminiClient,
@@ -343,6 +428,21 @@ async def _process_text_message_inner(
     language = context.reply_language if context else 'ja'
     logger.info('Processing text message len=%d', len(text or ''))
     try:
+        # Wish intent must be checked before expense persist (deterministic parse may match).
+        if looks_like_wish_list_intent(text):
+            logger.info('Text pipeline: wish_list phrase gate')
+            items = parse_text_for_expenses(text)
+            if not items:
+                items = await assist_parse_text(text, gemini)
+            if not items:
+                return _text_reply(format_wish_list_need_price(language))
+            return await _wish_list_reply_from_items(
+                items,
+                gemini,
+                context,
+                source_text=text,
+            )
+
         items = parse_text_for_expenses(text)
         if items:
             logger.info('Text pipeline: deterministic parser returned %d item(s)', len(items))
@@ -373,6 +473,18 @@ async def _process_text_message_inner(
         if message_intent == 'webapp':
             logger.info('Text pipeline: webapp intent detected')
             return _text_reply(webapp_link_reply(language))
+
+        if message_intent == 'wish_list':
+            logger.info('Text pipeline: wish_list intent (LLM)')
+            items = await assist_parse_text(text, gemini)
+            if not items:
+                return _text_reply(format_wish_list_need_price(language))
+            return await _wish_list_reply_from_items(
+                items,
+                gemini,
+                context,
+                source_text=text,
+            )
 
         if message_intent == 'expense':
             confirmation_payload = None
@@ -510,10 +622,17 @@ async def process_image_message(
     gemini: GeminiClient,
     mime_type: Optional[str] = None,
     context: Optional[MessageContext] = None,
+    accompanying_text: Optional[str] = None,
 ) -> BotReply:
     persona = resolve_persona_for_tenant(context.tenant if context else None)
     with persona_scope(persona):
-        return await _process_image_message_inner(image_bytes, gemini, mime_type, context)
+        return await _process_image_message_inner(
+            image_bytes,
+            gemini,
+            mime_type,
+            context,
+            accompanying_text=accompanying_text,
+        )
 
 
 async def _process_image_message_inner(
@@ -521,13 +640,15 @@ async def _process_image_message_inner(
     gemini: GeminiClient,
     mime_type: Optional[str] = None,
     context: Optional[MessageContext] = None,
+    accompanying_text: Optional[str] = None,
 ) -> BotReply:
     resolved_mime = mime_type or _guess_mime_type(image_bytes)
     logger.info(
-        'Processing image message: image=%s mime=%s (provided=%s)',
+        'Processing image message: image=%s mime=%s (provided=%s) accompanying_text=%s',
         describe_bytes(image_bytes),
         resolved_mime,
         mime_type or 'auto-detected',
+        bool(accompanying_text),
     )
     language = context.reply_language if context else 'ja'
     try:
@@ -546,6 +667,16 @@ async def _process_image_message_inner(
                 resolved_mime,
             )
             return _text_reply(receipt_parse_error_reply(language))
+
+        if accompanying_text and looks_like_wish_list_intent(accompanying_text):
+            logger.info('Image pipeline: wish_list intent via accompanying text')
+            return await _wish_list_reply_from_items(
+                items,
+                gemini,
+                context,
+                source_text=accompanying_text,
+                memory_mode='item',
+            )
 
         items, confirmation_payload = await _enrich_and_persist_items(
             items,

@@ -8,22 +8,24 @@ from services.usage_metering import llm_operation_scope
 
 logger = logging.getLogger(__name__)
 
-TextMessageIntent = Literal['expense', 'webapp', 'other']
+TextMessageIntent = Literal['expense', 'webapp', 'wish_list', 'other']
 
 COMBINED_TEXT_INTENT_PROMPT = """You classify a LINE chat message into exactly one intent.
 
 Intents:
-- expense: user is trying to log spending (amounts, receipts, payment notes, terse JP/CN shorthand like "861便利店" or "1200ランチ")
+- wish_list: user wants to record something they have NOT purchased yet / plan to buy (e.g. "I want to buy…", "want to buy", "wishlist", "買いたい", "欲しい", "まだ買ってない", "想买")
+- expense: user is trying to log spending already made (amounts, receipts, payment notes, terse JP/CN shorthand like "861便利店" or "1200ランチ")
 - webapp: user wants the expense dashboard / web app / webpage link to view logged expenses online (e.g. "open dashboard", "where is the website?", "家計簿のページ", "网页在哪", "how can I see my expenses online?")
 - other: greetings, chitchat, jokes, general knowledge, unsupported requests
 
 Rules:
-- Prefer expense when the message looks like logging spending.
+- Prefer wish_list over expense when not-yet-purchased intent is clear.
+- Prefer expense when the message clearly logs a completed purchase.
 - Prefer webapp when clearly asking for the dashboard or web link, not logging.
-- Prefer other when unsure about expense or webapp; this bot does not answer general questions.
+- Prefer other when unsure about expense, wish_list, or webapp; this bot does not answer general questions.
 - Reject general knowledge about brands/stores even if numbers appear.
 
-Reply ONLY with JSON: {{"intent": "expense"}} or {{"intent": "webapp"}} or {{"intent": "other"}}
+Reply ONLY with JSON: {{"intent": "wish_list"}} or {{"intent": "expense"}} or {{"intent": "webapp"}} or {{"intent": "other"}}
 
 Message:
 {text}"""
@@ -75,14 +77,14 @@ def _parse_combined_intent_response(response: str, source: str = 'unknown') -> T
         data = json.loads(text)
         if isinstance(data, dict):
             intent = str(data.get('intent', 'other')).strip().lower()
-            if intent in ('expense', 'webapp', 'other'):
+            if intent in ('expense', 'webapp', 'wish_list', 'other'):
                 logger.info('Combined intent check (%s): intent=%s (parsed JSON)', source, intent)
                 return intent  # type: ignore[return-value]
     except json.JSONDecodeError:
         logger.debug('Combined intent check (%s): response is not JSON, trying fallback parse', source)
 
     lowered = text.lower()
-    for candidate in ('expense', 'webapp', 'other'):
+    for candidate in ('wish_list', 'expense', 'webapp', 'other'):
         if f'"intent": "{candidate}"' in lowered or f'"intent":"{candidate}"' in lowered:
             logger.info('Combined intent check (%s): intent=%s (fallback string match)', source, candidate)
             return candidate  # type: ignore[return-value]
@@ -99,7 +101,7 @@ async def classify_text_message_intent(
     text: Optional[str],
     gemini: GeminiClient,
 ) -> TextMessageIntent:
-    """Classify text into expense logging, webapp link request, or other."""
+    """Classify text into expense, wish_list, webapp link request, or other."""
     if not text or not isinstance(text, str):
         logger.info('Combined intent check (text): skipped (empty or invalid input)')
         return 'other'
@@ -108,6 +110,12 @@ async def classify_text_message_intent(
     if not normalized:
         logger.info('Combined intent check (text): skipped (blank after strip)')
         return 'other'
+
+    from services.wish_list import looks_like_wish_list_intent
+
+    if looks_like_wish_list_intent(normalized):
+        logger.info('Combined intent check (text): wish_list via phrase gate')
+        return 'wish_list'
 
     logger.info('Combined intent check (text): classifying message len=%d', len(normalized))
     logger.debug('Combined intent check (text): message=%s', truncate(normalized, 500))

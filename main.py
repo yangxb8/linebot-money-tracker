@@ -208,6 +208,8 @@ async def _reply_and_save_confirmation(
             tenant=bot_reply.confirmation.tenant,
             confirmation_text=bot_reply.confirmation.confirmation_text,
             items=list(bot_reply.confirmation.items),
+            pending_action=bot_reply.confirmation.pending_action,
+            pending_payload=bot_reply.confirmation.pending_payload,
         )
     anchor_original_message_id = failure_original_message_id or source_message_id
     anchor_original_line_user_id = failure_original_line_user_id or line_user_id

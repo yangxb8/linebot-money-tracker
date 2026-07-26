@@ -63,6 +63,8 @@ class ConfirmationSavePayload:
     tenant: TenantContext
     confirmation_text: str
     items: tuple[ConfirmationItemSnapshot, ...]
+    pending_action: Optional[str] = None
+    pending_payload: Optional[dict] = None
 
     @property
     def line_user_id(self) -> str:
