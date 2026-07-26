@@ -47,15 +47,21 @@ def save_confirmation(
     tenant: TenantContext,
     confirmation_text: str,
     items: List[ConfirmationItemSnapshot],
+    *,
+    pending_action: Optional[str] = None,
+    pending_payload: Optional[Dict[str, Any]] = None,
 ) -> Optional[str]:
-    if not is_supabase_configured() or not items:
-        logger.warning('Skipping confirmation save (configured=%s items=%d)', is_supabase_configured(), len(items))
+    if not is_supabase_configured():
+        logger.warning('Skipping confirmation save (supabase not configured)')
+        return None
+    if not items and not pending_action:
+        logger.warning('Skipping confirmation save (no items and no pending_action)')
         return None
 
     confirmation_id = str(uuid.uuid4())
     try:
         client = get_supabase_client()
-        row = {
+        row: Dict[str, Any] = {
             'id': confirmation_id,
             'bot_message_id': bot_message_id,
             'interaction_bot_message_id': bot_message_id,
@@ -64,7 +70,8 @@ def save_confirmation(
             'line_user_id': tenant.logged_by_line_user_id,
             'confirmation_text': confirmation_text,
             'items_snapshot': _snapshot_to_json(items),
-            'pending_action': None,
+            'pending_action': pending_action,
+            'pending_payload': pending_payload,
         }
         client.table('confirmation_messages').insert(row).execute()
 
@@ -79,11 +86,34 @@ def save_confirmation(
         if links:
             client.table('confirmation_expenses').insert(links).execute()
 
-        logger.info('Saved confirmation bot_message_id=%s items=%d', bot_message_id, len(items))
+        logger.info(
+            'Saved confirmation bot_message_id=%s items=%d pending=%s',
+            bot_message_id,
+            len(items),
+            pending_action,
+        )
         return confirmation_id
     except Exception:
         logger.exception('save_confirmation failed')
         return None
+
+
+def save_pending_confirmation(
+    bot_message_id: str,
+    tenant: TenantContext,
+    confirmation_text: str,
+    pending_action: str,
+    pending_payload: Dict[str, Any],
+) -> Optional[str]:
+    """Save a confirmation that only carries a pending action (no expenses)."""
+    return save_confirmation(
+        bot_message_id,
+        tenant,
+        confirmation_text,
+        [],
+        pending_action=pending_action,
+        pending_payload=pending_payload,
+    )
 
 
 def get_confirmation_by_bot_message_id(

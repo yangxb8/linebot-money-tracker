@@ -85,6 +85,8 @@ export async function POST(request: Request) {
       expense_date: expenseDate,
       category_node_id: categoryNodeId,
       currency: body.currency ? String(body.currency) : "JPY",
+      wish_list_item_id:
+        body.wish_list_item_id != null ? String(body.wish_list_item_id) : null,
     });
     return NextResponse.json(expense, { status: 201 });
   } catch (error) {

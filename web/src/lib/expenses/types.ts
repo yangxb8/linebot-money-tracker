@@ -14,6 +14,8 @@ export type ExpenseRecord = {
   merchant_display: string | null;
   /** Set when the row was created by a periodic schedule run. */
   periodic_schedule_id: string | null;
+  /** Set when the row was created by executing a wish list item. */
+  wish_list_item_id: string | null;
   /** ISO timestamp used as tiebreaker for newest/oldest date sort. */
   created_at: string;
 };
@@ -39,6 +41,7 @@ export type CreateExpensePayload = {
   expense_date: string;
   category_node_id: string;
   currency?: string;
+  wish_list_item_id?: string | null;
 };
 
 export type UpdateExpensePayload = {

@@ -5,15 +5,20 @@ alwaysApply: true
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan at
-`specs/019-bot-reply-language/plan.md` and the developer quickstart at
-`specs/019-bot-reply-language/quickstart.md`.
+`specs/020-wish-list/plan.md` and the developer quickstart at
+`specs/020-wish-list/quickstart.md`.
 
 Primary local dev workflow: `python local_run.py --text "..."` or
 `python local_run.py --image path/to/receipt.jpg` (requires GEMINI_API_KEY only;
 add SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY to persist expenses and LLM usage metering).
 
+Wish list bot testing: `python local_run.py --text "I want to buy headphones 15000 yen"`,
+then `python local_run.py --reply-to <bot_message_id> --text "yes"`.
+Image + wish text: `python local_run.py --image path/to/item.jpg --text "買いたい"`.
+
 Web dashboard (feature 009): `cd web && npm install && npm run dev` — see
 `specs/009-expense-web-dashboard/quickstart.md` for LINE Login, LIFF, and Vercel setup.
+Wish List page: `http://localhost:3000/wish-list` (after auth).
 
 Reply-edit testing: log an expense, note `bot_message_id`, then
 `python local_run.py --reply-to <bot_message_id> --text "3800円"`.

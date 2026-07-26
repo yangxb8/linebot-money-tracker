@@ -18,7 +18,7 @@ import { DEFAULT_EXPENSE_LIST_SORT } from "@/lib/expenses/sort-group";
 export { parseTenantParams };
 
 const EXPENSE_SELECT =
-  "id, expense_date, description, amount, currency, category_node_id, category_name_ja, category_l1_name, category_l2_name, logged_by_line_user_id, tenant_type, tenant_id, metadata, periodic_schedule_id, created_at";
+  "id, expense_date, description, amount, currency, category_node_id, category_name_ja, category_l1_name, category_l2_name, logged_by_line_user_id, tenant_type, tenant_id, metadata, periodic_schedule_id, wish_list_item_id, created_at";
 
 export async function requireExpenseUser() {
   const supabase = await createClient();
@@ -50,6 +50,7 @@ function mapExpenseRow(row: Record<string, unknown>): ExpenseRecord {
     periodic_schedule_id: row.periodic_schedule_id
       ? String(row.periodic_schedule_id)
       : null,
+    wish_list_item_id: row.wish_list_item_id ? String(row.wish_list_item_id) : null,
     created_at: String(row.created_at),
   };
 }
@@ -194,6 +195,7 @@ export async function createExpense(
       category_l1_id: assignment.category_l1_id,
       category_l2_id: assignment.category_l2_id,
       category_l3_id: null,
+      wish_list_item_id: payload.wish_list_item_id ?? null,
     })
     .select("id")
     .single();

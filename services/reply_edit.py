@@ -672,7 +672,12 @@ async def parse_edit_intent(
             'clarification_message': None,
         }
 
-    if pending_action in ('delete_all', 'confirm_intent', 'category_bulk') and is_cancel_pending(user_text):
+    if pending_action in (
+        'delete_all',
+        'confirm_intent',
+        'category_bulk',
+        'wish_list_add',
+    ) and is_cancel_pending(user_text):
         return {
             'action': 'cancel_pending',
             'target': {'mode': 'unspecified'},
@@ -681,7 +686,7 @@ async def parse_edit_intent(
             'clarification_message': None,
         }
 
-    if pending_action == 'confirm_intent' and is_affirmative(user_text):
+    if pending_action in ('confirm_intent', 'wish_list_add') and is_affirmative(user_text):
         return {
             'action': 'confirm_pending',
             'target': {'mode': 'unspecified'},
@@ -712,7 +717,7 @@ async def parse_edit_intent(
         if category_intent is not None:
             return category_intent
 
-    if pending_action not in ('delete_all', 'confirm_intent', 'category_bulk'):
+    if pending_action not in ('delete_all', 'confirm_intent', 'category_bulk', 'wish_list_add'):
         delete_intent = _delete_phrase_intent(user_text, items_snapshot)
         if delete_intent is not None:
             return delete_intent
@@ -739,7 +744,7 @@ async def parse_edit_intent(
     except Exception:
         logger.exception('parse_edit_intent failed')
 
-    if pending_action in ('confirm_intent', 'category_bulk'):
+    if pending_action in ('confirm_intent', 'category_bulk', 'wish_list_add'):
         return {
             'action': 'clarify',
             'target': {'mode': 'unspecified'},
@@ -1105,7 +1110,7 @@ async def apply_edit_intent(
         pending_payload = {}
 
     if intent.get('clarification_needed') or action == 'clarify':
-        if confirmation.pending_action in ('confirm_intent', 'category_bulk'):
+        if confirmation.pending_action in ('confirm_intent', 'category_bulk', 'wish_list_add'):
             msg = intent.get('clarification_message') or _clarify_message(language, 'pending_reply')
         else:
             msg = intent.get('clarification_message') or _clarify_message(language, 'generic')
@@ -1113,6 +1118,59 @@ async def apply_edit_intent(
 
     if action == 'category_bulk':
         return await _begin_category_bulk_flow(intent, confirmation, user_text, gemini, items_snapshot, expenses)
+
+    if action == 'cancel_pending' and confirmation.pending_action == 'wish_list_add':
+        clear_pending_state(confirmation.id)
+        from services.wish_list import format_wish_list_cancelled
+
+        return EditApplyResult(
+            status='applied',
+            summary=format_wish_list_cancelled(language),
+            intent_json=intent,
+            items_snapshot=items_snapshot,
+        )
+
+    if action == 'confirm_pending' and confirmation.pending_action == 'wish_list_add':
+        from services.wish_list import (
+            format_wish_list_added,
+            insert_active_wish_list_item,
+            pending_payload_to_candidate,
+        )
+
+        candidate = pending_payload_to_candidate(pending_payload)
+        clear_pending_state(confirmation.id)
+        if candidate is None:
+            return EditApplyResult(
+                status='error',
+                summary=_clarify_message(language, 'generic'),
+                intent_json=intent,
+                items_snapshot=items_snapshot,
+            )
+        item_id = insert_active_wish_list_item(
+            confirmation.tenant,
+            name=candidate.name,
+            amount=candidate.amount,
+            assigned_level=candidate.assigned_level,
+            category_node_id=candidate.category_node_id,
+            category_l1_id=candidate.category_l1_id,
+            category_l2_id=candidate.category_l2_id,
+            category_l3_id=candidate.category_l3_id,
+            product_url=candidate.product_url,
+            currency=candidate.currency,
+        )
+        if not item_id:
+            return EditApplyResult(
+                status='error',
+                summary=_clarify_message(language, 'generic'),
+                intent_json=intent,
+                items_snapshot=items_snapshot,
+            )
+        return EditApplyResult(
+            status='applied',
+            summary=format_wish_list_added(language, candidate.name),
+            intent_json=intent,
+            items_snapshot=items_snapshot,
+        )
 
     if action == 'cancel_pending' and confirmation.pending_action in ('confirm_intent', 'category_bulk'):
         clear_pending_state(confirmation.id)

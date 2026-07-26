@@ -46,9 +46,16 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description='Simulate LINE message processing locally and print the bot reply.',
     )
-    group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--text', help='Expense message text to process')
-    group.add_argument('--image', help='Path to a receipt image file')
+    parser.add_argument(
+        '--text',
+        help='Expense / wish-list message text to process (can combine with --image)',
+    )
+    parser.add_argument(
+        '--image',
+        help='Path to a receipt/item image (combine with --text for wish-list intent)',
+    )
+    # Require at least one of --text / --image when not using reply/retry flows.
+    # Reply/retry still need --text; validated in _run.
     parser.add_argument(
         '--reply-to',
         help='Bot confirmation message ID to simulate reply-to-message flow',
@@ -149,6 +156,8 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
                 tenant=bot_reply.confirmation.tenant,
                 confirmation_text=bot_reply.confirmation.confirmation_text,
                 items=list(bot_reply.confirmation.items),
+                pending_action=bot_reply.confirmation.pending_action,
+                pending_payload=bot_reply.confirmation.pending_payload,
             )
         if bot_reply.retryable_failure:
             error_message_id = f'console-{uuid.uuid4()}'
@@ -188,12 +197,40 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
             edit_result = await process_reply_edit(args.text, reply_context, gemini)
         return edit_result.text, None, None
 
+    if not args.text and not args.image:
+        raise ValueError('Provide --text and/or --image')
+
     context = MessageContext(
         tenant=tenant,
         source_message_id=source_message_id,
     )
 
-    if args.text is not None:
+    if args.image and args.text:
+        image_bytes = _read_image(args.image)
+        save_inbound_image_message(
+            message_id=source_message_id,
+            line_user_id=line_user_id,
+            tenant=tenant,
+        )
+        _CONSOLE_IMAGE_BYTES[source_message_id] = image_bytes
+        usage_prep = prepare_inbound_usage(
+            tenant,
+            line_user_id,
+            source_message_id,
+            text=args.text,
+            image_bytes=image_bytes,
+            skip_limits=args.skip_usage_limits,
+        )
+        if not usage_prep.allowed:
+            return format_denial_reply('en', usage_prep.reason), None, None
+        with usage_billing_scope(usage_prep.billing_context):
+            bot_reply = await process_image_message(
+                image_bytes,
+                gemini,
+                context=context,
+                accompanying_text=args.text,
+            )
+    elif args.text is not None:
         save_inbound_text_message(
             message_id=source_message_id,
             line_user_id=line_user_id,
@@ -240,6 +277,8 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
             tenant=bot_reply.confirmation.tenant,
             confirmation_text=bot_reply.confirmation.confirmation_text,
             items=list(bot_reply.confirmation.items),
+            pending_action=bot_reply.confirmation.pending_action,
+            pending_payload=bot_reply.confirmation.pending_payload,
         )
     if bot_reply.retryable_failure:
         error_message_id = f'console-{uuid.uuid4()}'
@@ -264,6 +303,8 @@ def main() -> int:
 
     parser = _build_parser()
     args = parser.parse_args()
+    if not args.reply_to and not args.retry_to and not args.text and not args.image:
+        parser.error('one of the arguments --text --image is required')
     _configure_logging(debug=args.debug)
     init_sentry(environment='local')
 
