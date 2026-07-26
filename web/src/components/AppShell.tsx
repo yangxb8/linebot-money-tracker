@@ -14,6 +14,7 @@ function pageTitleKey(pathname: string): MessageKey {
   if (pathname === "/settings/fiscal-month") return "settingsFiscalMonth";
   if (pathname.startsWith("/settings")) return "navSettings";
   if (pathname === "/periodic-expenses") return "navPeriodicExpenses";
+  if (pathname === "/wish-list") return "navWishList";
   if (pathname === "/budget") return "navBudget";
   return "navExpenses";
 }

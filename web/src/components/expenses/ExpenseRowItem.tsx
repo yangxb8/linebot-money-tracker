@@ -2,6 +2,7 @@
 
 import { ExpenseCategoryTag } from "@/components/expenses/ExpenseCategoryTag";
 import { ExpenseMerchantTag } from "@/components/expenses/ExpenseMerchantTag";
+import { useLanguage } from "@/components/LanguageProvider";
 import type { CategoryNode } from "@/lib/categories/types";
 import type { ExpenseRecord } from "@/lib/expenses/types";
 
@@ -30,6 +31,7 @@ export function ExpenseRowItem({
   onUpdated,
   onError,
 }: Props) {
+  const { t } = useLanguage();
   const disabled = busyId === row.id;
 
   return (
@@ -71,6 +73,11 @@ export function ExpenseRowItem({
           />
           {row.merchant_display ? (
             <ExpenseMerchantTag label={row.merchant_display} />
+          ) : null}
+          {row.wish_list_item_id ? (
+            <span className="inline-block max-w-full truncate rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
+              {t("wishListTag")}
+            </span>
           ) : null}
         </div>
         <button
