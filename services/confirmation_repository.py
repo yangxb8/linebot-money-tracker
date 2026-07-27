@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -157,6 +158,64 @@ def get_confirmation_by_bot_message_id(
         )
     except Exception:
         logger.exception('get_confirmation_by_bot_message_id failed')
+        return None
+
+
+def get_latest_pending_confirmation(
+    tenant: TenantContext,
+    *,
+    pending_action: str,
+    within_seconds: int,
+) -> Optional[ConfirmationRecord]:
+    """Find the most recent pending confirmation for this user+ledger within a time window.
+
+    Used for the LINE workaround where image and text are delivered as separate events.
+    """
+    if not is_supabase_configured():
+        return None
+
+    try:
+        client = get_supabase_client()
+        threshold = datetime.now(timezone.utc) - timedelta(seconds=within_seconds)
+        threshold_iso = threshold.isoformat()
+
+        response = (
+            client.table('confirmation_messages')
+            .select('*')
+            .eq('tenant_type', tenant.tenant_type)
+            .eq('tenant_id', tenant.tenant_id)
+            .eq('line_user_id', tenant.logged_by_line_user_id)
+            .eq('pending_action', pending_action)
+            .gte('created_at', threshold_iso)
+            .order('created_at', desc=True)
+            .limit(1)
+            .execute()
+        )
+
+        rows = response.data or []
+        if not rows:
+            return None
+
+        row = rows[0]
+        snapshot = row.get('items_snapshot') or []
+        record_tenant = TenantContext(
+            tenant_type=str(row.get('tenant_type') or tenant.tenant_type),
+            tenant_id=str(row.get('tenant_id') or tenant.tenant_id),
+            logged_by_line_user_id=str(
+                row.get('line_user_id') or tenant.logged_by_line_user_id,
+            ),
+        )
+        return ConfirmationRecord(
+            id=row['id'],
+            bot_message_id=row['bot_message_id'],
+            tenant=record_tenant,
+            confirmation_text=row.get('confirmation_text') or '',
+            items_snapshot=tuple(snapshot),
+            pending_action=row.get('pending_action'),
+            pending_payload=row.get('pending_payload'),
+        )
+    except Exception:
+        logger.exception('get_latest_pending_confirmation failed')
         return None
 
 

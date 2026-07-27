@@ -45,18 +45,20 @@ After intent classification:
 | `expense` | Existing behavior unchanged |
 | others | Existing behavior unchanged |
 
-### Reply to `wish_list_await_details`
+### Await-details correlation (`wish_list_await_details`) — 30s window
 
-User must **reply to** the bot ask message (LINE quote/reply):
+When the bot asks what the user wants to buy, it stores a pending confirmation with:
+`pending_action = 'wish_list_await_details'`.
 
-| Reply | Behavior |
+Within ~30 seconds, the bot can complete the flow using either:
+
+| Next input (from the same LINE user on the same ledger) | Behavior |
 | ----- | -------- |
+| Text with product+price | Parse → budget impact → upgrade pending to `wish_list_add` (then user confirms yes/no) |
+| Image (standalone bubble, i.e. not necessarily a quoted reply) | Extract product/name/price → budget impact → upgrade pending to `wish_list_add` (then user confirms yes/no) |
 | Cancel (`no` / `不用` / …) | Clear pending; no wish item |
-| Text with product+price | Parse → budget impact → upgrade pending to `wish_list_add` (re-anchor interaction message id) |
-| Image | Extract product → same as text details path |
-| Unparseable | Re-ask details; keep `wish_list_await_details` |
 
-Image messages that are **not** a reply to this pending confirmation continue through the normal expense image flow.
+Group chat rule: **only** the same sender (tenant + line_user_id scoped) can advance the pending flow. Other users’ images continue through the normal expense image flow.
 
 ### Image path
 
