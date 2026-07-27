@@ -13,7 +13,8 @@ import type {
 type Props = {
   items: WishListItem[];
   loading: boolean;
-  error: string | null;
+  loadError: string | null;
+  actionError: string | null;
   busyId: string | null;
   sort: WishListSort;
   onSortChange: (sort: WishListSort) => void;
@@ -28,7 +29,8 @@ type Props = {
 export function WishListActiveList({
   items,
   loading,
-  error,
+  loadError,
+  actionError,
   busyId,
   sort,
   onSortChange,
@@ -85,7 +87,7 @@ export function WishListActiveList({
     );
   }
 
-  if (error) {
+  if (loadError) {
     return (
       <div className="py-12 text-center">
         <p className="text-sm text-gray-600">{t("errorGeneric")}</p>
@@ -117,6 +119,12 @@ export function WishListActiveList({
 
   return (
     <div className="space-y-3">
+      {actionError ? (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+          {t("errorGeneric")}
+        </p>
+      ) : null}
+
       <div className="flex items-center justify-between gap-3">
         <label className="text-sm font-medium text-gray-700">
           {t("expenseSortBy")}

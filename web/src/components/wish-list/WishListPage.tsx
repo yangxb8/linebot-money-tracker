@@ -12,6 +12,11 @@ import {
   fetchWishListItems,
   reorderWishListItems,
 } from "@/lib/wish-list/client";
+import {
+  removeWishListItem,
+  reorderWishListItemIds,
+  upsertWishListItem,
+} from "@/lib/wish-list/list-mutations";
 import type {
   WishListItem,
   WishListSort,
@@ -25,7 +30,8 @@ export function WishListPage() {
   const [filter, setFilter] = useState<WishListStatus>("active");
   const [sort, setSort] = useState<WishListSort>("priority");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<WishListItem | null>(null);
   const [executing, setExecuting] = useState<WishListItem | null>(null);
@@ -34,12 +40,12 @@ export function WishListPage() {
   const load = useCallback(async () => {
     if (!selectedTenant) return;
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const rows = await fetchWishListItems(selectedTenant, filter, sort);
       setItems(rows);
     } catch {
-      setError("fetch_failed");
+      setLoadError("fetch_failed");
     } finally {
       setLoading(false);
     }
@@ -51,12 +57,16 @@ export function WishListPage() {
 
   async function handleDelete(item: WishListItem) {
     if (!window.confirm(t("wishListDeleteConfirm"))) return;
+
+    const previous = items;
+    setItems(removeWishListItem(items, item.id));
     setBusyId(item.id);
+    setActionError(null);
     try {
       await deleteWishListItem(item.id);
-      await load();
     } catch {
-      setError("action_failed");
+      setItems(previous);
+      setActionError("action_failed");
     } finally {
       setBusyId(null);
     }
@@ -69,22 +79,30 @@ export function WishListPage() {
     const nextIds = orderedIds.join(",");
     if (currentIds === nextIds) return;
 
-    const byId = new Map(items.map((row) => [row.id, row]));
-    const nextItems = orderedIds
-      .map((id) => byId.get(id))
-      .filter((row): row is WishListItem => Boolean(row));
-
+    const previous = items;
+    const nextItems = reorderWishListItemIds(items, orderedIds);
     setItems(nextItems);
-    setBusyId(orderedIds[0] ?? null);
+    setActionError(null);
     try {
       await reorderWishListItems(selectedTenant, orderedIds);
-      await load();
     } catch {
-      setError("action_failed");
-      await load();
-    } finally {
-      setBusyId(null);
+      setItems(previous);
+      setActionError("action_failed");
     }
+  }
+
+  function handleSaved(saved: WishListItem) {
+    setItems((current) => upsertWishListItem(current, saved, sort));
+    setActionError(null);
+  }
+
+  function handleExecuted(executed: WishListItem) {
+    if (filter === "active") {
+      setItems((current) => removeWishListItem(current, executed.id));
+    } else {
+      setItems((current) => upsertWishListItem(current, executed, sort));
+    }
+    setActionError(null);
   }
 
   if (!selectedTenant) {
@@ -135,7 +153,8 @@ export function WishListPage() {
         <WishListActiveList
           items={items}
           loading={loading}
-          error={error}
+          loadError={loadError}
+          actionError={actionError}
           busyId={busyId}
           sort={sort}
           onSortChange={setSort}
@@ -156,7 +175,7 @@ export function WishListPage() {
         <WishListExecutedList
           items={items}
           loading={loading}
-          error={error}
+          loadError={loadError}
           onRetry={() => void load()}
         />
       )}
@@ -169,7 +188,7 @@ export function WishListPage() {
             setFormOpen(false);
             setEditing(null);
           }}
-          onSaved={() => void load()}
+          onSaved={handleSaved}
         />
       ) : null}
 
@@ -178,7 +197,7 @@ export function WishListPage() {
           tenant={selectedTenant}
           item={executing}
           onClose={() => setExecuting(null)}
-          onExecuted={() => void load()}
+          onExecuted={handleExecuted}
         />
       ) : null}
     </div>

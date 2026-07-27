@@ -15,7 +15,7 @@ type Props = {
   tenant: TenantOption;
   item: WishListItem;
   onClose: () => void;
-  onExecuted: () => void;
+  onExecuted: (item: WishListItem) => void;
 };
 
 type FieldErrors = {
@@ -101,7 +101,7 @@ export function WishListExecuteDialog({
     setSaving(true);
     setError(null);
     try {
-      await executeWishListItem(item.id, {
+      const { item: executed } = await executeWishListItem(item.id, {
         tenant_type: tenant.tenantType,
         tenant_id: tenant.tenantId,
         name: values.name.trim(),
@@ -109,7 +109,7 @@ export function WishListExecuteDialog({
         category_node_id: values.category_node_id,
         expense_date: values.expense_date,
       });
-      onExecuted();
+      onExecuted(executed);
       onClose();
     } catch {
       setError(t("saveFailed"));
