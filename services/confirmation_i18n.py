@@ -89,6 +89,21 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         'category_pick_footer': '1〜3 で返信してカテゴリを選んでください。',
         'category_bulk_all': 'この確認のすべての支出のカテゴリを「{category_query}」に変更します。',
         'category_bulk_items': '第 {labels} 項目のカテゴリを「{category_query}」に変更します。',
+        'wish_ask_details': (
+            '買いたいものですね。'
+            'このメッセージに返信して、商品名と金額を送るか、'
+            '商品の写真を返信してください。'
+            '\n\n⏳ この後30秒以内に商品画像/写真を送ってください。'
+        ),
+        'wish_no_budget': 'この購入に適用される予算上限はありません。',
+        'wish_budget_remaining': '予算（{label}）：残り ¥{remaining_now} → 買うと ¥{remaining_if}。',
+        'wish_budget_pace_ahead': '⚠️ 買うとペース超過になります（残り{days}日で約¥{daily}/日）。',
+        'wish_proposal_header': 'ウィッシュリスト候補（支出には記録していません）：',
+        'wish_proposal_item': '• {name} — ¥{amount} / {category}',
+        'wish_proposal_link': 'リンク: {url}',
+        'wish_proposal_confirm': 'ウィッシュリストに追加しますか？ yes / no（はい / いいえ）で返信してください',
+        'wish_added': 'ウィッシュリストに追加しました：{name}',
+        'wish_cancelled': 'ウィッシュリストへの追加をキャンセルしました。',
     },
     'en': {
         'header': 'Detected expense(s):',
@@ -157,6 +172,21 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         'category_pick_footer': 'Reply with 1–3 to select a category.',
         'category_bulk_all': 'Change the category to "{category_query}" for all expenses on this confirmation.',
         'category_bulk_items': 'Change the category to "{category_query}" for item(s) {labels}.',
+        'wish_ask_details': (
+            'I see you want to buy something. '
+            'Reply to this message with the product name and price, '
+            'or reply with a product photo.'
+            '\n\n⏳ You have 30 seconds to send the product photo/image.'
+        ),
+        'wish_no_budget': 'No budget limit is set for this purchase.',
+        'wish_budget_remaining': 'Budget ({label}): ¥{remaining_now} left now → ¥{remaining_if} if you buy this.',
+        'wish_budget_pace_ahead': '⚠️ This would put spending ahead of pace (~¥{daily}/day for {days} days left).',
+        'wish_proposal_header': 'Wishlist candidate (not logged as an expense):',
+        'wish_proposal_item': '• {name} — ¥{amount} / {category}',
+        'wish_proposal_link': 'Link: {url}',
+        'wish_proposal_confirm': 'Add to wishlist? Reply yes / no',
+        'wish_added': 'Added to wishlist: {name}',
+        'wish_cancelled': 'Wishlist add cancelled.',
     },
     'zh': {
         'header': '检测到的支出:',
@@ -223,6 +253,21 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         'category_pick_footer': '请回复 1–3 选择类别。',
         'category_bulk_all': '将把此确认中所有支出的类别改为「{category_query}」。',
         'category_bulk_items': '将把第 {labels} 项支出的类别改为「{category_query}」。',
+        'wish_ask_details': (
+            '看起来你想买东西。'
+            '请回复这条消息，发送商品名称和价格，'
+            '或回复一张商品图片。'
+            '\n\n⏳ 请在30秒内发送商品图片/照片。'
+        ),
+        'wish_no_budget': '此购买没有适用的预算上限。',
+        'wish_budget_remaining': '预算（{label}）：现在剩余 ¥{remaining_now} → 购买后剩余 ¥{remaining_if}。',
+        'wish_budget_pace_ahead': '⚠️ 购买后支出节奏会偏快（剩余 {days} 天约 ¥{daily}/天）。',
+        'wish_proposal_header': '愿望单候选项（未记为支出）：',
+        'wish_proposal_item': '• {name} — ¥{amount} / {category}',
+        'wish_proposal_link': '链接：{url}',
+        'wish_proposal_confirm': '要加入愿望单吗？请回复 yes / no（或 是 / 不用）',
+        'wish_added': '已加入愿望单：{name}',
+        'wish_cancelled': '已取消加入愿望单。',
     },
 }
 

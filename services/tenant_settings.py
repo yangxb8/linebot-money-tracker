@@ -4,7 +4,12 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
-from services.bot_persona import PersonaConfig, normalize_persona_config
+from services.bot_persona import (
+    DEFAULT_PERSONA_PRESET,
+    EMOJI_LEVEL_DEFAULT,
+    PersonaConfig,
+    normalize_persona_config,
+)
 from services.supabase_client import get_supabase_client, is_supabase_configured
 from services.tenant_context import TenantContext
 
@@ -71,14 +76,47 @@ def fetch_tenant_bot_settings(tenant: TenantContext) -> TenantBotSettings:
         return default
 
 
+def _persona_is_customized(persona: PersonaConfig) -> bool:
+    if (persona.custom_text or '').strip():
+        return True
+    if persona.emoji_level != EMOJI_LEVEL_DEFAULT:
+        return True
+    if persona.preset != DEFAULT_PERSONA_PRESET:
+        return True
+    return False
+
+
+def resolve_effective_bot_settings(tenant: Optional[TenantContext]) -> TenantBotSettings:
+    """Resolve bot-behavior settings for outbound LINE copy.
+
+    Ledger (group/personal) settings win when explicitly customized. In shared
+    ledgers, unset fields fall back to the sender's personal bot-behavior page.
+    """
+    default = TenantBotSettings(
+        persona=normalize_persona_config(preset=None, custom_text=None, emoji_level=None),
+        reply_language=None,
+    )
+    if tenant is None:
+        return default
+
+    ledger = fetch_tenant_bot_settings(tenant)
+    if not tenant.is_shared:
+        return ledger
+
+    personal = fetch_tenant_bot_settings(TenantContext.personal(tenant.logged_by_line_user_id))
+    persona = personal.persona if not _persona_is_customized(ledger.persona) else ledger.persona
+    return TenantBotSettings(
+        persona=persona,
+        reply_language=ledger.reply_language or personal.reply_language,
+    )
+
+
 def resolve_tenant_reply_language(
     tenant: Optional[TenantContext],
     base_language: str,
 ) -> str:
     """Apply tenant reply-language override when configured; else keep base."""
-    if tenant is None:
-        return base_language
-    override = fetch_tenant_bot_settings(tenant).reply_language
+    override = resolve_effective_bot_settings(tenant).reply_language
     if override:
         return override
     return base_language

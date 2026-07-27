@@ -47,6 +47,32 @@ async def test_parse_edit_intent_cancel_wish_list():
 
 
 @pytest.mark.asyncio
+async def test_apply_confirm_uses_tenant_reply_language():
+    confirmation = _wish_confirmation()
+    intent = {
+        'action': 'confirm_pending',
+        'target': {'mode': 'unspecified'},
+        'updates': {},
+        'clarification_needed': False,
+        'clarification_message': None,
+    }
+    with patch('services.reply_edit.clear_pending_state', return_value=True), patch(
+        'services.wish_list.insert_active_wish_list_item',
+        return_value='wish-1',
+    ), patch(
+        'services.reply_edit.get_expenses_by_ids',
+        return_value=[],
+    ), patch(
+        'services.reply_edit.resolve_tenant_reply_language',
+        return_value='zh',
+    ):
+        result = await apply_edit_intent(intent, confirmation, 'yes', AsyncMock())
+
+    assert result.status == 'applied'
+    assert '愿望单' in result.summary
+
+
+@pytest.mark.asyncio
 async def test_apply_confirm_inserts_wish_item_not_expense():
     confirmation = _wish_confirmation()
     intent = {

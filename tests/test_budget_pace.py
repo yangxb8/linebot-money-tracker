@@ -13,6 +13,7 @@ from services.budget_pace import (
     compute_budget_health,
     evaluate_pace_warnings,
     expense_rows_from_enriched,
+    find_applicable_budget_candidate,
     find_lowest_ahead_warning,
     fiscal_period_start_for_date,
     maybe_prepend_budget_pace_warning,
@@ -123,6 +124,30 @@ class TestBuildLevelCandidates(unittest.TestCase):
         )
         levels = [c.level for c in candidates]
         self.assertEqual(levels, ['l2', 'total'])
+
+
+class TestFindApplicableBudgetCandidate(unittest.TestCase):
+    def test_uses_l1_when_l2_budget_missing(self):
+        budgets = [
+            {'budget_level': 'l1', 'category_node_id': 'l1-id', 'amount': 50000},
+            {'budget_level': 'total', 'category_node_id': None, 'amount': 100000},
+        ]
+        expense = {
+            'assigned_level': 2,
+            'category_node_id': 'l2-id',
+            'category_l1_id': 'l1-id',
+        }
+        candidate = find_applicable_budget_candidate(
+            expense,
+            budgets,
+            {'l1:l1-id': 20000, 'total': 25000},
+            {'l2-id': '电子游戏', 'l1-id': '休闲'},
+            'zh',
+        )
+        self.assertIsNotNone(candidate)
+        assert candidate is not None
+        self.assertEqual(candidate.level, 'l1')
+        self.assertEqual(candidate.display_name, '休闲')
 
 
 class TestFiscalPeriodStart(unittest.TestCase):

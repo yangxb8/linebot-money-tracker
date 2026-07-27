@@ -77,12 +77,10 @@ def persona_scope(persona: PersonaConfig) -> Iterator[None]:
 
 
 def resolve_persona_for_tenant(tenant: Optional[TenantContext]) -> PersonaConfig:
-    if tenant is None:
-        return PersonaConfig()
-    from services.tenant_settings import fetch_tenant_bot_settings
+    from services.tenant_settings import resolve_effective_bot_settings
 
     try:
-        return fetch_tenant_bot_settings(tenant).persona
+        return resolve_effective_bot_settings(tenant).persona
     except Exception:
         return PersonaConfig()
 
