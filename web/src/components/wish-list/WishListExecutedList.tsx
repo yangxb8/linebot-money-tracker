@@ -7,7 +7,7 @@ import type { WishListItem } from "@/lib/wish-list/types";
 type Props = {
   items: WishListItem[];
   loading: boolean;
-  error: string | null;
+  loadError: string | null;
   onRetry: () => void;
 };
 
@@ -22,7 +22,7 @@ function formatAmount(amount: number) {
 export function WishListExecutedList({
   items,
   loading,
-  error,
+  loadError,
   onRetry,
 }: Props) {
   const { t } = useLanguage();
@@ -33,7 +33,7 @@ export function WishListExecutedList({
     );
   }
 
-  if (error) {
+  if (loadError) {
     return (
       <div className="py-12 text-center">
         <p className="text-sm text-gray-600">{t("errorGeneric")}</p>

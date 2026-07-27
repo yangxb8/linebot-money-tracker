@@ -20,7 +20,7 @@ type Props = {
   tenant: TenantOption;
   item?: WishListItem | null;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (item: WishListItem) => void;
 };
 
 type FieldErrors = {
@@ -95,16 +95,14 @@ export function WishListItemForm({ tenant, item, onClose, onSaved }: Props) {
         category_node_id: values.category_node_id,
         product_url: values.product_url.trim() || null,
       };
-      if (item) {
-        await updateWishListItem(item.id, payload);
-      } else {
-        await createWishListItem({
-          tenant_type: tenant.tenantType,
-          tenant_id: tenant.tenantId,
-          ...payload,
-        });
-      }
-      onSaved();
+      const saved = item
+        ? await updateWishListItem(item.id, payload)
+        : await createWishListItem({
+            tenant_type: tenant.tenantType,
+            tenant_id: tenant.tenantId,
+            ...payload,
+          });
+      onSaved(saved);
       onClose();
     } catch {
       setError(t("saveFailed"));
