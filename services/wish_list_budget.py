@@ -13,7 +13,7 @@ from services.budget_pace import (
     fetch_budget_summary,
     fetch_category_display_names,
     find_applicable_budget_candidate,
-    fiscal_period_start_for_date,
+    resolve_budget_month_for_tenant,
 )
 from services.tenant_context import TenantContext
 
@@ -60,27 +60,10 @@ def build_wish_list_budget_impact(
     )
     try:
         today = as_of_date or date.today()
-        # Prefer RPC fiscal metadata; bootstrap month from calendar day.
-        budget_month = date(today.year, today.month, 1)
+        budget_month = resolve_budget_month_for_tenant(tenant, today)
         summary = fetch_budget_summary(tenant, budget_month, currency=currency)
         if not summary or not summary.get('has_any_limit'):
             return empty
-
-        # Align budget_month with fiscal period when RPC returns it.
-        if summary.get('budget_month'):
-            try:
-                budget_month = date.fromisoformat(str(summary['budget_month'])[:10])
-            except ValueError:
-                pass
-
-        # If caller date falls in a different fiscal month, refetch.
-        fiscal_start = int(summary.get('fiscal_start_day') or 1)
-        expected_start = fiscal_period_start_for_date(today, fiscal_start)
-        if expected_start != budget_month:
-            summary = fetch_budget_summary(tenant, expected_start, currency=currency)
-            if not summary or not summary.get('has_any_limit'):
-                return empty
-            budget_month = expected_start
 
         budgets = summary.get('budgets') or []
         spent_by_bucket = summary.get('spent_by_bucket') or {}
