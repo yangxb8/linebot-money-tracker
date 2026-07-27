@@ -80,14 +80,14 @@ python3 local_run.py --text "想买这个"
 python3 local_run.py --reply-to <bot_message_id> --text "PlayStation Portal 24000円"
 # Expect: budget impact + yes/no (pending becomes wish_list_add)
 
-# Or step 2b: reply with product image
+# Or step 2b: send product image as the next image event within ~30s
 python3 local_run.py --reply-to <bot_message_id> --image path/to/item.jpg
-# Expect: extract from image → budget impact + yes/no
+# Expect: extract from image → budget impact + yes/no (as long as it arrives within the 30s window)
 
 python3 local_run.py --reply-to <new_bot_message_id> --text "yes"
 ```
 
-> On LINE: long-press the bot “what do you want to buy?” message and **Reply**, then send text or an image. Sending an image as a separate bubble (not a reply) is still treated as a normal expense.
+> On LINE: sending an image as a separate bubble is OK. The bot will treat it as the missing wish details **only** if it arrives within ~30 seconds and from the **same user** on the same ledger. Otherwise the image follows the normal expense flow.
 
 ### 1. Web CRUD + priority
 
