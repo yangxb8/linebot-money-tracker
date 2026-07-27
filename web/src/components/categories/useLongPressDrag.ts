@@ -273,6 +273,18 @@ export function useLongPressDrag({
   };
 }
 
+export function findWishListDropTarget(position: Position): string | null {
+  const elements = document.elementsFromPoint(position.x, position.y);
+  for (const element of elements) {
+    const zone = element.closest("[data-drop-zone]") as HTMLElement | null;
+    if (!zone) continue;
+    const value = zone.dataset.dropZone;
+    if (!value?.startsWith("wish:")) continue;
+    return value.slice(5);
+  }
+  return null;
+}
+
 export function findDropZone(
   position: Position,
 ): { type: "promote" } | { type: "l1"; id: string } | null {
