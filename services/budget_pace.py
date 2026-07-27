@@ -93,6 +93,17 @@ def fiscal_period_start_for_date(expense_date: date, fiscal_start_day: int = 1) 
     return date(year, month, fiscal_start_day)
 
 
+def resolve_budget_month_for_tenant(tenant: TenantContext, as_of_date: date) -> date:
+    """Return the fiscal-period start date for *as_of_date* on this tenant."""
+    fiscal_start_day = 1
+    if is_supabase_configured():
+        try:
+            fiscal_start_day = _fetch_fiscal_start_day(get_supabase_client(), tenant)
+        except Exception:
+            pass
+    return fiscal_period_start_for_date(as_of_date, fiscal_start_day)
+
+
 def fiscal_period_end(budget_month: date) -> date:
   from datetime import timedelta
   if budget_month.month == 12:
