@@ -29,6 +29,7 @@ from services.expense_repository import (
 )
 from services.gemini_client import GeminiClient
 from services.receipt_parser import _match_amount, _normalize_text
+from services.tenant_settings import resolve_tenant_reply_language
 from services.usage_metering import llm_operation_scope
 from services.reply_summary import (
     EditSummaryInput,
@@ -1098,7 +1099,10 @@ async def apply_edit_intent(
     user_text: str,
     gemini: GeminiClient,
 ) -> EditApplyResult:
-    language = detect_reply_language(user_text)
+    language = resolve_tenant_reply_language(
+        confirmation.tenant,
+        detect_reply_language(user_text),
+    )
     items_snapshot = [dict(item) for item in confirmation.items_snapshot]
     expense_ids = [str(item.get('expense_id', '')) for item in items_snapshot if item.get('expense_id')]
     expenses = {row.id: row for row in get_expenses_by_ids(expense_ids)}

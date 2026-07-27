@@ -25,6 +25,11 @@ The update script installs both dependency sets (`pip install -r requirements.tx
 - The Next.js middleware calls Supabase on **every** request, so `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` must be set or all pages (including `/login`) error. The anon/publishable keys are public and retrievable from the Supabase project.
 - Authenticated dashboard flows additionally require `SUPABASE_SERVICE_ROLE_KEY` (admin client) and a LINE Login channel: `LINE_LOGIN_CHANNEL_ID`, `LINE_LOGIN_CHANNEL_SECRET`, `NEXT_PUBLIC_LINE_LIFF_ID`. Without these, `/login` renders but the LINE sign-in flow cannot complete, and protected pages bounce back to `/login`.
 
+### Bot — reply language
+- All user-facing bot text (confirmations, errors, wish-list prompts, budget impact lines, etc.) MUST use `resolve_tenant_reply_language(tenant, base_language)` so the web app **Settings → LINE bot behavior → Reply language** override is honored.
+- In group/room chats, when the shared ledger has no override, fall back to the sender's personal tenant bot-behavior settings before message-language heuristics.
+- Do not call `detect_reply_language(user_text)` alone for outbound copy; it is only a fallback input to `resolve_tenant_reply_language`.
+
 ### Spec Kit (`/speckit-*` commands)
 - This project was initialized with Spec Kit `0.8.18` using PowerShell scripts (`.specify/init-options.json` → `"script": "ps"`). The `/speckit-plan`, `/speckit-tasks`, `/speckit-implement`, etc. skills invoke `.specify/scripts/powershell/*.ps1`, so **PowerShell Core (`pwsh`) must be present** on this Linux box — the update script installs it (the `.ps1` scripts are cross-platform and run fine under `pwsh`).
 - The `specify` CLI is installed via `uv` (`uv tool install specify-cli --from git+https://github.com/github/spec-kit.git`); both land in `~/.local/bin` (already on PATH via `~/.bashrc`). Verify with `specify check`.

@@ -9,10 +9,10 @@ from decimal import Decimal
 from typing import Any, Dict, Optional
 
 from services.budget_pace import (
-    build_level_candidates,
     compute_budget_health,
     fetch_budget_summary,
     fetch_category_display_names,
+    find_applicable_budget_candidate,
     fiscal_period_start_for_date,
 )
 from services.tenant_context import TenantContext
@@ -43,6 +43,7 @@ def build_wish_list_budget_impact(
     category_l1_id: str,
     currency: str = 'JPY',
     as_of_date: Optional[date] = None,
+    language: str = 'ja',
 ) -> WishBudgetImpact:
     """Compute remaining now / if purchased and whether pace would be ahead."""
     empty = WishBudgetImpact(
@@ -95,18 +96,15 @@ def build_wish_list_budget_impact(
             tenant,
             [category_node_id, category_l1_id],
         )
-        candidates = build_level_candidates(
+        candidate = find_applicable_budget_candidate(
             expense_row,
             budgets,
             spent_by_bucket,
             names,
-            'ja',
+            language,
         )
-        if not candidates:
+        if candidate is None:
             return empty
-
-        # Lowest (most specific) candidate first — same order as build_level_candidates.
-        candidate = candidates[0]
         spent_now = float(candidate.spent)
         limit = float(candidate.limit)
         remaining_now = max(limit - spent_now, 0.0)

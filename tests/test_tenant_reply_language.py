@@ -40,3 +40,16 @@ class TestTenantReplyLanguage(unittest.TestCase):
 
     def test_resolve_without_tenant_keeps_base(self):
         self.assertEqual(resolve_tenant_reply_language(None, 'zh'), 'zh')
+
+    def test_resolve_shared_tenant_falls_back_to_personal_override(self):
+        group = TenantContext.group('group-1', 'user-1')
+        personal = TenantContext.personal('user-1')
+        with patch(
+            'services.tenant_settings.fetch_tenant_bot_settings',
+            side_effect=lambda tenant: TenantBotSettings(
+                persona=PersonaConfig(),
+                reply_language='zh' if tenant.tenant_id == 'user-1' else None,
+            ),
+        ):
+            self.assertEqual(resolve_tenant_reply_language(group, 'en'), 'zh')
+            self.assertEqual(resolve_tenant_reply_language(personal, 'en'), 'zh')

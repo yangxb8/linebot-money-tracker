@@ -209,6 +209,44 @@ def build_level_candidates(
     return candidates
 
 
+def find_applicable_budget_candidate(
+    expense_row: Dict[str, Any],
+    budgets: Sequence[Dict[str, Any]],
+    spent_by_bucket: Dict[str, Any],
+    category_names: Dict[str, str],
+    language: str,
+) -> Optional[BudgetLevelCandidate]:
+    """Return the budget level where spending is tracked (L2 → L1 → total cascade)."""
+    candidates = build_level_candidates(
+        expense_row,
+        budgets,
+        spent_by_bucket,
+        category_names,
+        language,
+    )
+    if not candidates:
+        return None
+
+    bucket = _resolve_spending_bucket(
+        int(expense_row['assigned_level']),
+        str(expense_row['category_node_id']),
+        str(expense_row['category_l1_id']),
+        budgets,
+    )
+    if bucket == 'unbudgeted':
+        return None
+
+    for candidate in candidates:
+        if bucket == 'total' and candidate.level == 'total':
+            return candidate
+        if bucket.startswith('l1:') and candidate.level == 'l1':
+            return candidate
+        if bucket.startswith('l2:') and candidate.level == 'l2':
+            return candidate
+
+    return candidates[0]
+
+
 def find_lowest_ahead_warning(
     candidates: Sequence[BudgetLevelCandidate],
     *,

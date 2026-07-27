@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 from services.message_context import BotReply, ConfirmationSavePayload, MessageContext
 from services.supabase_client import get_supabase_client, is_supabase_configured
 from services.tenant_context import TenantContext
+from services.tenant_settings import resolve_tenant_reply_language
 from services.wish_list_budget import WishBudgetImpact, build_wish_list_budget_impact
 
 logger = logging.getLogger(__name__)
@@ -252,8 +253,12 @@ def format_wish_list_ask_details(language: str) -> str:
     )
 
 
+def _reply_language(context: MessageContext) -> str:
+    return resolve_tenant_reply_language(context.tenant, context.reply_language)
+
+
 def build_wish_list_await_details_reply(context: MessageContext) -> BotReply:
-    language = context.reply_language
+    language = _reply_language(context)
     text = format_wish_list_ask_details(language)
     return BotReply(
         text=text,
@@ -321,7 +326,7 @@ def build_wish_list_proposal_reply(
     candidate: WishListCandidate,
     context: MessageContext,
 ) -> BotReply:
-    language = context.reply_language
+    language = _reply_language(context)
     impact = build_wish_list_budget_impact(
         context.tenant,
         float(candidate.amount),
@@ -329,6 +334,7 @@ def build_wish_list_proposal_reply(
         category_node_id=candidate.category_node_id,
         category_l1_id=candidate.category_l1_id,
         currency=candidate.currency,
+        language=language,
     )
     text = format_wish_list_proposal(candidate, impact, language)
     return BotReply(

@@ -75,10 +75,19 @@ def resolve_tenant_reply_language(
     tenant: Optional[TenantContext],
     base_language: str,
 ) -> str:
-    """Apply tenant reply-language override when configured; else keep base."""
+    """Apply tenant reply-language override when configured; else keep base.
+
+    For shared ledgers (group/room), when the ledger has no override, fall back
+    to the sender's personal bot-behavior settings from the web app.
+    """
     if tenant is None:
         return base_language
     override = fetch_tenant_bot_settings(tenant).reply_language
     if override:
         return override
+    if tenant.is_shared:
+        personal = TenantContext.personal(tenant.logged_by_line_user_id)
+        personal_override = fetch_tenant_bot_settings(personal).reply_language
+        if personal_override:
+            return personal_override
     return base_language
