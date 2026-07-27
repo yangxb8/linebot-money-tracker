@@ -118,6 +118,65 @@ def save_inbound_image_message(
         logger.exception('save_inbound_image_message failed message_id=%s', message_id)
 
 
+def find_recent_inbound_text_messages(
+    tenant: TenantContext,
+    *,
+    within_seconds: int,
+) -> list[InboundMessageRecord]:
+    """Return recent text inbound messages for this sender+ledger, newest first."""
+    if not is_supabase_configured():
+        return []
+
+    try:
+        client = get_supabase_client()
+        threshold = datetime.now(timezone.utc) - timedelta(seconds=within_seconds)
+        response = (
+            client.table('inbound_messages')
+            .select('*')
+            .eq('tenant_type', tenant.tenant_type)
+            .eq('tenant_id', tenant.tenant_id)
+            .eq('line_user_id', tenant.logged_by_line_user_id)
+            .eq('message_type', 'text')
+            .gte('created_at', threshold.isoformat())
+            .order('created_at', desc=True)
+            .execute()
+        )
+        records: list[InboundMessageRecord] = []
+        for row in response.data or []:
+            created_at = _parse_timestamp(row.get('created_at'))
+            if created_at < _ttl_cutoff():
+                continue
+            records.append(
+                InboundMessageRecord(
+                    message_id=str(row['message_id']),
+                    line_user_id=str(row['line_user_id']),
+                    tenant_type=str(row['tenant_type']),
+                    tenant_id=str(row['tenant_id']),
+                    message_type=str(row['message_type']),
+                    text_content=row.get('text_content'),
+                    created_at=created_at,
+                )
+            )
+        return records
+    except Exception:
+        logger.exception('find_recent_inbound_text_messages failed')
+        return []
+
+
+def has_recent_wish_list_trigger_text(
+    tenant: TenantContext,
+    *,
+    within_seconds: int = 30,
+) -> bool:
+    """True when the sender recently posted wish-list trigger text on this ledger."""
+    from services.wish_list import looks_like_wish_list_intent
+
+    for record in find_recent_inbound_text_messages(tenant, within_seconds=within_seconds):
+        if looks_like_wish_list_intent(record.text_content):
+            return True
+    return False
+
+
 def get_inbound_message(message_id: str) -> Optional[InboundMessageRecord]:
     purge_expired_inbound_messages()
     if not is_supabase_configured():

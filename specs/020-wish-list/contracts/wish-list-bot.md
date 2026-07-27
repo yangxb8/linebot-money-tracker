@@ -58,6 +58,8 @@ Within ~30 seconds, the bot can complete the flow using either:
 | Image (standalone bubble, i.e. not necessarily a quoted reply) | Extract product/name/price → budget impact → upgrade pending to `wish_list_add` (then user confirms yes/no) |
 | Cancel (`no` / `不用` / …) | Clear pending; no wish item |
 
+**Race handling:** If the user sends wish trigger text and an image in quick succession (before the bot's ask-details reply is saved), the bot still correlates the image via (1) an early `wish_list_await_details` reservation saved when processing the text, (2) recent inbound wish trigger text within 30s, and (3) processing text events before image events in the same webhook batch.
+
 Group chat rule: **only** the same sender (tenant + line_user_id scoped) can advance the pending flow. Other users’ images continue through the normal expense image flow.
 
 ### Image path

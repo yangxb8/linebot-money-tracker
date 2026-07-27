@@ -102,3 +102,41 @@ async def test_image_pending_does_not_clear_when_still_awaiting_details():
         await process_image_message(b'img', AsyncMock(), mime_type='image/jpeg', context=context)
         clear_mock.assert_not_called()
 
+
+@pytest.mark.asyncio
+async def test_image_routes_on_recent_wish_trigger_text_without_pending():
+    tenant = TenantContext.personal('user-1')
+    context = MessageContext(
+        tenant=tenant,
+        source_message_id='msg-img-3',
+        reply_language='zh',
+    )
+
+    proposal_confirmation = ConfirmationSavePayload(
+        tenant=tenant,
+        confirmation_text='Add?',
+        items=(),
+        pending_action='wish_list_add',
+        pending_payload={},
+    )
+
+    with patch(
+        'services.message_handler.get_latest_pending_confirmation',
+        return_value=None,
+    ), patch(
+        'services.message_handler.has_recent_wish_list_trigger_text',
+        return_value=True,
+    ), patch(
+        'services.message_handler._extract_expense_items_from_image',
+        AsyncMock(return_value=[{'amount': 34800, 'description': 'PlayStation Portal'}]),
+    ), patch(
+        'services.message_handler._wish_list_reply_from_items',
+        AsyncMock(return_value=MagicMock(text='proposal', confirmation=proposal_confirmation)),
+    ), patch(
+        'services.message_handler._enrich_and_persist_items',
+        AsyncMock(side_effect=AssertionError('must not persist')),
+    ):
+        from services.message_handler import process_image_message
+
+        await process_image_message(b'img', AsyncMock(), mime_type='image/jpeg', context=context)
+

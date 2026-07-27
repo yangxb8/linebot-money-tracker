@@ -11,6 +11,10 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 from services.confirmation_i18n import t
+from services.confirmation_repository import (
+    get_latest_pending_confirmation,
+    save_pending_confirmation,
+)
 from services.message_context import BotReply, ConfirmationSavePayload, MessageContext
 from services.supabase_client import get_supabase_client, is_supabase_configured
 from services.tenant_context import TenantContext
@@ -200,12 +204,34 @@ def format_wish_list_ask_details(language: str) -> str:
     return t(language, 'wish_ask_details')
 
 
+def persist_wish_list_await_details_pending(context: MessageContext) -> Optional[str]:
+    """Reserve await-details pending immediately so a fast-following image can correlate."""
+    existing = get_latest_pending_confirmation(
+        context.tenant,
+        pending_action='wish_list_await_details',
+        within_seconds=30,
+    )
+    if existing is not None:
+        return existing.id
+
+    language = _reply_language(context)
+    text = format_wish_list_ask_details(language)
+    return save_pending_confirmation(
+        bot_message_id=f'wish-await:{context.source_message_id}',
+        tenant=context.tenant,
+        confirmation_text=text,
+        pending_action='wish_list_await_details',
+        pending_payload={'trigger_message_id': context.source_message_id},
+    )
+
+
 def _reply_language(context: MessageContext) -> str:
     return resolve_tenant_reply_language(context.tenant, context.reply_language)
 
 
 def build_wish_list_await_details_reply(context: MessageContext) -> BotReply:
     language = _reply_language(context)
+    persist_wish_list_await_details_pending(context)
     text = format_wish_list_ask_details(language)
     return BotReply(
         text=text,

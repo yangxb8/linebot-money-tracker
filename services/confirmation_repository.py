@@ -117,6 +117,34 @@ def save_pending_confirmation(
     )
 
 
+def finalize_pending_confirmation_bot_message(
+    confirmation_id: str,
+    bot_message_id: str,
+    confirmation_text: str,
+) -> bool:
+    """Replace provisional bot_message_id with the real LINE reply message id."""
+    if not is_supabase_configured() or not bot_message_id:
+        return False
+    try:
+        client = get_supabase_client()
+        client.table('confirmation_messages').update(
+            {
+                'bot_message_id': bot_message_id,
+                'interaction_bot_message_id': bot_message_id,
+                'confirmation_text': confirmation_text,
+            }
+        ).eq('id', confirmation_id).execute()
+        logger.info(
+            'Finalized pending confirmation id=%s bot_message_id=%s',
+            confirmation_id,
+            bot_message_id,
+        )
+        return True
+    except Exception:
+        logger.exception('finalize_pending_confirmation_bot_message failed')
+        return False
+
+
 def get_confirmation_by_bot_message_id(
     bot_message_id: str,
     tenant: TenantContext,
