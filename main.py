@@ -58,6 +58,7 @@ from services.message_handler import (
     error_reply_text,
     process_image_message,
     process_reply_edit,
+    process_reply_wish_list_image,
     process_text_message,
 )
 from services.tenant_settings import resolve_tenant_reply_language
@@ -467,6 +468,57 @@ async def handle_callback(request: Request):
                     source_message_id=source_message_id,
                 )
                 continue
+
+            # Image reply to wish-list "what do you want to buy?" prompt
+            if quoted_message_id and tenant and source_message_id and line_user_id:
+                confirmation = get_confirmation_by_bot_message_id(quoted_message_id, tenant)
+                if confirmation is not None and confirmation.pending_action == 'wish_list_await_details':
+                    reply_context = ReplyContext(
+                        tenant=tenant,
+                        user_reply_message_id=source_message_id,
+                        quoted_bot_message_id=quoted_message_id,
+                        reply_language=reply_language,
+                    )
+                    usage_prep = prepare_inbound_usage(
+                        tenant,
+                        line_user_id,
+                        source_message_id,
+                        reply_language=reply_language,
+                        image_bytes=image_bytes,
+                        chat_display_name=chat_display_name,
+                    )
+                    if not usage_prep.allowed:
+                        await _reply_text(
+                            event.reply_token,
+                            _localized_for_tenant(
+                                tenant,
+                                lambda: format_denial_reply(reply_language, usage_prep.reason),
+                            ),
+                        )
+                        continue
+                    with usage_billing_scope(usage_prep.billing_context):
+                        try:
+                            edit_result = await process_reply_wish_list_image(
+                                image_bytes,
+                                reply_context,
+                                gemini_client,
+                            )
+                        except UserUsageLimitExceeded as exc:
+                            edit_result = ReplyEditResult(text=str(exc))
+                    response = await line_bot_api.reply_message(
+                        ReplyMessageRequest(
+                            reply_token=event.reply_token,
+                            messages=[TextMessage(text=edit_result.text)],
+                        )
+                    )
+                    if edit_result.anchor_reply_to_sent_message and edit_result.confirmation_id:
+                        prompt_message_id = _extract_sent_message_id(response)
+                        if prompt_message_id:
+                            update_interaction_bot_message_id(
+                                edit_result.confirmation_id,
+                                prompt_message_id,
+                            )
+                    continue
 
             if tenant and line_user_id and source_message_id:
                 usage_prep = prepare_inbound_usage(

@@ -61,6 +61,34 @@ Open `http://localhost:3000/wish-list` after LINE sign-in.
 
 ## Manual test flow
 
+### Bot — direct wish add (product + price in one text)
+
+```bash
+python3 local_run.py --text "I want to buy headphones 15000 yen"
+# Expect: budget impact + yes/no (pending wish_list_add)
+python3 local_run.py --reply-to <bot_message_id> --text "yes"
+```
+
+### Bot — two-step wish add (ask details, then reply with text or image)
+
+```bash
+# Step 1: trigger only
+python3 local_run.py --text "想买这个"
+# Expect: ask what to buy; pending wish_list_await_details; note bot_message_id
+
+# Step 2a: reply with text details
+python3 local_run.py --reply-to <bot_message_id> --text "PlayStation Portal 24000円"
+# Expect: budget impact + yes/no (pending becomes wish_list_add)
+
+# Or step 2b: reply with product image
+python3 local_run.py --reply-to <bot_message_id> --image path/to/item.jpg
+# Expect: extract from image → budget impact + yes/no
+
+python3 local_run.py --reply-to <new_bot_message_id> --text "yes"
+```
+
+> On LINE: long-press the bot “what do you want to buy?” message and **Reply**, then send text or an image. Sending an image as a separate bubble (not a reply) is still treated as a normal expense.
+
 ### 1. Web CRUD + priority
 
 1. Open **Wish List** in the side drawer (personal ledger).
