@@ -225,11 +225,43 @@ def format_wish_list_proposal(
 
 
 def format_wish_list_need_price(language: str) -> str:
+    """Legacy alias — prefer format_wish_list_ask_details for await-details prompts."""
+    return format_wish_list_ask_details(language)
+
+
+def format_wish_list_ask_details(language: str) -> str:
     if language == 'en':
-        return 'I see you want to buy something — what is the price?'
+        return (
+            'I see you want to buy something. '
+            'Reply to this message with the product name and price, '
+            'or reply with a product photo.'
+        )
     if language == 'zh':
-        return '看起来你想买东西——价格是多少？'
-    return '買いたいものですね。金額を教えてください。'
+        return (
+            '看起来你想买东西。'
+            '请回复这条消息，发送商品名称和价格，'
+            '或回复一张商品图片。'
+        )
+    return (
+        '買いたいものですね。'
+        'このメッセージに返信して、商品名と金額を送るか、'
+        '商品の写真を返信してください。'
+    )
+
+
+def build_wish_list_await_details_reply(context: MessageContext) -> BotReply:
+    language = context.reply_language
+    text = format_wish_list_ask_details(language)
+    return BotReply(
+        text=text,
+        confirmation=ConfirmationSavePayload(
+            tenant=context.tenant,
+            confirmation_text=text,
+            items=(),
+            pending_action='wish_list_await_details',
+            pending_payload={},
+        ),
+    )
 
 
 def format_wish_list_added(language: str, name: str) -> str:

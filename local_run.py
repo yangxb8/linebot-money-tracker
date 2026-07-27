@@ -58,7 +58,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # Reply/retry still need --text; validated in _run.
     parser.add_argument(
         '--reply-to',
-        help='Bot confirmation message ID to simulate reply-to-message flow',
+        help='Bot confirmation message ID to simulate reply-to-message flow (use with --text or --image)',
     )
     parser.add_argument(
         '--retry-to',
@@ -175,8 +175,10 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
         return bot_reply.text, bot_message_id, error_message_id
 
     if args.reply_to:
-        if not args.text:
-            raise ValueError('--reply-to requires --text')
+        if args.image and args.text:
+            raise ValueError('For --reply-to use either --text or --image, not both')
+        if not args.text and not args.image:
+            raise ValueError('--reply-to requires --text or --image')
         if get_confirmation_by_bot_message_id(args.reply_to, tenant) is None:
             raise ValueError(f'No confirmation found for bot_message_id={args.reply_to}')
         reply_context = ReplyContext(
@@ -184,6 +186,33 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
             user_reply_message_id=source_message_id,
             quoted_bot_message_id=args.reply_to,
         )
+        if args.image:
+            image_bytes = _read_image(args.image)
+            save_inbound_image_message(
+                message_id=source_message_id,
+                line_user_id=line_user_id,
+                tenant=tenant,
+            )
+            _CONSOLE_IMAGE_BYTES[source_message_id] = image_bytes
+            usage_prep = prepare_inbound_usage(
+                tenant,
+                line_user_id,
+                source_message_id,
+                image_bytes=image_bytes,
+                skip_limits=args.skip_usage_limits,
+            )
+            if not usage_prep.allowed:
+                return format_denial_reply('en', usage_prep.reason), None, None
+            with usage_billing_scope(usage_prep.billing_context):
+                from services.message_handler import process_reply_wish_list_image
+
+                edit_result = await process_reply_wish_list_image(
+                    image_bytes,
+                    reply_context,
+                    gemini,
+                )
+            return edit_result.text, None, None
+
         usage_prep = prepare_inbound_usage(
             tenant,
             line_user_id,

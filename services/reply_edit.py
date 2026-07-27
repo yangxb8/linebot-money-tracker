@@ -677,6 +677,7 @@ async def parse_edit_intent(
         'confirm_intent',
         'category_bulk',
         'wish_list_add',
+        'wish_list_await_details',
     ) and is_cancel_pending(user_text):
         return {
             'action': 'cancel_pending',
@@ -1118,6 +1119,17 @@ async def apply_edit_intent(
 
     if action == 'category_bulk':
         return await _begin_category_bulk_flow(intent, confirmation, user_text, gemini, items_snapshot, expenses)
+
+    if action == 'cancel_pending' and confirmation.pending_action == 'wish_list_await_details':
+        clear_pending_state(confirmation.id)
+        from services.wish_list import format_wish_list_cancelled
+
+        return EditApplyResult(
+            status='applied',
+            summary=format_wish_list_cancelled(language),
+            intent_json=intent,
+            items_snapshot=items_snapshot,
+        )
 
     if action == 'cancel_pending' and confirmation.pending_action == 'wish_list_add':
         clear_pending_state(confirmation.id)

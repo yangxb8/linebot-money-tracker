@@ -7,6 +7,8 @@ from services.categorize import classify_expense_with_memory
 from services.category_taxonomy import format_category_path, resolve_code
 from services.confirmation_repository import (
     get_confirmation_by_bot_message_id,
+    clear_pending_state,
+    set_pending_state,
     try_mark_reply_processed,
     write_audit,
 )
@@ -30,9 +32,10 @@ from services.message_context import (
 )
 from services.wish_list import (
     WishListCandidate,
+    build_wish_list_await_details_reply,
     build_wish_list_proposal_reply,
     extract_product_url,
-    format_wish_list_need_price,
+    format_wish_list_ask_details,
     looks_like_wish_list_intent,
 )
 from services.ocr import extract_text_from_image_bytes, _guess_mime_type
@@ -44,12 +47,13 @@ from services.receipt_validate import validate_receipt_items
 from services.confirmation_i18n import format_expense_confirmation, t
 from services.confirmation_display_settings import confirmation_show_item_details
 from services.help_intent import help_reply, is_help_request_obvious
-from services.reply_edit import apply_edit_intent, parse_edit_intent
+from services.reply_edit import apply_edit_intent, is_cancel_pending, parse_edit_intent
 from services.reply_summary import format_duplicate_reply, format_unknown_confirmation
 from services.user_language import maybe_update_from_user_message
 from services.budget_pace import expense_rows_from_enriched, maybe_prepend_budget_pace_warning
 from services.bot_persona import persona_scope, resolve_persona_for_tenant
 from services.tenant_settings import resolve_tenant_reply_language
+from services.wish_list import format_wish_list_cancelled
 
 logger = logging.getLogger(__name__)
 
@@ -297,6 +301,15 @@ async def process_reply_edit(
             return ReplyEditResult(text=format_unknown_confirmation(language))
 
         try:
+            if confirmation.pending_action == 'wish_list_await_details':
+                return await _handle_wish_list_await_details_text(
+                    text,
+                    confirmation,
+                    reply_context,
+                    gemini,
+                    language,
+                )
+
             intent = await parse_edit_intent(
                 text,
                 list(confirmation.items_snapshot),
@@ -328,6 +341,130 @@ async def process_reply_edit(
                     language,
                     EditSummaryInput(status='error', action='update', error_message=None),
                 ),
+                confirmation_id=confirmation.id,
+            )
+
+
+async def _handle_wish_list_await_details_text(
+    text: str,
+    confirmation,
+    reply_context: ReplyContext,
+    gemini: GeminiClient,
+    language: str,
+) -> ReplyEditResult:
+    if is_cancel_pending(text):
+        clear_pending_state(confirmation.id)
+        summary = format_wish_list_cancelled(language)
+        write_audit(
+            confirmation.id,
+            reply_context.line_user_id,
+            reply_context.user_reply_message_id,
+            text,
+            {'action': 'cancel_pending', 'pending_action': 'wish_list_await_details'},
+            'applied',
+            summary,
+        )
+        return ReplyEditResult(text=summary, confirmation_id=confirmation.id)
+
+    msg_context = MessageContext(
+        tenant=reply_context.tenant,
+        source_message_id=reply_context.user_reply_message_id,
+        reply_language=language,
+    )
+    bot_reply = await process_wish_list_details_from_text(text, gemini, msg_context)
+    pending_action = (
+        bot_reply.confirmation.pending_action if bot_reply.confirmation else 'wish_list_await_details'
+    )
+    pending_payload = (
+        bot_reply.confirmation.pending_payload if bot_reply.confirmation else {}
+    ) or {}
+    set_pending_state(confirmation.id, pending_action, pending_payload)
+    write_audit(
+        confirmation.id,
+        reply_context.line_user_id,
+        reply_context.user_reply_message_id,
+        text,
+        {'action': 'wish_list_provide_details', 'pending_action': pending_action},
+        'applied',
+        bot_reply.text,
+    )
+    return ReplyEditResult(
+        text=bot_reply.text,
+        confirmation_id=confirmation.id,
+        anchor_reply_to_sent_message=True,
+    )
+
+
+async def process_reply_wish_list_image(
+    image_bytes: bytes,
+    reply_context: ReplyContext,
+    gemini: GeminiClient,
+    *,
+    mime_type: Optional[str] = None,
+) -> ReplyEditResult:
+    """Handle an image reply to a wish_list_await_details confirmation."""
+    language = resolve_tenant_reply_language(
+        reply_context.tenant,
+        reply_context.reply_language,
+    )
+    persona = resolve_persona_for_tenant(reply_context.tenant)
+    with persona_scope(persona):
+        if not try_mark_reply_processed(reply_context.tenant, reply_context.user_reply_message_id):
+            return ReplyEditResult(text=format_duplicate_reply(language))
+
+        confirmation = get_confirmation_by_bot_message_id(
+            reply_context.quoted_bot_message_id,
+            reply_context.tenant,
+        )
+        if confirmation is None or confirmation.pending_action != 'wish_list_await_details':
+            return ReplyEditResult(text=format_unknown_confirmation(language))
+
+        try:
+            msg_context = MessageContext(
+                tenant=reply_context.tenant,
+                source_message_id=reply_context.user_reply_message_id,
+                reply_language=language,
+            )
+            bot_reply = await process_wish_list_details_from_image(
+                image_bytes,
+                gemini,
+                msg_context,
+                mime_type=mime_type,
+            )
+            pending_action = (
+                bot_reply.confirmation.pending_action
+                if bot_reply.confirmation
+                else 'wish_list_await_details'
+            )
+            pending_payload = (
+                bot_reply.confirmation.pending_payload if bot_reply.confirmation else {}
+            ) or {}
+            set_pending_state(confirmation.id, pending_action, pending_payload)
+            write_audit(
+                confirmation.id,
+                reply_context.line_user_id,
+                reply_context.user_reply_message_id,
+                '[image]',
+                {'action': 'wish_list_provide_details_image', 'pending_action': pending_action},
+                'applied',
+                bot_reply.text,
+            )
+            return ReplyEditResult(
+                text=bot_reply.text,
+                confirmation_id=confirmation.id,
+                anchor_reply_to_sent_message=True,
+            )
+        except UserUsageLimitExceeded as exc:
+            return ReplyEditResult(text=str(exc), confirmation_id=confirmation.id)
+        except GeminiUsageLimitError:
+            return ReplyEditResult(
+                text=usage_limit_reply(language),
+                confirmation_id=confirmation.id,
+            )
+        except Exception:
+            logger.exception('process_reply_wish_list_image failed')
+            return ReplyEditResult(
+                text=error_reply_text(language),
                 confirmation_id=confirmation.id,
             )
 
@@ -382,7 +519,7 @@ async def _wish_list_reply_from_items(
 ) -> BotReply:
     language = context.reply_language if context else 'ja'
     if context is None:
-        return _text_reply(format_wish_list_need_price(language))
+        return _text_reply(format_wish_list_ask_details(language))
 
     enriched = await _enrich_items_without_persist(
         items,
@@ -391,7 +528,7 @@ async def _wish_list_reply_from_items(
         memory_mode=memory_mode,
     )
     if not enriched:
-        return _text_reply(format_wish_list_need_price(language))
+        return build_wish_list_await_details_reply(context)
 
     first = enriched[0]
     amount_raw = first.get('amount')
@@ -400,7 +537,7 @@ async def _wish_list_reply_from_items(
     except Exception:
         amount = Decimal('0')
     if amount <= 0:
-        return _text_reply(format_wish_list_need_price(language))
+        return build_wish_list_await_details_reply(context)
 
     name = str(first.get('description') or 'Item').strip() or 'Item'
     product_url = extract_product_url(source_text)
@@ -420,6 +557,48 @@ async def _wish_list_reply_from_items(
     return build_wish_list_proposal_reply(candidate, context)
 
 
+async def process_wish_list_details_from_text(
+    text: str,
+    gemini: GeminiClient,
+    context: MessageContext,
+) -> BotReply:
+    """Parse reply text into a wish-list proposal (budget impact + yes/no)."""
+    items = parse_text_for_expenses(text)
+    if not items:
+        items = await assist_parse_text(text, gemini)
+    if not items:
+        return build_wish_list_await_details_reply(context)
+    return await _wish_list_reply_from_items(
+        items,
+        gemini,
+        context,
+        source_text=text,
+    )
+
+
+async def process_wish_list_details_from_image(
+    image_bytes: bytes,
+    gemini: GeminiClient,
+    context: MessageContext,
+    *,
+    mime_type: Optional[str] = None,
+) -> BotReply:
+    """Extract product from a reply image into a wish-list proposal."""
+    resolved_mime = mime_type or _guess_mime_type(image_bytes)
+    try:
+        items = await _extract_expense_items_from_image(image_bytes, gemini, resolved_mime)
+    except (UserUsageLimitExceeded, GeminiUsageLimitError):
+        raise
+    if not items:
+        return build_wish_list_await_details_reply(context)
+    return await _wish_list_reply_from_items(
+        items,
+        gemini,
+        context,
+        memory_mode='item',
+    )
+
+
 async def _process_text_message_inner(
     text: str,
     gemini: GeminiClient,
@@ -435,7 +614,9 @@ async def _process_text_message_inner(
             if not items:
                 items = await assist_parse_text(text, gemini)
             if not items:
-                return _text_reply(format_wish_list_need_price(language))
+                if context is None:
+                    return _text_reply(format_wish_list_ask_details(language))
+                return build_wish_list_await_details_reply(context)
             return await _wish_list_reply_from_items(
                 items,
                 gemini,
@@ -478,7 +659,9 @@ async def _process_text_message_inner(
             logger.info('Text pipeline: wish_list intent (LLM)')
             items = await assist_parse_text(text, gemini)
             if not items:
-                return _text_reply(format_wish_list_need_price(language))
+                return build_wish_list_await_details_reply(context) if context else _text_reply(
+                    format_wish_list_ask_details(language)
+                )
             return await _wish_list_reply_from_items(
                 items,
                 gemini,
