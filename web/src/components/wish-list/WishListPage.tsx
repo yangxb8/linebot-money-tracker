@@ -62,24 +62,22 @@ export function WishListPage() {
     }
   }
 
-  async function handleMove(item: WishListItem, direction: "up" | "down") {
+  async function handleReorder(orderedIds: string[]) {
     if (!selectedTenant || sort !== "priority") return;
-    const index = items.findIndex((candidate) => candidate.id === item.id);
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-    if (index < 0 || targetIndex < 0 || targetIndex >= items.length) return;
 
-    const nextItems = [...items];
-    [nextItems[index], nextItems[targetIndex]] = [
-      nextItems[targetIndex],
-      nextItems[index],
-    ];
+    const currentIds = items.map((row) => row.id).join(",");
+    const nextIds = orderedIds.join(",");
+    if (currentIds === nextIds) return;
+
+    const byId = new Map(items.map((row) => [row.id, row]));
+    const nextItems = orderedIds
+      .map((id) => byId.get(id))
+      .filter((row): row is WishListItem => Boolean(row));
+
     setItems(nextItems);
-    setBusyId(item.id);
+    setBusyId(orderedIds[0] ?? null);
     try {
-      await reorderWishListItems(
-        selectedTenant,
-        nextItems.map((row) => row.id),
-      );
+      await reorderWishListItems(selectedTenant, orderedIds);
       await load();
     } catch {
       setError("action_failed");
@@ -146,7 +144,7 @@ export function WishListPage() {
             setEditing(null);
             setFormOpen(true);
           }}
-          onMove={(item, direction) => void handleMove(item, direction)}
+          onReorder={(orderedIds) => void handleReorder(orderedIds)}
           onEdit={(item) => {
             setEditing(item);
             setFormOpen(true);

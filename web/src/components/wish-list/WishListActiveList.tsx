@@ -1,6 +1,10 @@
 "use client";
 
+import { useRef, useState } from "react";
+import { CategoryDragOverlay } from "@/components/categories/CategoryDragUI";
 import { useLanguage } from "@/components/LanguageProvider";
+import { DraggableWishListItem } from "@/components/wish-list/DraggableWishListItem";
+import { findWishListDropTarget } from "@/components/categories/useLongPressDrag";
 import type {
   WishListItem,
   WishListSort,
@@ -15,19 +19,11 @@ type Props = {
   onSortChange: (sort: WishListSort) => void;
   onRetry: () => void;
   onCreate: () => void;
-  onMove: (item: WishListItem, direction: "up" | "down") => void;
+  onReorder: (orderedIds: string[]) => void;
   onEdit: (item: WishListItem) => void;
   onDelete: (item: WishListItem) => void;
   onExecute: (item: WishListItem) => void;
 };
-
-function formatAmount(amount: number) {
-  return new Intl.NumberFormat("ja-JP", {
-    style: "currency",
-    currency: "JPY",
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
 
 export function WishListActiveList({
   items,
@@ -38,12 +34,50 @@ export function WishListActiveList({
   onSortChange,
   onRetry,
   onCreate,
-  onMove,
+  onReorder,
   onEdit,
   onDelete,
   onExecute,
 }: Props) {
   const { t } = useLanguage();
+  const [draggingItem, setDraggingItem] = useState<WishListItem | null>(null);
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+  const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null);
+  const dragPositionRef = useRef(dragPosition);
+  dragPositionRef.current = dragPosition;
+
+  const canDrag = sort === "priority";
+  const dragSessionActive = Boolean(draggingItem);
+
+  function updateDropHighlight(position: { x: number; y: number }) {
+    dragPositionRef.current = position;
+    setDragPosition(position);
+    setActiveDropTargetId(findWishListDropTarget(position));
+  }
+
+  function clearDrag() {
+    setDraggingItem(null);
+    setDragPosition(null);
+    setActiveDropTargetId(null);
+  }
+
+  function handleDragEnd(item: WishListItem, position: { x: number; y: number }) {
+    const targetId = findWishListDropTarget(position);
+    clearDrag();
+
+    if (!targetId || targetId === item.id) return;
+
+    const fromIndex = items.findIndex((row) => row.id === item.id);
+    const toIndex = items.findIndex((row) => row.id === targetId);
+    if (fromIndex < 0 || toIndex < 0) return;
+
+    const nextItems = [...items];
+    const [moved] = nextItems.splice(fromIndex, 1);
+    nextItems.splice(toIndex, 0, moved);
+    onReorder(nextItems.map((row) => row.id));
+  }
 
   if (loading) {
     return (
@@ -98,91 +132,44 @@ export function WishListActiveList({
         </select>
       </div>
 
-      <ul className="space-y-3">
-        {items.map((item, index) => {
+      {canDrag ? (
+        <p className="text-xs text-gray-500">{t("wishListDragHint")}</p>
+      ) : null}
+
+      <ul className={`space-y-3 ${dragSessionActive ? "touch-none" : ""}`}>
+        {items.map((item) => {
           const busy = busyId === item.id;
-          const priorityControlsDisabled = sort !== "priority" || busy;
           return (
-            <li
+            <DraggableWishListItem
               key={item.id}
-              className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="break-words text-sm font-semibold text-gray-900">
-                    {item.name}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    {item.category_name ?? t("periodicCategory")}
-                  </p>
-                </div>
-                <p className="shrink-0 text-sm font-semibold text-gray-900">
-                  {formatAmount(item.amount)}
-                </p>
-              </div>
-
-              {item.product_url ? (
-                <a
-                  href={item.product_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-block max-w-full truncate text-xs text-gray-600 underline"
-                >
-                  {item.product_url}
-                </a>
-              ) : null}
-
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex gap-1.5">
-                  <button
-                    type="button"
-                    disabled={priorityControlsDisabled || index === 0}
-                    onClick={() => onMove(item, "up")}
-                    className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700 disabled:opacity-40"
-                  >
-                    {t("wishListMoveUp")}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={priorityControlsDisabled || index === items.length - 1}
-                    onClick={() => onMove(item, "down")}
-                    className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700 disabled:opacity-40"
-                  >
-                    {t("wishListMoveDown")}
-                  </button>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onEdit(item)}
-                    className="text-xs text-gray-600 underline disabled:opacity-40"
-                  >
-                    {t("edit")}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onDelete(item)}
-                    className="text-xs text-red-600 underline disabled:opacity-40"
-                  >
-                    {t("delete")}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onExecute(item)}
-                    className="rounded-lg bg-gray-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-40"
-                  >
-                    {t("wishListExecute")}
-                  </button>
-                </div>
-              </div>
-            </li>
+              item={item}
+              busy={busy}
+              canDrag={canDrag}
+              isDragging={draggingItem?.id === item.id}
+              isDimmed={Boolean(draggingItem && draggingItem.id !== item.id)}
+              dragSessionActive={dragSessionActive}
+              dropActive={activeDropTargetId === item.id}
+              onEdit={() => onEdit(item)}
+              onDelete={() => onDelete(item)}
+              onExecute={() => onExecute(item)}
+              onDragStart={(position) => {
+                setDraggingItem(item);
+                setDragPosition(position);
+              }}
+              onDragMove={updateDropHighlight}
+              onDragEnd={(position) => handleDragEnd(item, position)}
+            />
           );
         })}
       </ul>
+
+      {draggingItem && dragPosition ? (
+        <CategoryDragOverlay
+          label={draggingItem.name}
+          x={dragPosition.x}
+          y={dragPosition.y}
+        />
+      ) : null}
     </div>
   );
 }
