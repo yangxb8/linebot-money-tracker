@@ -235,17 +235,20 @@ def format_wish_list_ask_details(language: str) -> str:
             'I see you want to buy something. '
             'Reply to this message with the product name and price, '
             'or reply with a product photo.'
+            '\n\n⏳ You have 30 seconds to send the product photo/image.'
         )
     if language == 'zh':
         return (
             '看起来你想买东西。'
             '请回复这条消息，发送商品名称和价格，'
             '或回复一张商品图片。'
+            '\n\n⏳ 请在30秒内发送商品图片/照片。'
         )
     return (
         '買いたいものですね。'
         'このメッセージに返信して、商品名と金額を送るか、'
         '商品の写真を返信してください。'
+        '\n\n⏳ この後30秒以内に商品画像/写真を送ってください。'
     )
 
 
