@@ -20,6 +20,7 @@ from services.expense_repository import (
 )
 from services.gemini_client import GeminiClient, GeminiUsageLimitError
 from services.metered_gemini import UserUsageLimitExceeded
+from services.inbound_message_repository import has_recent_wish_list_trigger_text
 from services.intent import classify_text_message_intent
 from services.webapp_intent import is_webapp_request_obvious, webapp_link_reply
 from services.log_utils import describe_bytes
@@ -837,6 +838,7 @@ async def _process_image_message_inner(
     language = context.reply_language if context else 'ja'
     try:
         wish_pending = None
+        wish_triggered = False
         if context is not None:
             # 30s workaround for LINE: text ("want to buy") and image arrive as separate events.
             # We only trigger for the same sender in group chats (tenant + line_user_id scoped).
@@ -845,6 +847,11 @@ async def _process_image_message_inner(
                 pending_action='wish_list_await_details',
                 within_seconds=30,
             )
+            if wish_pending is None:
+                wish_triggered = has_recent_wish_list_trigger_text(
+                    context.tenant,
+                    within_seconds=30,
+                )
 
         try:
             items = await _extract_expense_items_from_image(image_bytes, gemini, resolved_mime)
@@ -872,10 +879,12 @@ async def _process_image_message_inner(
                 memory_mode='item',
             )
 
-        if wish_pending is not None:
+        if wish_pending is not None or wish_triggered:
+            log_id = wish_pending.id if wish_pending is not None else 'recent-wish-text'
             logger.info(
-                'Image pipeline: wish_list_await_details pending found (confirmation_id=%s); treating image as wish details',
-                wish_pending.id,
+                'Image pipeline: wish_list correlation (confirmation_id=%s triggered=%s); treating image as wish details',
+                log_id,
+                wish_triggered,
             )
             bot_reply = await _wish_list_reply_from_items(
                 items,
@@ -885,7 +894,8 @@ async def _process_image_message_inner(
                 memory_mode='item',
             )
             if (
-                bot_reply.confirmation
+                wish_pending is not None
+                and bot_reply.confirmation
                 and bot_reply.confirmation.pending_action == 'wish_list_add'
             ):
                 clear_pending_state(wish_pending.id)

@@ -21,7 +21,9 @@ from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import MessageEvent
 
 from services.confirmation_repository import (
+    finalize_pending_confirmation_bot_message,
     get_confirmation_by_bot_message_id,
+    get_latest_pending_confirmation,
     save_confirmation,
     try_mark_reply_processed,
     update_interaction_bot_message_id,
@@ -204,6 +206,36 @@ async def _reply_and_save_confirmation(
     )
     bot_message_id = _extract_sent_message_id(response)
     if bot_reply.confirmation and bot_message_id:
+        pending_action = bot_reply.confirmation.pending_action
+        if pending_action == 'wish_list_await_details' and tenant and source_message_id:
+            early = get_latest_pending_confirmation(
+                tenant,
+                pending_action='wish_list_await_details',
+                within_seconds=30,
+            )
+            if early is not None and str(early.bot_message_id).startswith('wish-await:'):
+                finalize_pending_confirmation_bot_message(
+                    early.id,
+                    bot_message_id,
+                    bot_reply.confirmation.confirmation_text,
+                )
+                anchor_original_message_id = failure_original_message_id or source_message_id
+                anchor_original_line_user_id = failure_original_line_user_id or line_user_id
+                if (
+                    bot_reply.retryable_failure
+                    and tenant
+                    and anchor_original_line_user_id
+                    and anchor_original_message_id
+                ):
+                    save_failure_retry_anchor(
+                        bot_error_message_id=bot_message_id,
+                        original_message_id=anchor_original_message_id,
+                        original_line_user_id=anchor_original_line_user_id,
+                        tenant=tenant,
+                        failure_kind=bot_reply.retryable_failure,
+                    )
+                return
+
         save_confirmation(
             bot_message_id=bot_message_id,
             tenant=bot_reply.confirmation.tenant,
@@ -253,6 +285,16 @@ async def handle_callback(request: Request):
     except InvalidSignatureError:
         logger.warning('Invalid LINE signature')
         raise HTTPException(status_code=400, detail='Invalid signature')
+
+    def _event_priority(event: object) -> tuple[int, int]:
+        if isinstance(event, MessageEvent):
+            if extract_text_message(event):
+                return (0, int(getattr(event, 'timestamp', 0) or 0))
+            if extract_image_message_id(event):
+                return (1, int(getattr(event, 'timestamp', 0) or 0))
+        return (2, int(getattr(event, 'timestamp', 0) or 0))
+
+    events = sorted(events, key=_event_priority)
 
     for event in events:
         if not isinstance(event, MessageEvent):
