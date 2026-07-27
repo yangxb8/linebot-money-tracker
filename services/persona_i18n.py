@@ -81,8 +81,7 @@ JUDY_HOPPS_STRINGS: Dict[str, Dict[str, str]] = {
         'usage_receipt_quota_monthly': '今月のレシート解析上限に達したよ。来月まで待ってね。',
         'wish_ask_details': (
             '🐰 買いたいものだね！'
-            'このメッセージに返信して、商品名と金額を送るか、'
-            '商品の写真を返信してね。'
+            '商品名と金額を送るか、商品の写真を送ってね。'
             '\n\n⏳ この後30秒以内に商品画像/写真を送ってね ✨'
         ),
         'wish_no_budget': '🐰 この購入に当てはまる予算上限はないみたい。',
@@ -167,8 +166,7 @@ JUDY_HOPPS_STRINGS: Dict[str, Dict[str, str]] = {
         'usage_receipt_quota_monthly': "You've reached this month's receipt analysis limit. Try again next month.",
         'wish_ask_details': (
             "🐰 Looks like you want to buy something! "
-            'Reply to this message with the product name and price, '
-            'or send a product photo.'
+            'Send the product name and price, or send a product photo.'
             '\n\n⏳ You have 30 seconds to send the product photo/image ✨'
         ),
         'wish_no_budget': '🐰 No budget limit applies to this purchase.',
@@ -244,8 +242,7 @@ JUDY_HOPPS_STRINGS: Dict[str, Dict[str, str]] = {
         'usage_receipt_quota_monthly': '已达到本月收据解析上限，请下月再试。',
         'wish_ask_details': (
             '🐰 看起来你想买东西！'
-            '请回复这条消息，发送商品名称和价格，'
-            '或回复一张商品图片。'
+            '请发送商品名称和价格，或发一张商品图片。'
             '\n\n⏳ 请在30秒内发送商品图片/照片 ✨'
         ),
         'wish_no_budget': '🐰 此购买没有适用的预算上限。',

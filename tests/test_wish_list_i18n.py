@@ -14,6 +14,7 @@ def test_ask_details_uses_judy_persona_when_active():
         text = format_wish_list_ask_details('zh')
     assert '🐰' in text
     assert '30秒' in text
+    assert '回复这条消息' not in text
 
 
 def test_pace_warning_line_when_ahead():
