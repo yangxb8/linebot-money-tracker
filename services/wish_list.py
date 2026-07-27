@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
+from services.confirmation_i18n import t
 from services.message_context import BotReply, ConfirmationSavePayload, MessageContext
 from services.supabase_client import get_supabase_client, is_supabase_configured
 from services.tenant_context import TenantContext
@@ -144,45 +145,26 @@ def insert_active_wish_list_item(
 
 def format_wish_budget_impact_lines(impact: WishBudgetImpact, language: str) -> List[str]:
     if not impact.has_budget:
-        if language == 'en':
-            return ['No budget limit is set for this purchase.']
-        if language == 'zh':
-            return ['此购买没有适用的预算上限。']
-        return ['この購入に適用される予算上限はありません。']
+        return [t(language, 'wish_no_budget')]
 
     label = impact.label or ''
-    remaining_now = int(impact.remaining_now or 0)
-    remaining_if = int(impact.remaining_if_purchased or 0)
-    if language == 'en':
-        lines = [
-            f'Budget ({label}): ¥{remaining_now:,} left now → ¥{remaining_if:,} if you buy this.',
-        ]
-        if impact.is_ahead_if_purchased:
-            daily = int(impact.daily_allowance_if_purchased or 0)
-            days = int(impact.days_remaining or 0)
-            lines.append(
-                f'⚠️ This would put spending ahead of pace '
-                f'(~¥{daily:,}/day for {days} days left).'
-            )
-        return lines
-
-    if language == 'zh':
-        lines = [
-            f'预算（{label}）：现在剩余 ¥{remaining_now:,} → 购买后剩余 ¥{remaining_if:,}。',
-        ]
-        if impact.is_ahead_if_purchased:
-            daily = int(impact.daily_allowance_if_purchased or 0)
-            days = int(impact.days_remaining or 0)
-            lines.append(f'⚠️ 购买后支出节奏会偏快（剩余 {days} 天约 ¥{daily:,}/天）。')
-        return lines
-
+    remaining_now = f'{int(impact.remaining_now or 0):,}'
+    remaining_if = f'{int(impact.remaining_if_purchased or 0):,}'
     lines = [
-        f'予算（{label}）：残り ¥{remaining_now:,} → 買うと ¥{remaining_if:,}。',
+        t(
+            language,
+            'wish_budget_remaining',
+            label=label,
+            remaining_now=remaining_now,
+            remaining_if=remaining_if,
+        ),
     ]
     if impact.is_ahead_if_purchased:
-        daily = int(impact.daily_allowance_if_purchased or 0)
-        days = int(impact.days_remaining or 0)
-        lines.append(f'⚠️ 買うとペース超過になります（残り{days}日で約¥{daily:,}/日）。')
+        daily = f'{int(impact.daily_allowance_if_purchased or 0):,}'
+        days = str(int(impact.days_remaining or 0))
+        lines.append(
+            t(language, 'wish_budget_pace_ahead', daily=daily, days=days),
+        )
     return lines
 
 
@@ -191,37 +173,21 @@ def format_wish_list_proposal(
     impact: WishBudgetImpact,
     language: str,
 ) -> str:
-    amount = int(candidate.amount)
-    if language == 'en':
-        lines = [
-            'Wishlist candidate (not logged as an expense):',
-            f'• {candidate.name} — ¥{amount:,} / {candidate.category_label}',
-        ]
-        if candidate.product_url:
-            lines.append(f'Link: {candidate.product_url}')
-        lines.extend(format_wish_budget_impact_lines(impact, language))
-        lines.append('Add to wishlist? Reply yes / no')
-        return '\n'.join(lines)
-
-    if language == 'zh':
-        lines = [
-            '愿望单候选项（未记为支出）：',
-            f'• {candidate.name} — ¥{amount:,} / {candidate.category_label}',
-        ]
-        if candidate.product_url:
-            lines.append(f'链接：{candidate.product_url}')
-        lines.extend(format_wish_budget_impact_lines(impact, language))
-        lines.append('要加入愿望单吗？请回复 yes / no（或 是 / 不用）')
-        return '\n'.join(lines)
-
+    amount = f'{int(candidate.amount):,}'
     lines = [
-        'ウィッシュリスト候補（支出には記録していません）：',
-        f'• {candidate.name} — ¥{amount:,} / {candidate.category_label}',
+        t(language, 'wish_proposal_header'),
+        t(
+            language,
+            'wish_proposal_item',
+            name=candidate.name,
+            amount=amount,
+            category=candidate.category_label,
+        ),
     ]
     if candidate.product_url:
-        lines.append(f'リンク: {candidate.product_url}')
+        lines.append(t(language, 'wish_proposal_link', url=candidate.product_url))
     lines.extend(format_wish_budget_impact_lines(impact, language))
-    lines.append('ウィッシュリストに追加しますか？ yes / no（はい / いいえ）で返信してください')
+    lines.append(t(language, 'wish_proposal_confirm'))
     return '\n'.join(lines)
 
 
@@ -231,26 +197,7 @@ def format_wish_list_need_price(language: str) -> str:
 
 
 def format_wish_list_ask_details(language: str) -> str:
-    if language == 'en':
-        return (
-            'I see you want to buy something. '
-            'Reply to this message with the product name and price, '
-            'or reply with a product photo.'
-            '\n\n⏳ You have 30 seconds to send the product photo/image.'
-        )
-    if language == 'zh':
-        return (
-            '看起来你想买东西。'
-            '请回复这条消息，发送商品名称和价格，'
-            '或回复一张商品图片。'
-            '\n\n⏳ 请在30秒内发送商品图片/照片。'
-        )
-    return (
-        '買いたいものですね。'
-        'このメッセージに返信して、商品名と金額を送るか、'
-        '商品の写真を返信してください。'
-        '\n\n⏳ この後30秒以内に商品画像/写真を送ってください。'
-    )
+    return t(language, 'wish_ask_details')
 
 
 def _reply_language(context: MessageContext) -> str:
@@ -273,19 +220,11 @@ def build_wish_list_await_details_reply(context: MessageContext) -> BotReply:
 
 
 def format_wish_list_added(language: str, name: str) -> str:
-    if language == 'en':
-        return f'Added to wishlist: {name}'
-    if language == 'zh':
-        return f'已加入愿望单：{name}'
-    return f'ウィッシュリストに追加しました：{name}'
+    return t(language, 'wish_added', name=name)
 
 
 def format_wish_list_cancelled(language: str) -> str:
-    if language == 'en':
-        return 'Wishlist add cancelled.'
-    if language == 'zh':
-        return '已取消加入愿望单。'
-    return 'ウィッシュリストへの追加をキャンセルしました。'
+    return t(language, 'wish_cancelled')
 
 
 def candidate_to_pending_payload(candidate: WishListCandidate) -> Dict[str, Any]:

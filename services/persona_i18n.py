@@ -79,6 +79,21 @@ JUDY_HOPPS_STRINGS: Dict[str, Dict[str, str]] = {
         'usage_rate_day': '今日の利用上限に達しちゃった。明日また試してね。',
         'usage_quota_monthly': '今月のAI利用上限に達したよ。来月まで待ってね。',
         'usage_receipt_quota_monthly': '今月のレシート解析上限に達したよ。来月まで待ってね。',
+        'wish_ask_details': (
+            '🐰 買いたいものだね！'
+            'このメッセージに返信して、商品名と金額を送るか、'
+            '商品の写真を返信してね。'
+            '\n\n⏳ この後30秒以内に商品画像/写真を送ってね ✨'
+        ),
+        'wish_no_budget': '🐰 この購入に当てはまる予算上限はないみたい。',
+        'wish_budget_remaining': '🐰 予算（{label}）：残り ¥{remaining_now} → 買うと ¥{remaining_if}。',
+        'wish_budget_pace_ahead': '⚠️ 買うとペース超過になりそう（残り{days}日で約¥{daily}/日）✨',
+        'wish_proposal_header': '🐰✨ ウィッシュリスト候補（まだ支出にはしてないよ）：',
+        'wish_proposal_item': '• {name} — ¥{amount} / {category}',
+        'wish_proposal_link': 'リンク: {url}',
+        'wish_proposal_confirm': 'ウィッシュリストに追加する？ yes / no（はい / いいえ）で返信してね ✨',
+        'wish_added': '🐰 ウィッシュリストに追加したよ：{name} ✨',
+        'wish_cancelled': '🐰 ウィッシュリストへの追加はキャンセルしたよ。',
     },
     'en': {
         'header': '🐰✨ Expenses I spotted:',
@@ -150,6 +165,21 @@ JUDY_HOPPS_STRINGS: Dict[str, Dict[str, str]] = {
         'usage_rate_day': "You've reached today's usage limit. Try again tomorrow.",
         'usage_quota_monthly': "You've reached this month's AI usage limit. Try again next month.",
         'usage_receipt_quota_monthly': "You've reached this month's receipt analysis limit. Try again next month.",
+        'wish_ask_details': (
+            "🐰 Looks like you want to buy something! "
+            'Reply to this message with the product name and price, '
+            'or send a product photo.'
+            '\n\n⏳ You have 30 seconds to send the product photo/image ✨'
+        ),
+        'wish_no_budget': '🐰 No budget limit applies to this purchase.',
+        'wish_budget_remaining': '🐰 Budget ({label}): ¥{remaining_now} left now → ¥{remaining_if} if you buy this.',
+        'wish_budget_pace_ahead': '⚠️ This would put spending ahead of pace (~¥{daily}/day for {days} days left) ✨',
+        'wish_proposal_header': '🐰✨ Wishlist candidate (not logged as an expense yet):',
+        'wish_proposal_item': '• {name} — ¥{amount} / {category}',
+        'wish_proposal_link': 'Link: {url}',
+        'wish_proposal_confirm': 'Add to wishlist? Reply yes / no ✨',
+        'wish_added': '🐰 Added to wishlist: {name} ✨',
+        'wish_cancelled': '🐰 Wishlist add cancelled.',
     },
     'zh': {
         'header': '🐰✨ 检测到的支出:',
@@ -212,6 +242,21 @@ JUDY_HOPPS_STRINGS: Dict[str, Dict[str, str]] = {
         'usage_rate_day': '已达到今日使用上限，请明天再试。',
         'usage_quota_monthly': '已达到本月 AI 使用上限，请下月再试。',
         'usage_receipt_quota_monthly': '已达到本月收据解析上限，请下月再试。',
+        'wish_ask_details': (
+            '🐰 看起来你想买东西！'
+            '请回复这条消息，发送商品名称和价格，'
+            '或回复一张商品图片。'
+            '\n\n⏳ 请在30秒内发送商品图片/照片 ✨'
+        ),
+        'wish_no_budget': '🐰 此购买没有适用的预算上限。',
+        'wish_budget_remaining': '🐰 预算（{label}）：现在剩余 ¥{remaining_now} → 购买后剩余 ¥{remaining_if}。',
+        'wish_budget_pace_ahead': '⚠️ 购买后支出节奏会偏快（剩余 {days} 天约 ¥{daily}/天）✨',
+        'wish_proposal_header': '🐰✨ 愿望单候选项（尚未记为支出）：',
+        'wish_proposal_item': '• {name} — ¥{amount} / {category}',
+        'wish_proposal_link': '链接：{url}',
+        'wish_proposal_confirm': '要加入愿望单吗？请回复 yes / no（或 是 / 不用）✨',
+        'wish_added': '🐰 已加入愿望单：{name} ✨',
+        'wish_cancelled': '🐰 已取消加入愿望单。',
     },
 }
 
