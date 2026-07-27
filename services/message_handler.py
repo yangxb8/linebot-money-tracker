@@ -8,6 +8,7 @@ from services.category_taxonomy import format_category_path, resolve_code
 from services.confirmation_repository import (
     get_confirmation_by_bot_message_id,
     clear_pending_state,
+    get_latest_pending_confirmation,
     set_pending_state,
     try_mark_reply_processed,
     write_audit,
@@ -835,6 +836,16 @@ async def _process_image_message_inner(
     )
     language = context.reply_language if context else 'ja'
     try:
+        wish_pending = None
+        if context is not None:
+            # 30s workaround for LINE: text ("want to buy") and image arrive as separate events.
+            # We only trigger for the same sender in group chats (tenant + line_user_id scoped).
+            wish_pending = get_latest_pending_confirmation(
+                context.tenant,
+                pending_action='wish_list_await_details',
+                within_seconds=30,
+            )
+
         try:
             items = await _extract_expense_items_from_image(image_bytes, gemini, resolved_mime)
         except UserUsageLimitExceeded as exc:
@@ -860,6 +871,25 @@ async def _process_image_message_inner(
                 source_text=accompanying_text,
                 memory_mode='item',
             )
+
+        if wish_pending is not None:
+            logger.info(
+                'Image pipeline: wish_list_await_details pending found (confirmation_id=%s); treating image as wish details',
+                wish_pending.id,
+            )
+            bot_reply = await _wish_list_reply_from_items(
+                items,
+                gemini,
+                context,
+                source_text=None,
+                memory_mode='item',
+            )
+            if (
+                bot_reply.confirmation
+                and bot_reply.confirmation.pending_action == 'wish_list_add'
+            ):
+                clear_pending_state(wish_pending.id)
+            return bot_reply
 
         items, confirmation_payload = await _enrich_and_persist_items(
             items,
