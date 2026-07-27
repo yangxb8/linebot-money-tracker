@@ -40,11 +40,23 @@ After intent classification:
 
 | Intent | Behavior |
 | ------ | -------- |
-| `wish_list` | Extract item(s) via existing assist parse **without** `insert_expenses`; classify category; compute budget impact; reply with details + impact + ask to add; save confirmation with `pending_action='wish_list_add'` |
+| `wish_list` with extractable name+price | Extract without `insert_expenses`; categorize; budget impact; save confirmation with `pending_action='wish_list_add'` |
+| `wish_list` without enough detail | Ask what to buy (reply with text or photo); save confirmation with `pending_action='wish_list_await_details'` |
 | `expense` | Existing behavior unchanged |
 | others | Existing behavior unchanged |
 
-If price missing after extract: ask for price; do not create expense or wish item yet.
+### Reply to `wish_list_await_details`
+
+User must **reply to** the bot ask message (LINE quote/reply):
+
+| Reply | Behavior |
+| ----- | -------- |
+| Cancel (`no` / `不用` / …) | Clear pending; no wish item |
+| Text with product+price | Parse → budget impact → upgrade pending to `wish_list_add` (re-anchor interaction message id) |
+| Image | Extract product → same as text details path |
+| Unparseable | Re-ask details; keep `wish_list_await_details` |
+
+Image messages that are **not** a reply to this pending confirmation continue through the normal expense image flow.
 
 ### Image path
 
