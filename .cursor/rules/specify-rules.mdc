@@ -5,8 +5,8 @@ alwaysApply: true
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan at
-`specs/020-wish-list/plan.md` and the developer quickstart at
-`specs/020-wish-list/quickstart.md`.
+`specs/021-automated-functional-tests/plan.md` and the developer quickstart at
+`specs/021-automated-functional-tests/quickstart.md`.
 
 Primary local dev workflow: `python local_run.py --text "..."` or
 `python local_run.py --image path/to/receipt.jpg` (requires GEMINI_API_KEY only;
@@ -24,6 +24,10 @@ Reply-edit testing: log an expense, note `bot_message_id`, then
 `python local_run.py --reply-to <bot_message_id> --text "3800円"`.
 
 Group usage / pooling: `python local_run.py --group-id <group_id> --text "..."`
+
+Automated functional tests (feature 021, PR lane, mocked): 
+`python3 -m pytest -q tests/functional/bot`; `cd web && npm test`; `cd web && npx playwright test`.
+Every user-facing feature must expand this suite — see AGENTS.md “Test suite expansion”.
 
 Supabase project: `https://nyuenufldaqsjybjhawl.supabase.co`
 <!-- SPECKIT END -->
