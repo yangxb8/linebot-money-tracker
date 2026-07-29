@@ -25,6 +25,13 @@ The update script installs both dependency sets (`pip install -r requirements.tx
 - The Next.js middleware calls Supabase on **every** request, so `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` must be set or all pages (including `/login`) error. The anon/publishable keys are public and retrievable from the Supabase project.
 - Authenticated dashboard flows additionally require `SUPABASE_SERVICE_ROLE_KEY` (admin client) and a LINE Login channel: `LINE_LOGIN_CHANNEL_ID`, `LINE_LOGIN_CHANNEL_SECRET`, `NEXT_PUBLIC_LINE_LIFF_ID`. Without these, `/login` renders but the LINE sign-in flow cannot complete, and protected pages bounce back to `/login`.
 
+### Test suite expansion (required for every feature)
+- Any new user-facing feature is **incomplete** until the automated test suite is expanded to cover that feature’s primary acceptance scenarios. Manual quickstart notes alone are not enough.
+- Prefer the fastest reliable layer that proves the behavior: bot/web unit tests for pure logic; bot webhook/handler functional tests (mocked Gemini/LINE/Supabase) for chat journeys; web API or browser functional tests for dashboard journeys. Do not mutate the live household production ledger in automated tests.
+- When running `/speckit-plan` or `/speckit-tasks`, include explicit test-expansion tasks. When implementing, add or update tests in the same PR as the behavior change and keep `python3 -m pytest -q` and `cd web && npm test` (plus any new functional suites once they exist) green.
+- Pure refactors with no behavior change may only require existing suites to stay green; copy/i18n/persona changes still need an assertion on the affected user-visible reply or UI path.
+- Target coverage for functional suites (see `specs/021-automated-functional-tests/spec.md`): bot expense confirm, reply-edit, wish accept/decline; web auth gate, expense overview, wish-list update, bot-behavior settings save/reload.
+
 ### Bot — behavior settings (Settings → LINE bot behavior)
 - All user-facing bot text MUST go through the i18n/persona stack (`confirmation_i18n.t()` for templates; `persona_scope(resolve_persona_for_tenant(tenant))` around handlers) so **reply language**, **character/persona preset**, **emoji level**, and **custom style text** from the web app are honored.
 - Resolve settings with `resolve_effective_bot_settings(tenant)` / `resolve_tenant_reply_language(tenant, base_language)` / `resolve_persona_for_tenant(tenant)`. In group/room chats, when the shared ledger has no customized bot-behavior fields, fall back to the sender's **personal** tenant settings before defaults or message-language heuristics.

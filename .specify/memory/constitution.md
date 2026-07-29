@@ -1,22 +1,14 @@
 <!--
 Sync Impact Report
-Version change: TEMPLATE -> 0.1.0
+Version change: 0.1.0 -> 0.1.1
 Modified principles:
-- [PRINCIPLE_1_NAME] -> Code Quality & Maintainability
-- [PRINCIPLE_2_NAME] -> Test-First Delivery
-- [PRINCIPLE_3_NAME] -> User Experience Consistency
-- [PRINCIPLE_4_NAME] -> Performance & Reliability
-- [PRINCIPLE_5_NAME] -> Observability & Feedback
+- Test-First Delivery -> Requires functional coverage for bot + web and mandatory test-suite expansion on every user-facing feature
 Added sections:
-- Additional Constraints
-- Development Workflow
+- None
 Removed sections:
 - None
 Templates requiring updates:
-- .specify/templates/plan-template.md ✅ reviewed
-- .specify/templates/spec-template.md ✅ reviewed
-- .specify/templates/tasks-template.md ✅ reviewed
-- .specify/templates/constitution-template.md ✅ reviewed
+- None (policy reflected in AGENTS.md and specs/021-automated-functional-tests)
 Follow-up TODOs: none
 -->
 
@@ -30,7 +22,7 @@ All production code MUST be modular, readable, and follow the established Python
 
 ### Test-First Delivery
 
-All user-facing behavior and expense-tracking logic MUST be defined by automated tests before implementation. Unit tests MUST cover parsing, categorization, validation, and persistence, and integration tests MUST verify LINE webhook handling, AI analysis, and end-to-end expense logging flows.
+All user-facing behavior and expense-tracking logic MUST be defined by automated tests before implementation. Unit tests MUST cover parsing, categorization, validation, and persistence, and integration/functional tests MUST verify LINE webhook handling, AI analysis, end-to-end expense logging flows, and web dashboard primary journeys. Every new user-facing feature MUST expand the automated test suite to cover its primary acceptance scenarios; a change without corresponding test updates is incomplete.
 
 ### User Experience Consistency
 
@@ -56,4 +48,4 @@ All changes MUST be delivered through pull requests with clear descriptions, tes
 
 This constitution supersedes informal practices for the `linebot-money-tracker` project. Any amendment MUST be documented, reviewed, and accompanied by a version update and an updated amendment date. All pull requests MUST reference the applicable constitution principles to demonstrate compliance, and failing or missing tests MUST block merges.
 
-**Version**: 0.1.0 | **Ratified**: 2026-06-01 | **Last Amended**: 2026-06-01
+**Version**: 0.1.1 | **Ratified**: 2026-06-01 | **Last Amended**: 2026-07-29
