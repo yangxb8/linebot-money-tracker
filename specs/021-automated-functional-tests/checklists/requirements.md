@@ -31,4 +31,5 @@
 
 ## Notes
 
-- Validation pass 1 (2026-07-29): Spec avoids naming Playwright/pytest/FastAPI in requirements and success criteria; PR vs optional deep lanes and agent test-expansion policy are explicit. Ready for `/speckit-clarify` or `/speckit-plan`.
+- Validation pass 1 (2026-07-29): Spec avoids naming Playwright/pytest/FastAPI in requirements and success criteria; PR vs optional deep lanes and agent test-expansion policy are explicit.
+- Clarification session 2026-07-29: 5/5 answers integrated (web surface, web scope, enforcement, bot image deferral, PR-lane fully mocked). Ready for `/speckit-plan`.
