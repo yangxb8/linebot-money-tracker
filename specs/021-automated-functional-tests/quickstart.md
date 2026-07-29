@@ -68,3 +68,11 @@ When adding user-facing behavior:
 - Receipt/image bot functional scenarios
 - Periodic-expense web functional scenarios
 - Nightly bot→web cross-surface job
+
+## Deep lane deferred (US5 / FR-012)
+
+A scheduled deep lane (isolated remote test tenant, optional real AI, bot→web observability) is **not** delivered in v1 and is **not** a merge gate. When added later, it must never write to the production household ledger used by end users.
+
+## CI note (FR-016)
+
+GitHub Actions jobs `bot`, `web-unit`, and `web-e2e-smoke` hard-fail on red suites. They do **not** require that every PR diff also touches test files.

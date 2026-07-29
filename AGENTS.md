@@ -27,10 +27,14 @@ The update script installs both dependency sets (`pip install -r requirements.tx
 
 ### Test suite expansion (required for every feature)
 - Any new user-facing feature is **incomplete** until the automated test suite is expanded to cover that feature’s primary acceptance scenarios. Manual quickstart notes alone are not enough.
-- Prefer the fastest reliable layer that proves the behavior: bot/web unit tests for pure logic; bot webhook/handler functional tests (mocked Gemini/LINE/Supabase) for chat journeys; web API or browser functional tests for dashboard journeys. Do not mutate the live household production ledger in automated tests.
-- When running `/speckit-plan` or `/speckit-tasks`, include explicit test-expansion tasks. When implementing, add or update tests in the same PR as the behavior change and keep `python3 -m pytest -q` and `cd web && npm test` (plus any new functional suites once they exist) green.
-- Pure refactors with no behavior change may only require existing suites to stay green; copy/i18n/persona changes still need an assertion on the affected user-visible reply or UI path.
-- Target coverage for functional suites (see `specs/021-automated-functional-tests/spec.md`): bot expense confirm, reply-edit, wish accept/decline; web auth gate, expense overview, wish-list update, bot-behavior settings save/reload.
+- Soft policy: humans/agents/PR review enforce expansion. Hard gate: CI fails when any required suite is red. There is **no** mandatory “PR diff must touch test files” check.
+- Prefer the fastest reliable layer: bot/web unit tests for pure logic; `tests/functional/bot/` for chat journeys (mocked Gemini/LINE/Supabase); `*.functional.test.ts` / `web/e2e` for dashboard journeys. Never mutate the live household production ledger in automated tests.
+- When running `/speckit-plan` or `/speckit-tasks`, include explicit test-expansion tasks. When implementing, add or update tests in the same PR and keep these green:
+  - `python3 -m pytest -q` (includes `tests/functional/bot/`)
+  - `cd web && npm test` (unit + functional)
+  - `cd web && npx playwright test` (auth gate + signed-in smoke)
+- See `specs/021-automated-functional-tests/quickstart.md`. Pure refactors may only require existing suites to stay green; copy/i18n/persona changes still need an assertion on the affected user-visible path.
+- v1 functional coverage: bot expense confirm, reply-edit, wish accept/decline; web expenses, wish list, settings, budgets, categories + browser auth gate / signed-in smoke.
 
 ### Bot — behavior settings (Settings → LINE bot behavior)
 - All user-facing bot text MUST go through the i18n/persona stack (`confirmation_i18n.t()` for templates; `persona_scope(resolve_persona_for_tenant(tenant))` around handlers) so **reply language**, **character/persona preset**, **emoji level**, and **custom style text** from the web app are honored.

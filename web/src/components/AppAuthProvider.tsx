@@ -39,6 +39,19 @@ function AppAuthBootstrap({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     async function bootstrap() {
+      const e2eMockLineUser = process.env.NEXT_PUBLIC_E2E_MOCK_LINE_USER_ID;
+      const forceUnauth =
+        typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("e2e_unauth") === "1";
+      if (e2eMockLineUser && !forceUnauth) {
+        if (!cancelled) {
+          setLineUserId(e2eMockLineUser);
+          setSharedTenants([]);
+          setPhase("ready");
+        }
+        return;
+      }
+
       const supabase = createClient();
       const {
         data: { user },

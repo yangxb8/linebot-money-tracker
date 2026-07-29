@@ -13,6 +13,8 @@ description: "Task list template for feature implementation"
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
+**Test expansion (project policy)**: For user-facing features, include explicit tasks that expand the automated test suite (`tests/functional/bot/`, `web/**/*.functional.test.ts`, and/or unit tests) for each story’s primary acceptance scenarios. Manual quickstart-only verification is not sufficient. See `AGENTS.md` → Test suite expansion and `specs/021-automated-functional-tests/`.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)

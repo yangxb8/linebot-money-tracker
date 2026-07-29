@@ -31,10 +31,10 @@ description: "Task list for Automated Functional Testing feature implementation"
 
 **Purpose**: Scaffold directories, markers, and dependencies without scenarios yet
 
-- [ ] T001 Create `tests/functional/bot/helpers/` package with empty `__init__.py` files under `tests/functional/bot/`
-- [ ] T002 [P] Add `pytest.ini` at repo root registering marker `functional` (and `asyncio_mode` if needed for consistency)
-- [ ] T003 [P] Add `@playwright/test` as a direct `devDependency` in `web/package.json` and refresh `web/package-lock.json`
-- [ ] T004 [P] Extend `web/vitest.config.ts` `include` to pick up `src/**/*.functional.test.ts` (keep existing `*.test.ts`)
+- [x] T001 Create `tests/functional/bot/helpers/` package with empty `__init__.py` files under `tests/functional/bot/`
+- [x] T002 [P] Add `pytest.ini` at repo root registering marker `functional` (and `asyncio_mode` if needed for consistency)
+- [x] T003 [P] Add `@playwright/test` as a direct `devDependency` in `web/package.json` and refresh `web/package-lock.json`
+- [x] T004 [P] Extend `web/vitest.config.ts` `include` to pick up `src/**/*.functional.test.ts` (keep existing `*.test.ts`)
 
 ---
 
@@ -44,11 +44,11 @@ description: "Task list for Automated Functional Testing feature implementation"
 
 **⚠️ CRITICAL**: Complete before story scenario files (helpers may be refined per story, but skeletons must exist)
 
-- [ ] T005 Implement LINE HMAC helper `sign_body(body: bytes, secret: str) -> str` in `tests/functional/bot/helpers/line_signature.py`
-- [ ] T006 [P] Implement webhook JSON builders (text message, reply-to message) in `tests/functional/bot/helpers/webhook_events.py`
-- [ ] T007 Create `tests/functional/bot/conftest.py` with env setdefaults (`LINE_CHANNEL_SECRET=test_secret`, token, `GEMINI_API_KEY`), FastAPI `TestClient` fixture for `main.app`, and shared `reply_message` AsyncMock patch fixture
-- [ ] T008 [P] Create mocked Supabase/auth helpers in `web/src/lib/test-support/mock-supabase.ts` (fake `getUser` user|null + chainable in-memory stubs usable from functional tests)
-- [ ] T009 [P] Create Playwright config `web/playwright.config.ts` with `testDir: e2e`, stub `NEXT_PUBLIC_SUPABASE_*` env, and `webServer` command for `npm run dev` or `npm run start` as appropriate for smoke
+- [x] T005 Implement LINE HMAC helper `sign_body(body: bytes, secret: str) -> str` in `tests/functional/bot/helpers/line_signature.py`
+- [x] T006 [P] Implement webhook JSON builders (text message, reply-to message) in `tests/functional/bot/helpers/webhook_events.py`
+- [x] T007 Create `tests/functional/bot/conftest.py` with env setdefaults (`LINE_CHANNEL_SECRET=test_secret`, token, `GEMINI_API_KEY`), FastAPI `TestClient` fixture for `main.app`, and shared `reply_message` AsyncMock patch fixture
+- [x] T008 [P] Create mocked Supabase/auth helpers in `web/src/lib/test-support/mock-supabase.ts` (fake `getUser` user|null + chainable in-memory stubs usable from functional tests)
+- [x] T009 [P] Create Playwright config `web/playwright.config.ts` with `testDir: e2e`, stub `NEXT_PUBLIC_SUPABASE_*` env, and `webServer` command for `npm run dev` or `npm run start` as appropriate for smoke
 
 **Checkpoint**: Foundation ready — bot helpers + web mock/support + Playwright config exist
 
@@ -62,13 +62,13 @@ description: "Task list for Automated Functional Testing feature implementation"
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Implement `bot.webhook.unsigned` in `tests/functional/bot/test_webhook_signature.py` (missing/invalid `X-Line-Signature` → HTTP 400; `reply_message` not called; do not patch `parser.parse`)
-- [ ] T011 [P] [US1] Implement valid-signature smoke companion in `tests/functional/bot/test_webhook_signature.py` (correct HMAC allows parse path; may still mock handler downstream)
-- [ ] T012 [US1] Implement `bot.expense.text_confirm` in `tests/functional/bot/test_expense_text_flow.py` (signed text webhook → confirmation-style reply once; assert expense insert and/or pending confirmation mocks)
-- [ ] T013 [US1] Implement `bot.expense.reply_edit` in `tests/functional/bot/test_reply_edit_flow.py` (prior pending/confirmation via mocks; reply-to with new amount → mutation + reply reflects change)
-- [ ] T014 [P] [US1] Implement `bot.wish.accept` in `tests/functional/bot/test_wish_list_flow.py` (wish propose + yes → wish insert called; expense insert not called)
-- [ ] T015 [P] [US1] Implement `bot.wish.decline` in `tests/functional/bot/test_wish_list_flow.py` (wish propose + no → neither wish nor expense insert)
-- [ ] T016 [US1] Ensure image/receipt scenarios are absent from `tests/functional/bot/` (document deferral comment in `tests/functional/bot/conftest.py` or module docstring per FR-017)
+- [x] T010 [US1] Implement `bot.webhook.unsigned` in `tests/functional/bot/test_webhook_signature.py` (missing/invalid `X-Line-Signature` → HTTP 400; `reply_message` not called; do not patch `parser.parse`)
+- [x] T011 [P] [US1] Implement valid-signature smoke companion in `tests/functional/bot/test_webhook_signature.py` (correct HMAC allows parse path; may still mock handler downstream)
+- [x] T012 [US1] Implement `bot.expense.text_confirm` in `tests/functional/bot/test_expense_text_flow.py` (signed text webhook → confirmation-style reply once; assert expense insert and/or pending confirmation mocks)
+- [x] T013 [US1] Implement `bot.expense.reply_edit` in `tests/functional/bot/test_reply_edit_flow.py` (prior pending/confirmation via mocks; reply-to with new amount → mutation + reply reflects change)
+- [x] T014 [P] [US1] Implement `bot.wish.accept` in `tests/functional/bot/test_wish_list_flow.py` (wish propose + yes → wish insert called; expense insert not called)
+- [x] T015 [P] [US1] Implement `bot.wish.decline` in `tests/functional/bot/test_wish_list_flow.py` (wish propose + no → neither wish nor expense insert)
+- [x] T016 [US1] Ensure image/receipt scenarios are absent from `tests/functional/bot/` (document deferral comment in `tests/functional/bot/conftest.py` or module docstring per FR-017)
 
 **Checkpoint**: US1 MVP — four journeys + signature green under `tests/functional/bot/`
 
@@ -82,15 +82,15 @@ description: "Task list for Automated Functional Testing feature implementation"
 
 ### Implementation for User Story 2
 
-- [ ] T017 [P] [US2] Add `web.api.unauthorized` functional test in `web/src/app/api/expenses/expenses.functional.test.ts` (or colocated path) — `getUser` null → 401 from expenses route
-- [ ] T018 [P] [US2] Add `web.api.expenses_overview` in `web/src/app/api/expenses/expenses.functional.test.ts` — mocked user + list/empty 200
-- [ ] T019 [P] [US2] Add `web.api.wish_list_mutate` in `web/src/app/api/wish-list/wish-list.functional.test.ts` — create then read reflects item
-- [ ] T020 [P] [US2] Add `web.api.settings_bot_behavior` in `web/src/app/api/settings/settings.functional.test.ts` — save then reload bot-behavior fields
-- [ ] T021 [P] [US2] Add `web.api.budgets` in `web/src/app/api/budgets/budgets.functional.test.ts` — read/update with expected state
-- [ ] T022 [P] [US2] Add `web.api.categories` in `web/src/app/api/categories/categories.functional.test.ts` — create/update then read
-- [ ] T023 [US2] Implement Playwright `web.browser.auth_gate` in `web/e2e/auth-gate.spec.ts` (open `/dashboard` or `/wish-list` without session → `/login`; no private ledger content)
-- [ ] T024 [US2] Implement Playwright `web.browser.signed_in_smoke` in `web/e2e/signed-in-smoke.spec.ts` (mock signed-in `getUser`/session; open `/dashboard`; no auth bounce)
-- [ ] T025 [US2] Confirm periodic-expense routes are not covered in v1 functional files (brief note in `web/src/lib/test-support/mock-supabase.ts` or functional test README comment per FR-015)
+- [x] T017 [P] [US2] Add `web.api.unauthorized` functional test in `web/src/app/api/expenses/expenses.functional.test.ts` (or colocated path) — `getUser` null → 401 from expenses route
+- [x] T018 [P] [US2] Add `web.api.expenses_overview` in `web/src/app/api/expenses/expenses.functional.test.ts` — mocked user + list/empty 200
+- [x] T019 [P] [US2] Add `web.api.wish_list_mutate` in `web/src/app/api/wish-list/wish-list.functional.test.ts` — create then read reflects item
+- [x] T020 [P] [US2] Add `web.api.settings_bot_behavior` in `web/src/app/api/settings/settings.functional.test.ts` — save then reload bot-behavior fields
+- [x] T021 [P] [US2] Add `web.api.budgets` in `web/src/app/api/budgets/budgets.functional.test.ts` — read/update with expected state
+- [x] T022 [P] [US2] Add `web.api.categories` in `web/src/app/api/categories/categories.functional.test.ts` — create/update then read
+- [x] T023 [US2] Implement Playwright `web.browser.auth_gate` in `web/e2e/auth-gate.spec.ts` (open `/dashboard` or `/wish-list` without session → `/login`; no private ledger content)
+- [x] T024 [US2] Implement Playwright `web.browser.signed_in_smoke` in `web/e2e/signed-in-smoke.spec.ts` (mock signed-in `getUser`/session; open `/dashboard`; no auth bounce)
+- [x] T025 [US2] Confirm periodic-expense routes are not covered in v1 functional files (brief note in `web/src/lib/test-support/mock-supabase.ts` or functional test README comment per FR-015)
 
 **Checkpoint**: US2 — API functional set + two browser smokes pass locally
 
@@ -104,10 +104,10 @@ description: "Task list for Automated Functional Testing feature implementation"
 
 ### Implementation for User Story 4
 
-- [ ] T026 [P] [US4] Verify and tighten `AGENTS.md` “Test suite expansion” section against FR-009/FR-016 (soft expansion; hard fail only on red suites; point to `specs/021-automated-functional-tests/quickstart.md`)
-- [ ] T027 [P] [US4] Verify `.specify/memory/constitution.md` Test-First Delivery (0.1.1+) still requires bot+web functional coverage and suite expansion
-- [ ] T028 [US4] Add a short “Test expansion” note to `.specify/templates/tasks-template.md` Organization/Notes so future `/speckit-tasks` runs include suite-expansion tasks for user-facing features
-- [ ] T029 [P] [US4] Ensure `.cursor/rules/specify-rules.mdc` references 021 plan/quickstart and the expansion rule (already planned — confirm no drift)
+- [x] T026 [P] [US4] Verify and tighten `AGENTS.md` “Test suite expansion” section against FR-009/FR-016 (soft expansion; hard fail only on red suites; point to `specs/021-automated-functional-tests/quickstart.md`)
+- [x] T027 [P] [US4] Verify `.specify/memory/constitution.md` Test-First Delivery (0.1.1+) still requires bot+web functional coverage and suite expansion
+- [x] T028 [US4] Add a short “Test expansion” note to `.specify/templates/tasks-template.md` Organization/Notes so future `/speckit-tasks` runs include suite-expansion tasks for user-facing features
+- [x] T029 [P] [US4] Ensure `.cursor/rules/specify-rules.mdc` references 021 plan/quickstart and the expansion rule (already planned — confirm no drift)
 
 **Checkpoint**: Policy artifacts consistent; no CI test-diff gate added
 
@@ -121,11 +121,11 @@ description: "Task list for Automated Functional Testing feature implementation"
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Split/rename `.github/workflows/ci.yml` job to `bot` running `python -m pytest -q` with mock LINE/Gemini env (preserve existing behavior; ensure `tests/functional/bot` is collected)
-- [ ] T031 [P] [US3] Add `web-unit` job to `.github/workflows/ci.yml` (`npm ci`, stub `NEXT_PUBLIC_SUPABASE_*`, `npm run lint`, `npm test`)
-- [ ] T032 [P] [US3] Add `web-e2e-smoke` job to `.github/workflows/ci.yml` (Playwright install + `npx playwright test` with stub env; no production secrets)
-- [ ] T033 [US3] Document in `.github/workflows/ci.yml` (comment) and/or `specs/021-automated-functional-tests/quickstart.md` that there is no mandatory test-diff gate (FR-016)
-- [ ] T034 [US3] Validate CI contracts against `specs/021-automated-functional-tests/contracts/ci-verification-lanes.md` (job names, fail-on-red, no deep lane)
+- [x] T030 [US3] Split/rename `.github/workflows/ci.yml` job to `bot` running `python -m pytest -q` with mock LINE/Gemini env (preserve existing behavior; ensure `tests/functional/bot` is collected)
+- [x] T031 [P] [US3] Add `web-unit` job to `.github/workflows/ci.yml` (`npm ci`, stub `NEXT_PUBLIC_SUPABASE_*`, `npm run lint`, `npm test`)
+- [x] T032 [P] [US3] Add `web-e2e-smoke` job to `.github/workflows/ci.yml` (Playwright install + `npx playwright test` with stub env; no production secrets)
+- [x] T033 [US3] Document in `.github/workflows/ci.yml` (comment) and/or `specs/021-automated-functional-tests/quickstart.md` that there is no mandatory test-diff gate (FR-016)
+- [x] T034 [US3] Validate CI contracts against `specs/021-automated-functional-tests/contracts/ci-verification-lanes.md` (job names, fail-on-red, no deep lane)
 
 **Checkpoint**: PR lane matches `pr_fast` contract
 
@@ -137,8 +137,8 @@ description: "Task list for Automated Functional Testing feature implementation"
 
 **Independent Test**: No nightly job in CI; quickstart lists deep lane as out of scope
 
-- [ ] T035 [US5] Add explicit “Deep lane deferred” subsection to `specs/021-automated-functional-tests/quickstart.md` (isolated tenant + optional real AI / bot→web; not a merge gate)
-- [ ] T036 [P] [US5] Ensure `.github/workflows/` has no required deep/nightly workflow for this feature in v1
+- [x] T035 [US5] Add explicit “Deep lane deferred” subsection to `specs/021-automated-functional-tests/quickstart.md` (isolated tenant + optional real AI / bot→web; not a merge gate)
+- [x] T036 [P] [US5] Ensure `.github/workflows/` has no required deep/nightly workflow for this feature in v1
 
 **Checkpoint**: US5 documented as deferred; PR lane unaffected
 
@@ -148,12 +148,12 @@ description: "Task list for Automated Functional Testing feature implementation"
 
 **Purpose**: Validate quickstart end-to-end and keep docs aligned
 
-- [ ] T037 [P] Run and fix `python3 -m pytest -q` (full unit + functional) until green locally
-- [ ] T038 [P] Run and fix `cd web && npm run lint && npm test` until green
-- [ ] T039 [P] Run and fix `cd web && npx playwright test` until green
-- [ ] T040 Align `specs/021-automated-functional-tests/quickstart.md` commands with final scripts/paths
-- [ ] T041 [P] Spot-check scenario ids in test names/docstrings against `specs/021-automated-functional-tests/data-model.md` catalog
-- [ ] T042 Confirm no functional test targets production household Supabase project (FR-008/SC-005)
+- [x] T037 [P] Run and fix `python3 -m pytest -q` (full unit + functional) until green locally
+- [x] T038 [P] Run and fix `cd web && npm run lint && npm test` until green
+- [x] T039 [P] Run and fix `cd web && npx playwright test` until green
+- [x] T040 Align `specs/021-automated-functional-tests/quickstart.md` commands with final scripts/paths
+- [x] T041 [P] Spot-check scenario ids in test names/docstrings against `specs/021-automated-functional-tests/data-model.md` catalog
+- [x] T042 Confirm no functional test targets production household Supabase project (FR-008/SC-005)
 
 ---
 
