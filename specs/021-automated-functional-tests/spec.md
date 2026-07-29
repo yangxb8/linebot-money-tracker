@@ -4,7 +4,7 @@
 
 **Created**: 2026-07-29
 
-**Status**: Draft
+**Status**: Clarified
 
 **Input**: User description: "Summarize automatic functionality testing recommendations (bot webhook/API tests, harness scenario tests, web API tests, browser end-to-end smoke) into a spec; also add agent instructions so any feature going forward must expand the test suite."
 
