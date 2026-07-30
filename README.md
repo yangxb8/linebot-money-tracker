@@ -1,6 +1,8 @@
 # linebot-money-tracker
 
-A LINE expense bot built with FastAPI, LINE Messaging API, and Gemini AI.
+A LINE expense bot built with FastAPI, LINE Messaging API, and Gemini AI — plus a Next.js web dashboard on a shared Supabase backend.
+
+**System architecture (onboarding):** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — containers, auth, data model, key flows, and design decisions.
 
 **Full setup guide:** [specs/003-local-dev-setup/quickstart.md](specs/003-local-dev-setup/quickstart.md)
 
