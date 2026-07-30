@@ -4,6 +4,8 @@ Guide for new engineers: what this system is, how the LINE bot and web dashboard
 
 **Related docs:** [root README](../README.md) (quick start) · [local setup](../specs/003-local-dev-setup/quickstart.md) · [web dashboard](../specs/009-expense-web-dashboard/quickstart.md) · [AGENTS.md](../AGENTS.md) (Cloud/agent gotchas) · [constitution](../.specify/memory/constitution.md)
 
+**Maintenance:** Agents and humans must update this document in the same PR when a change impacts architecture (deployables, auth/RLS, schema/tenant model, primary flows, or design decisions). See [`.cursor/rules/architecture-docs.mdc`](../.cursor/rules/architecture-docs.mdc) and AGENTS.md “Architecture doc sync.”
+
 ---
 
 ## 1. System overview
