@@ -1,0 +1,40 @@
+---
+description: Keep docs/ARCHITECTURE.md in sync when PRs change system architecture
+alwaysApply: true
+---
+
+# Architecture documentation gate (before PR)
+
+Before creating or updating a pull request, review whether the change set affects the system architecture described in `docs/ARCHITECTURE.md`.
+
+## When you MUST update `docs/ARCHITECTURE.md` in the same PR
+
+Update diagrams and/or prose if the change does any of the following (non-exhaustive):
+
+- Adds, removes, or renames a deployable / major runtime (bot, web, Edge Function, cron, external API)
+- Changes trust boundaries or credentials (LINE signature, LINE Login/LIFF, Supabase anon vs service role, RLS helpers)
+- Changes the tenant model, core tables/views, or meaningful relationships (expenses, categories, budgets, wish list, settings, usage, confirmation anchors)
+- Introduces or alters a primary user-facing data flow (expense log, reply-edit, wish list, web auth, periodic expenses, dashboard CRUD paths)
+- Changes a documented design decision (idempotency keys, LLM-JSON-only persistence, lazy category copy, budget-on-read, backend-only table lockdown, etc.)
+- Changes deployment topology or env-var contracts that onboarding engineers need
+
+Also update when Mermaid diagrams would otherwise mislead a new engineer — even if prose elsewhere is “close enough.”
+
+## When an update is NOT required
+
+- Pure refactors with no behavioral or structural change
+- Bugfixes that do not alter architecture, auth, schema shape, or documented flows
+- Copy/i18n/persona string tweaks that do not change settings resolution or surfaces
+- Test-only or CI-only changes that do not introduce new system components
+- Spec Kit planning artifacts alone (`specs/*`) without implementing architectural change
+
+If unsure, prefer a short note in `docs/ARCHITECTURE.md` (or a “Other important aspects” bullet) over leaving the doc stale.
+
+## How to update
+
+1. Diff your branch against the PR base and ask: “Would a new engineer’s mental model from `docs/ARCHITECTURE.md` be wrong after this merges?”
+2. Edit the relevant sections: overview/features, Mermaid diagrams, auth, data model, key flows, design decisions.
+3. Keep the doc high-level — put feature detail in `specs/NNN-*/`; architecture doc stays the cross-cutting map.
+4. Mention the architecture-doc update in the PR description when you touched it.
+
+Do not create or finalize a PR that ships architectural impact without the matching `docs/ARCHITECTURE.md` update.

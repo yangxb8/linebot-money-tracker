@@ -25,6 +25,12 @@ The update script installs both dependency sets (`pip install -r requirements.tx
 - The Next.js middleware calls Supabase on **every** request, so `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` must be set or all pages (including `/login`) error. The anon/publishable keys are public and retrievable from the Supabase project.
 - Authenticated dashboard flows additionally require `SUPABASE_SERVICE_ROLE_KEY` (admin client) and a LINE Login channel: `LINE_LOGIN_CHANNEL_ID`, `LINE_LOGIN_CHANNEL_SECRET`, `NEXT_PUBLIC_LINE_LIFF_ID`. Without these, `/login` renders but the LINE sign-in flow cannot complete, and protected pages bounce back to `/login`.
 
+### Architecture doc sync (required before PR when architecture changes)
+- Cross-cutting system map: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (containers, auth/RLS, tenant data model, key flows, design decisions). Cursor rule: [`.cursor/rules/architecture-docs.mdc`](.cursor/rules/architecture-docs.mdc).
+- Before creating or updating a PR, if the change impacts deployables, trust boundaries, tenant/schema shape, primary data flows, or documented design decisions — or would make the Mermaid diagrams misleading — update `docs/ARCHITECTURE.md` in the **same PR**.
+- Skip only for pure refactors, non-architectural bugfixes, copy/i18n-only tweaks, or test/CI-only work that does not add system components. When unsure, prefer a short architecture-doc note over leaving it stale.
+- Keep the architecture doc high-level; put feature depth in `specs/NNN-*/`. Mention architecture-doc updates in the PR description.
+
 ### Test suite expansion (required for every feature)
 - Any new user-facing feature is **incomplete** until the automated test suite is expanded to cover that feature’s primary acceptance scenarios. Manual quickstart notes alone are not enough.
 - Soft policy: humans/agents/PR review enforce expansion. Hard gate: CI fails when any required suite is red. There is **no** mandatory “PR diff must touch test files” check.
