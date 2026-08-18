@@ -43,9 +43,25 @@ class PaceWarning:
     display_name: str
     daily_allowance: int
     remaining: Decimal
+    limit: Decimal
+    spent: Decimal
     days_remaining: int
     text: str
     source: Literal['llm', 'template'] = 'template'
+
+    @property
+    def over_amount(self) -> int:
+        return int(max(self.spent - self.limit, Decimal('0')))
+
+    @property
+    def spent_pct(self) -> int:
+        if self.limit <= 0:
+            return 0
+        return int(round(float(self.spent / self.limit) * 100))
+
+    @property
+    def is_over_budget(self) -> bool:
+        return self.spent > self.limit
 
 
 def _warning_bucket_key(warning: PaceWarning, *, currency: str) -> tuple:
@@ -289,6 +305,8 @@ def find_lowest_ahead_warning(
             daily_allowance=daily_allowance,
             days_remaining=days_remaining,
             remaining=float(remaining),
+            limit=float(candidate.limit),
+            spent=float(candidate.spent),
             language=language,
         )
         return PaceWarning(
@@ -297,6 +315,8 @@ def find_lowest_ahead_warning(
             display_name=candidate.display_name,
             daily_allowance=daily_allowance,
             remaining=remaining,
+            limit=candidate.limit,
+            spent=candidate.spent,
             days_remaining=days_remaining,
             text=text,
             source='template',
@@ -554,6 +574,11 @@ async def _format_warnings_with_llm(
                 level=warning.level,
                 display_name=warning.display_name,
                 remaining=float(warning.remaining),
+                limit=float(warning.limit),
+                spent=float(warning.spent),
+                over_amount=warning.over_amount,
+                spent_pct=warning.spent_pct,
+                is_over_budget=warning.is_over_budget,
                 days_remaining=warning.days_remaining,
                 daily_allowance=warning.daily_allowance,
                 persona=persona,
@@ -568,6 +593,8 @@ async def _format_warnings_with_llm(
                         display_name=warning.display_name,
                         daily_allowance=warning.daily_allowance,
                         remaining=warning.remaining,
+                        limit=warning.limit,
+                        spent=warning.spent,
                         days_remaining=warning.days_remaining,
                         text=text,
                         source='llm',

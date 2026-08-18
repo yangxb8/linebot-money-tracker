@@ -103,6 +103,28 @@ class TestLowestAheadSelection(unittest.TestCase):
         warning = find_lowest_ahead_warning(candidates, elapsed_days=1, days_in_month=30, language='ja')
         self.assertIsNone(warning)
 
+    def test_over_budget_shows_overrun_amount_and_pct(self):
+        candidates = [self._candidate('l2', 'l2-id', 50000, 60000, '外食')]
+        warning = find_lowest_ahead_warning(candidates, elapsed_days=20, days_in_month=30, language='ja')
+        self.assertIsNotNone(warning)
+        assert warning is not None
+        self.assertTrue(warning.is_over_budget)
+        self.assertEqual(warning.over_amount, 10000)
+        self.assertEqual(warning.spent_pct, 120)
+        self.assertIn('¥10,000', warning.text)
+        self.assertIn('120%', warning.text)
+        self.assertNotIn('¥0', warning.text)
+
+    def test_tight_budget_shows_remaining_not_zero_daily(self):
+        candidates = [self._candidate('l2', 'l2-id', 10000, 9985, '外食')]
+        warning = find_lowest_ahead_warning(candidates, elapsed_days=10, days_in_month=30, language='en')
+        self.assertIsNotNone(warning)
+        assert warning is not None
+        self.assertFalse(warning.is_over_budget)
+        self.assertEqual(warning.daily_allowance, 0)
+        self.assertIn('Only ¥15', warning.text)
+        self.assertNotIn('¥0/day', warning.text)
+
 
 class TestBuildLevelCandidates(unittest.TestCase):
     def test_skips_undefined_levels(self):
