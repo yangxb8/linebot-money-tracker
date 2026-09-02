@@ -2,7 +2,7 @@ import logging
 from decimal import Decimal
 from typing import List, Dict, Any, Optional
 
-from services.ai_assist import assist_parse_image, assist_parse_ocr, assist_parse_text
+from services.ai_assist import assist_parse_image, assist_parse_text
 from services.categorize import classify_expense_with_memory
 from services.category_taxonomy import format_category_path, resolve_code
 from services.confirmation_repository import (
@@ -40,11 +40,10 @@ from services.wish_list import (
     format_wish_list_ask_details,
     looks_like_wish_list_intent,
 )
-from services.ocr import extract_text_from_image_bytes, _guess_mime_type
+from services.image_utils import guess_mime_type
 from services.receipt_image_preprocess import preprocess_receipt_image
 from services.receipt_parser import parse_text_for_expenses
 from services.receipt_store_name import propagate_receipt_store_name
-from services.receipt_normalize import normalize_receipt_items
 from services.receipt_validate import validate_receipt_items
 from services.confirmation_i18n import format_expense_confirmation, t
 from services.confirmation_display_settings import confirmation_show_item_details
@@ -79,15 +78,6 @@ def usage_limit_reply(language: str = 'ja') -> str:
 CANNED_UNSUPPORTED_REPLY = canned_unsupported_reply('en')
 ERROR_REPLY_TEXT = error_reply_text('en')
 RECEIPT_PARSE_ERROR_REPLY = receipt_parse_error_reply('en')
-
-
-def _prepare_receipt_items(items: List[Dict[str, Any]], ocr_text: str) -> List[Dict[str, Any]]:
-    """OCR pipeline: normalize shelf prices then validate against OCR totals (unused in production)."""
-    if not items:
-        return []
-    normalized = normalize_receipt_items(items, ocr_text)
-    validated = validate_receipt_items(normalized, ocr_text)
-    return validated or []
 
 
 def _prepare_llm_receipt_items(
@@ -586,7 +576,7 @@ async def process_wish_list_details_from_image(
     mime_type: Optional[str] = None,
 ) -> BotReply:
     """Extract product from a reply image into a wish-list proposal."""
-    resolved_mime = mime_type or _guess_mime_type(image_bytes)
+    resolved_mime = mime_type or guess_mime_type(image_bytes)
     try:
         items = await _extract_expense_items_from_image(image_bytes, gemini, resolved_mime)
     except (UserUsageLimitExceeded, GeminiUsageLimitError):
@@ -709,38 +699,6 @@ async def _process_text_message_inner(
         )
 
 
-async def _extract_expense_items_from_ocr(
-    image_bytes: bytes,
-    gemini: GeminiClient,
-) -> List[Dict[str, Any]]:
-    """Legacy OCR pipeline (kept for future use — not called in production).
-
-    OCR → deterministic parser → assist_parse_ocr fallback.
-    Re-enable by wiring this into ``process_image_message`` instead of the LLM path.
-    """
-    ocr_text = ''
-    try:
-        ocr_lines = extract_text_from_image_bytes(image_bytes)
-        ocr_text = '\n'.join(ocr_lines)
-        logger.info('OCR pipeline: OCR returned %d line(s), text_len=%d', len(ocr_lines), len(ocr_text))
-    except Exception:
-        logger.warning('OCR pipeline: OCR raised unexpectedly', exc_info=True)
-
-    parsed = parse_text_for_expenses(ocr_text)
-    prepared = _prepare_receipt_items(parsed, ocr_text)
-    if prepared:
-        logger.info('OCR pipeline: deterministic parser returned %d item(s)', len(prepared))
-        return prepared
-
-    if ocr_text:
-        assist_prepared = _prepare_receipt_items(await assist_parse_ocr(ocr_text, gemini), ocr_text)
-        if assist_prepared:
-            logger.info('OCR pipeline: assist_parse_ocr returned %d item(s)', len(assist_prepared))
-            return assist_prepared
-
-    return []
-
-
 async def _extract_expense_items_from_image(
     image_bytes: bytes,
     gemini: GeminiClient,
@@ -827,7 +785,7 @@ async def _process_image_message_inner(
     context: Optional[MessageContext] = None,
     accompanying_text: Optional[str] = None,
 ) -> BotReply:
-    resolved_mime = mime_type or _guess_mime_type(image_bytes)
+    resolved_mime = mime_type or guess_mime_type(image_bytes)
     logger.info(
         'Processing image message: image=%s mime=%s (provided=%s) accompanying_text=%s',
         describe_bytes(image_bytes),
