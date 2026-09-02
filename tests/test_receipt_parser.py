@@ -50,6 +50,14 @@ class TestReceiptParser(unittest.TestCase):
         self.assertAlmostEqual(items[0]['amount'], 1200.0)
         self.assertIn('ランチ', items[0]['description'])
 
+    def test_parse_trailing_amount_mixed_script_no_ocr_fix(self):
+        """User shorthand like 'tokyo game show门票 6440' must not apply receipt OCR heuristics."""
+        items = parse_text_for_expenses('tokyo game show门票 6440')
+        self.assertEqual(len(items), 1)
+        self.assertAlmostEqual(items[0]['amount'], 6440.0)
+        self.assertEqual(items[0]['currency'], 'JPY')
+        self.assertIn('门票', items[0]['description'])
+
     def test_rejects_question_about_brand(self):
         items = parse_text_for_expenses('什么是861便利店？')
         self.assertEqual(items, [])

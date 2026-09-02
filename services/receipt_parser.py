@@ -100,6 +100,20 @@ def clean_receipt_description(text: str) -> str:
     return cleaned or 'Expense'
 
 
+def _looks_like_receipt_ocr_line(line: str) -> bool:
+    """True when the line has receipt OCR artifacts (not terse user expense shorthand)."""
+    normalized = _normalize_text(line)
+    if _JAN_PRODUCT_CODE_RE.search(normalized):
+        return True
+    if _SHELF_PREFIX_RE.search(normalized):
+        return True
+    if '※' in normalized or '¥' in normalized or '￥' in normalized or '円' in normalized:
+        return True
+    if _REGISTER_NOISE_RE.search(normalized):
+        return True
+    return False
+
+
 def _fix_ocr_price_amount(amount: Decimal, line: str = '') -> Decimal:
     """Recover shelf prices when OCR misreads ¥249 as 4249."""
     normalized = _normalize_text(line)
@@ -207,7 +221,9 @@ def _match_amount(line: str) -> Optional[Tuple[Decimal, str, re.Pattern]]:
     if trailing:
         amount_raw = trailing.group('amount')
         try:
-            amount = _fix_ocr_price_amount(_normalize_amount(amount_raw), normalized)
+            amount = _normalize_amount(amount_raw)
+            if _looks_like_receipt_ocr_line(normalized):
+                amount = _fix_ocr_price_amount(amount, normalized)
         except Exception:
             return None
         currency = 'JPY' if _looks_japanese(normalized) else ''
