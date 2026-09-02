@@ -17,14 +17,14 @@ python local_run.py --text "Lunch 1200 yen"
 python local_run.py --image path/to/receipt.jpg
 ```
 
-The bot reply prints to **stdout**. Debug detail (OCR, intent) appears in **logs**. No LINE Messaging API calls are made.
+The bot reply prints to **stdout**. Debug detail (intent, parsing) appears in **logs**. No LINE Messaging API calls are made.
 
 ## Requirements
 
 - Python 3.11+ (3.13 recommended)
 - Gemini API key ([Google AI Studio](https://aistudio.google.com/))
 
-Optional: LINE credentials (webhook server), Tesseract + `jpn` (local OCR), gcloud (Document AI / Cloud Run)
+Optional: LINE credentials (webhook server), gcloud (Cloud Run)
 
 ## Environment variables
 
@@ -55,8 +55,6 @@ python local_run.py --reply-to console-<uuid> --text "3800円に修正"
 Full guide: [specs/005-expense-reply-edits/quickstart.md](specs/005-expense-reply-edits/quickstart.md)
 
 Apply migration `supabase/migrations/20260606130000_expense_reply_edits.sql` before using reply edits.
-
-Optional OCR: `TESSERACT_LANG`, `GOOGLE_VISION_API_KEY` (Cloud Vision DOCUMENT_TEXT_DETECTION fallback)
 
 See [environment variables contract](specs/003-local-dev-setup/contracts/environment-variables.md).
 
@@ -90,7 +88,7 @@ Full steps: [Cloud Run deployment contract](specs/003-local-dev-setup/contracts/
 
 ## Docker
 
-The Dockerfile installs `tesseract-ocr` and `tesseract-ocr-jpn` for Japanese receipt OCR. Cloud Vision is the cloud fallback when `GOOGLE_VISION_API_KEY` is set.
+Receipt images are parsed with Gemini vision directly; the container image does not include Tesseract or Cloud Vision OCR.
 
 ## Testing
 

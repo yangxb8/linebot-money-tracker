@@ -21,16 +21,7 @@ _TEXT_EXPENSE_PROMPT = (
     'Return ONLY the JSON array.'
 )
 
-# Legacy OCR-text assist prompt (kept for future OCR pipeline).
-_RECEIPT_ITEM_PROMPT = (
-    'Parse this receipt into a JSON array of product/service line items only. '
-    'Each item: description (string), amount (number), currency (3-letter code). '
-    'Exclude subtotal, tax, total, payment, change, and card-slip lines. '
-    'Per-item amount = SHELF / TAG price on the receipt line (before tax allocation). '
-    'Do NOT include tax, discounts, or card-authorization numbers as amounts. '
-    'Typical Japanese snack items are tens to hundreds of yen, not thousands. '
-    'Ignore points EARNED (付与). Return ONLY the JSON array.'
-)
+# Legacy OCR-text assist prompt removed — receipt images use Gemini vision directly.
 
 _RECEIPT_IMAGE_PROMPT = (
     'Parse this receipt image into a JSON object with four fields:\n'
@@ -283,35 +274,6 @@ async def assist_parse_text(text: str, gemini: GeminiClient) -> List[Dict[str, A
         if isinstance(parsed, list):
             return validate_expense_items(parsed, source=source)
         logger.warning('%s: expected JSON array from text assist', source)
-        return []
-    except json.JSONDecodeError:
-        logger.warning(
-            '%s: LLM response was not valid JSON: %s',
-            source,
-            truncate(response, 500),
-        )
-        return []
-
-
-async def assist_parse_ocr(ocr_text: str, gemini: GeminiClient) -> List[Dict[str, Any]]:
-    """Call the Gemini client with a minimal prompt to return structured JSON for OCR text."""
-    source = 'assist_parse_ocr'
-    if not ocr_text or not gemini:
-        logger.info('%s: skipped (ocr_text=%s gemini=%s)', source, bool(ocr_text), bool(gemini))
-        return []
-
-    logger.info('%s: parsing OCR text len=%d', source, len(ocr_text))
-    logger.debug('%s OCR text sample: %s', source, truncate(ocr_text, 800))
-
-    prompt = _RECEIPT_ITEM_PROMPT + '\nOCR_TEXT:\n' + ocr_text
-
-    with llm_operation_scope('assist'):
-        response = await gemini.generate_json_reply(prompt)
-    try:
-        parsed = _parse_json(response, source=source)
-        if isinstance(parsed, list):
-            return validate_expense_items(parsed, source=source)
-        logger.warning('%s: expected JSON array from OCR assist', source)
         return []
     except json.JSONDecodeError:
         logger.warning(

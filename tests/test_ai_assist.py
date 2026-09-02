@@ -8,7 +8,6 @@ from services.ai_assist import (
     _RECEIPT_IMAGE_RETRY_PROMPT,
     _parse_json,
     assist_parse_image,
-    assist_parse_ocr,
     assist_parse_text,
     validate_expense_items,
     validate_receipt_image_parse,
@@ -117,25 +116,6 @@ class TestAiAssist(unittest.TestCase):
 
 
 class TestAiAssistAsync(unittest.IsolatedAsyncioTestCase):
-    async def test_assist_parse_ocr_validates_response(self):
-        gemini = AsyncMock()
-        gemini.generate_json_reply = AsyncMock(
-            return_value='[{"description":"Coffee","amount":4.5,"currency":"USD"}]'
-        )
-
-        items = await assist_parse_ocr('Coffee 4.50 USD', gemini)
-        self.assertEqual(len(items), 1)
-        self.assertEqual(items[0]['currency'], 'USD')
-
-    async def test_assist_parse_ocr_rejects_invalid_schema(self):
-        gemini = AsyncMock()
-        gemini.generate_json_reply = AsyncMock(
-            return_value='[{"description":"Coffee","amount":"four"}]'
-        )
-
-        items = await assist_parse_ocr('Coffee four dollars', gemini)
-        self.assertEqual(items, [])
-
     async def test_assist_parse_text_validates_response(self):
         gemini = AsyncMock()
         gemini.generate_json_reply = AsyncMock(

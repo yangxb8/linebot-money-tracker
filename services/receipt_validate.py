@@ -7,17 +7,10 @@ import re
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-from services.receipt_normalize import extract_receipt_totals
-
 logger = logging.getLogger(__name__)
 
 _SUM_TOLERANCE = Decimal('2')
 _SUM_RATIO_TOLERANCE = Decimal('0.05')
-_PARTIAL_PARSE_RATIO = Decimal('0.85')
-_MAX_SCALE_RATIO = Decimal('2.5')
-
-_ITEM_COUNT_RE = re.compile(r'(?:買上点数|購入点数)\s*(\d+)', re.I)
-_SUBTOTAL_ITEM_COUNT_RE = re.compile(r'小計[^\\n]*?(\d+)\s*点', re.I)
 _MIN_ITEM_AMOUNT_JPY = Decimal('1')
 _MAX_ITEM_AMOUNT_JPY = Decimal('500000')
 _MAX_LINE_ITEMS = 30
@@ -80,56 +73,6 @@ def _is_garbage_item(item: Dict[str, Any]) -> bool:
     return _garbage_reason(item) is not None
 
 
-def _expected_item_count(ocr_text: str) -> Optional[int]:
-    match = _ITEM_COUNT_RE.search(ocr_text)
-    if match:
-        try:
-            return int(match.group(1))
-        except ValueError:
-            pass
-    subtotal_match = _SUBTOTAL_ITEM_COUNT_RE.search(ocr_text)
-    if subtotal_match:
-        try:
-            return int(subtotal_match.group(1))
-        except ValueError:
-            pass
-    return None
-
-
-def _is_complete_parse(items: List[Dict[str, Any]], ocr_text: str) -> bool:
-    totals = extract_receipt_totals(ocr_text)
-    item_sum = sum(Decimal(str(item.get('amount', 0))) for item in items)
-
-    expected = _expected_item_count(ocr_text)
-    if expected is not None and len(items) < expected:
-        logger.warning(
-            'Receipt validate: parsed %d item(s) but receipt shows %d',
-            len(items),
-            expected,
-        )
-        return False
-
-    if totals.subtotal and totals.subtotal > 0:
-        if item_sum < totals.subtotal * _PARTIAL_PARSE_RATIO:
-            logger.warning(
-                'Receipt validate: item sum %s is far below subtotal %s (partial parse)',
-                item_sum,
-                totals.subtotal,
-            )
-            return False
-
-    target = totals.cash_paid or totals.grand_total
-    if target and item_sum > 0 and item_sum < target / _MAX_SCALE_RATIO:
-        logger.warning(
-            'Receipt validate: item sum %s too small vs total %s to trust scaling',
-            item_sum,
-            target,
-        )
-        return False
-
-    return True
-
-
 def _item_amounts_sane_for_target(items: List[Dict[str, Any]], target: Decimal) -> bool:
     if target is None or target <= 0:
         return True
@@ -157,14 +100,6 @@ def _item_amounts_sane_for_target(items: List[Dict[str, Any]], target: Decimal) 
     return True
 
 
-def _item_amounts_sane(items: List[Dict[str, Any]], ocr_text: str) -> bool:
-    totals = extract_receipt_totals(ocr_text)
-    target = totals.cash_paid or totals.grand_total
-    if target is None or target <= 0:
-        return True
-    return _item_amounts_sane_for_target(items, target)
-
-
 def _sum_matches_target(items: List[Dict[str, Any]], target: Decimal) -> bool:
     if target is None or target <= 0:
         return True
@@ -186,17 +121,8 @@ def _sum_matches_target(items: List[Dict[str, Any]], target: Decimal) -> bool:
     return False
 
 
-def _sum_matches_total(items: List[Dict[str, Any]], ocr_text: str) -> bool:
-    totals = extract_receipt_totals(ocr_text)
-    target = totals.cash_paid or totals.grand_total
-    if target is None or target <= 0:
-        return True
-    return _sum_matches_target(items, target)
-
-
 def validate_receipt_items(
     items: List[Dict[str, Any]],
-    ocr_text: str = '',
     *,
     receipt_total: Optional[Decimal] = None,
 ) -> Optional[List[Dict[str, Any]]]:
@@ -234,20 +160,11 @@ def validate_receipt_items(
             dropped_detail,
         )
 
-    if receipt_total is not None:
-        if not _sum_matches_target(cleaned, receipt_total):
-            return None
-        if not _item_amounts_sane_for_target(cleaned, receipt_total):
-            return None
+    if receipt_total is None:
         return cleaned
 
-    if ocr_text and not _is_complete_parse(cleaned, ocr_text):
+    if not _sum_matches_target(cleaned, receipt_total):
         return None
-
-    if ocr_text and not _sum_matches_total(cleaned, ocr_text):
+    if not _item_amounts_sane_for_target(cleaned, receipt_total):
         return None
-
-    if ocr_text and not _item_amounts_sane(cleaned, ocr_text):
-        return None
-
     return cleaned

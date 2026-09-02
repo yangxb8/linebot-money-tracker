@@ -13,7 +13,6 @@ The update script installs both dependency sets (`pip install -r requirements.tx
 ### Python / interpreter gotchas
 - Only `python3` is on PATH (no `python`); the README's `python ...` commands must be run as `python3 ...`.
 - pip console scripts (`pytest`, `uvicorn`) install to `~/.local/bin`, which is not on PATH. Invoke them as modules: `python3 -m pytest -q`, `python3 -m uvicorn main:app --reload`.
-- Tesseract is NOT installed in this environment. Text expense flows do not need it; only local receipt-image OCR does (set `GOOGLE_VISION_API_KEY` to use the Cloud Vision fallback instead).
 
 ### Bot — lint/test/run
 - Tests: `python3 -m pytest -q` (uses mock credentials; no Gemini/LINE/Supabase keys required). This is the primary key-free verification of the bot's core pipeline.

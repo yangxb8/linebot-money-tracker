@@ -76,7 +76,6 @@ flowchart TB
 
   subgraph AI["Google"]
     GEMINI[Gemini API]
-    VISION[Cloud Vision OCR\noptional fallback]
   end
 
   subgraph Supa["Supabase — household"]
@@ -93,7 +92,6 @@ flowchart TB
   GEM_WRAP --> GEMINI
   SVC -->|service role| PG
   API -->|reply / push| MSG
-  SVC -.->|optional| VISION
   LOCAL --> SVC
 
   B --> LOGIN
@@ -295,7 +293,7 @@ sequenceDiagram
   B->>DB: save inbound message (optional)
   B->>B: usage_limiter pre-check
   alt deterministic parse succeeds
-    B->>B: receipt_parser
+    B->>B: text expense parser
   else need AI
     B->>G: intent + structured parse
     G-->>B: JSON expense items
@@ -394,7 +392,7 @@ flowchart TD
 
 | Component | Host | Notes |
 | --------- | ---- | ----- |
-| Bot | Cloud Run (Docker; Tesseract + jpn in image) | Unauthenticated HTTPS endpoint; auth is LINE signature |
+| Bot | Cloud Run (Docker) | Unauthenticated HTTPS endpoint; auth is LINE signature |
 | Web | Vercel (`web/` as project root) | Needs public Supabase URL/anon key + server secrets |
 | DB | Supabase project `household` | Migrations applied via Supabase; do not ad-hoc-edit production without migrations |
 
@@ -404,7 +402,7 @@ Env contracts: root `.env.example`, `web/.env.example`, and `specs/003-local-dev
 
 - Model fallback chain and retries live in `gemini_client.py`; metering in `metered_gemini.py`.
 - Pre-LLM guards: payload size, per-minute/day rates, monthly total and receipt quotas, group donor pooling.
-- Receipt validation can reject sum-mismatched OCR/vision output and retry once.
+- Receipt images: preprocess → Gemini vision JSON parse → validate item sum vs LLM `total` (retry once on mismatch).
 - Fail-open when Supabase is unset: parsing and replies still work; persistence/metering skip — used by key-free unit tests.
 
 ### 7.4 Observability
