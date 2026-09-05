@@ -849,13 +849,12 @@ async def _apply_category_to_line_indices(
     line_indices: List[int],
     category_code: str,
     confirmation: ConfirmationRecord,
-    user_text: str,
+    language: str,
     items_snapshot: List[Dict[str, Any]],
     expenses: Dict[str, ExpenseRow],
     gemini: GeminiClient,
     intent: Dict[str, Any],
 ) -> EditApplyResult:
-    language = detect_reply_language(user_text)
     target_items = _items_for_line_indices(line_indices, items_snapshot, expenses)
     if not target_items:
         summary = format_edit_result(
@@ -914,12 +913,11 @@ async def _apply_category_to_line_indices(
 async def _begin_category_bulk_flow(
     intent: Dict[str, Any],
     confirmation: ConfirmationRecord,
-    user_text: str,
+    language: str,
     gemini: GeminiClient,
     items_snapshot: List[Dict[str, Any]],
     expenses: Dict[str, ExpenseRow],
 ) -> EditApplyResult:
-    language = detect_reply_language(user_text)
     updates = intent.get('updates') or {}
     category_query = str(updates.get('category_query', '')).strip()
     if not category_query:
@@ -955,6 +953,7 @@ async def _begin_category_bulk_flow(
             'category_query': category_query,
             'target_line_item_indices': line_indices,
             'interpretation': interpretation,
+            'reply_language': language,
         }
         set_pending_state(confirmation.id, 'confirm_intent', payload)
         summary = format_intent_confirmation_prompt(language, interpretation)
@@ -985,7 +984,7 @@ async def _begin_category_bulk_flow(
             line_indices=line_indices,
             category_code=exact_code,
             confirmation=confirmation,
-            user_text=user_text,
+            language=language,
             items_snapshot=items_snapshot,
             expenses=expenses,
             gemini=gemini,
@@ -1000,6 +999,7 @@ async def _begin_category_bulk_flow(
         'target_line_item_indices': line_indices,
         'category_query': category_query,
         'guessed_path': guessed_path,
+        'reply_language': language,
     }
     set_pending_state(confirmation.id, 'confirm_intent', payload)
     summary = format_category_guess_confirmation(language, guessed_path)
@@ -1015,13 +1015,12 @@ async def _begin_category_bulk_flow(
 async def _apply_category_bulk_pick(
     intent: Dict[str, Any],
     confirmation: ConfirmationRecord,
-    user_text: str,
+    language: str,
     items_snapshot: List[Dict[str, Any]],
     expenses: Dict[str, ExpenseRow],
     payload: Dict[str, Any],
     gemini: GeminiClient,
 ) -> EditApplyResult:
-    language = detect_reply_language(user_text)
     alt_num = (intent.get('updates') or {}).get('category_alternative_number')
     options = payload.get('category_options') or []
     if alt_num is None or alt_num < 1 or alt_num > len(options):
@@ -1098,17 +1097,37 @@ async def apply_edit_intent(
     confirmation: ConfirmationRecord,
     user_text: str,
     gemini: GeminiClient,
+    *,
+    language: Optional[str] = None,
 ) -> EditApplyResult:
-    language = resolve_tenant_reply_language(
-        confirmation.tenant,
-        detect_reply_language(user_text),
-    )
+    if language is None:
+        language = resolve_tenant_reply_language(
+            confirmation.tenant,
+            detect_reply_language(user_text),
+        )
+    else:
+        language = resolve_tenant_reply_language(confirmation.tenant, language)
     items_snapshot = [dict(item) for item in confirmation.items_snapshot]
     expense_ids = [str(item.get('expense_id', '')) for item in items_snapshot if item.get('expense_id')]
     expenses = {row.id: row for row in get_expenses_by_ids(expense_ids)}
 
     action = intent.get('action', 'clarify')
     pending_payload = dict(confirmation.pending_payload or {})
+
+    # Short YES/no replies are language-neutral; keep the language from the
+    # pending prompt so "Yes" after a Chinese category guess stays Chinese.
+    pending_language = pending_payload.get('reply_language')
+    if (
+        pending_language
+        and confirmation.pending_action in (
+            'confirm_intent',
+            'category_bulk',
+            'delete_all',
+            'wish_list_add',
+        )
+        and action in ('confirm_pending', 'cancel_pending')
+    ):
+        language = resolve_tenant_reply_language(confirmation.tenant, str(pending_language))
 
     if confirmation.pending_action and action not in ('confirm_pending', 'cancel_pending'):
         clear_pending_state(confirmation.id)
@@ -1122,7 +1141,9 @@ async def apply_edit_intent(
         return EditApplyResult(status='clarification', summary=msg, intent_json=intent, items_snapshot=items_snapshot)
 
     if action == 'category_bulk':
-        return await _begin_category_bulk_flow(intent, confirmation, user_text, gemini, items_snapshot, expenses)
+        return await _begin_category_bulk_flow(
+            intent, confirmation, language, gemini, items_snapshot, expenses
+        )
 
     if action == 'cancel_pending' and confirmation.pending_action == 'wish_list_await_details':
         clear_pending_state(confirmation.id)
@@ -1214,7 +1235,7 @@ async def apply_edit_intent(
                 line_indices=line_indices,
                 category_code=guessed_code,
                 confirmation=confirmation,
-                user_text=user_text,
+                language=language,
                 items_snapshot=items_snapshot,
                 expenses=expenses,
                 gemini=gemini,
@@ -1235,7 +1256,7 @@ async def apply_edit_intent(
             return await _begin_category_bulk_flow(
                 follow_up,
                 confirmation,
-                user_text,
+                language,
                 gemini,
                 items_snapshot,
                 expenses,
@@ -1259,7 +1280,7 @@ async def apply_edit_intent(
 
     if action == 'confirm_pending' and confirmation.pending_action == 'category_bulk':
         return await _apply_category_bulk_pick(
-            intent, confirmation, user_text, items_snapshot, expenses, pending_payload, gemini
+            intent, confirmation, language, items_snapshot, expenses, pending_payload, gemini
         )
 
     if action == 'soft_delete_all':
@@ -1273,6 +1294,7 @@ async def apply_edit_intent(
             payload = {
                 'interpreted_action': 'soft_delete_all',
                 'interpretation': interpretation,
+                'reply_language': language,
             }
             set_pending_state(confirmation.id, 'confirm_intent', payload)
             summary = format_intent_confirmation_prompt(language, interpretation)
