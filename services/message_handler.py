@@ -309,7 +309,9 @@ async def process_reply_edit(
                 gemini,
                 confirmation.pending_payload,
             )
-            result = await apply_edit_intent(intent, confirmation, text, gemini)
+            result = await apply_edit_intent(
+                intent, confirmation, text, gemini, language=language
+            )
             write_audit(
                 confirmation.id,
                 reply_context.line_user_id,

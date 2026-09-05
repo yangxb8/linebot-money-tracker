@@ -58,6 +58,25 @@ class TestReplySummary(unittest.TestCase):
         self.assertIn('reply', format_unknown_confirmation('en').lower())
         self.assertIn('返信', format_unknown_confirmation('ja'))
 
+    def test_format_bulk_category_chinese(self):
+        text = format_edit_result(
+            'zh',
+            EditSummaryInput(
+                status='applied',
+                action='category_bulk',
+                affected_count=1,
+                changes=(FieldChange('category', '', '休闲 > 游乐吃饭'),),
+            ),
+        )
+        self.assertIn('已将', text)
+        self.assertIn('类别更新为', text)
+        self.assertNotIn('Updated category', text)
+
+    def test_detect_yes_is_english_without_cjk(self):
+        # Affirmative English YES has no CJK; callers must not use this alone
+        # for outbound copy after a localized pending prompt.
+        self.assertEqual(detect_reply_language('Yes'), 'en')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -548,7 +548,81 @@ class TestReplyEditApply(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.status, 'applied')
         self.assertIn('YES', result.summary)
         set_pending.assert_called_once()
+        pending_payload = set_pending.call_args[0][2]
+        self.assertEqual(pending_payload.get('reply_language'), 'zh')
         map_category.assert_awaited_once()
+
+    @patch('services.reply_edit.record_user_correction_from_description', new_callable=AsyncMock)
+    @patch('services.reply_edit.clear_pending_state')
+    @patch('services.reply_edit.update_items_snapshot')
+    @patch('services.reply_edit.get_expenses_by_ids')
+    @patch('services.reply_edit.update_expense_fields')
+    @patch('services.reply_edit.category_path_for_code', return_value='休闲 > 游乐吃饭')
+    async def test_confirm_category_guess_yes_keeps_pending_language(
+        self,
+        _path,
+        update_fields,
+        get_by_ids,
+        _update_snap,
+        _clear_pending,
+        _record_memory,
+    ):
+        """Replying Yes must not flip the summary to English after a Chinese prompt."""
+        update_fields.return_value = UpdateResult(success=True)
+        expense_row = ExpenseRow(
+            id='e1',
+            line_user_id='u1',
+            description='猫粮',
+            amount=Decimal('8360'),
+            currency='JPY',
+            expense_date=__import__('datetime').date.today(),
+            category_node_id='old',
+            assigned_level=1,
+            category_l1_id='old',
+            category_l2_id=None,
+            category_l3_id=None,
+        )
+        get_by_ids.return_value = [expense_row]
+        confirmation = ConfirmationRecord(
+            id='c1',
+            bot_message_id='bot-1',
+            tenant=TenantContext.personal('u1'),
+            confirmation_text='text',
+            items_snapshot=(
+                {
+                    'line_item_index': 0,
+                    'expense_id': 'e1',
+                    'description': '猫粮',
+                    'amount': 8360,
+                    'currency': 'JPY',
+                    'category_guess_code': 'pet.food',
+                    'category_alternatives': [],
+                },
+            ),
+            pending_action='confirm_intent',
+            pending_payload={
+                'interpreted_action': 'apply_category_guess',
+                'guessed_category_code': 'leisure.dining',
+                'target_line_item_indices': [0],
+                'category_query': '娱乐吃饭',
+                'guessed_path': '休闲 > 游乐吃饭',
+                'reply_language': 'zh',
+            },
+        )
+        intent = {
+            'action': 'confirm_pending',
+            'target': {'mode': 'unspecified'},
+            'updates': {},
+            'clarification_needed': False,
+            'clarification_message': None,
+        }
+        gemini = MagicMock(spec=GeminiClient)
+        result = await apply_edit_intent(intent, confirmation, 'Yes', gemini)
+        self.assertEqual(result.status, 'applied')
+        self.assertIn('已将', result.summary)
+        self.assertIn('类别更新为', result.summary)
+        self.assertNotIn('Updated category', result.summary)
+        update_fields.assert_called_once()
 
     @patch('services.reply_edit.clear_pending_state')
     @patch('services.reply_edit.update_items_snapshot')
