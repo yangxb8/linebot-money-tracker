@@ -10,6 +10,9 @@ type Row = {
   parent_id: string | null;
   code: string;
   sort_order: number;
+  pace_warning_enabled?: boolean;
+  expense_count?: number;
+  deletable?: boolean;
 };
 
 const nodes: Row[] = [
@@ -20,6 +23,9 @@ const nodes: Row[] = [
     parent_id: null,
     code: "food",
     sort_order: 0,
+    pace_warning_enabled: false,
+    expense_count: 0,
+    deletable: true,
   },
 ];
 
@@ -55,6 +61,7 @@ const ensureTenantTaxonomy = vi.fn(async () => ({
               level: 1,
               parent_id: null,
               sort_order: 1,
+              pace_warning_enabled: false,
             },
             error: null,
           }),
@@ -79,11 +86,15 @@ vi.mock("@/lib/categories/server", () => ({
 }));
 
 import { GET, POST } from "@/app/api/categories/route";
+import { PATCH } from "@/app/api/categories/[id]/route";
 
 describe("categories API functional", () => {
   beforeEach(() => {
     loadCategoryNodes.mockResolvedValue([...nodes]);
     hasCategoryNameConflict.mockResolvedValue(false);
+    requireUser.mockImplementation(async () => ({
+      from: () => chainable({ data: nodes, error: null }),
+    }));
   });
 
   it("web.api.categories — create then read reflects item", async () => {
@@ -102,6 +113,7 @@ describe("categories API functional", () => {
     expect(postRes.status).toBe(201);
     const created = await postRes.json();
     expect(created.name_ja).toBe("テスト");
+    expect(created.pace_warning_enabled).toBe(false);
 
     loadCategoryNodes.mockResolvedValue([
       ...nodes,
@@ -112,6 +124,9 @@ describe("categories API functional", () => {
         parent_id: null,
         code: "custom_test",
         sort_order: 1,
+        pace_warning_enabled: false,
+        expense_count: 0,
+        deletable: true,
       },
     ]);
 
@@ -123,5 +138,42 @@ describe("categories API functional", () => {
     expect(body.nodes.some((n: { name_ja: string }) => n.name_ja === "テスト")).toBe(
       true,
     );
+  });
+
+  it("web.api.categories — patch enables pace warning", async () => {
+    requireUser.mockImplementation(async () => ({
+      from: () => ({
+        update: () => ({
+          eq: () => ({
+            select: () => ({
+              single: async () => ({
+                data: {
+                  id: "cat-1",
+                  code: "food",
+                  name_ja: "食費",
+                  level: 1,
+                  parent_id: null,
+                  sort_order: 0,
+                  pace_warning_enabled: true,
+                },
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      }),
+    }));
+
+    const res = await PATCH(
+      new Request("http://localhost/api/categories/cat-1", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pace_warning_enabled: true }),
+      }),
+      { params: Promise.resolve({ id: "cat-1" }) },
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.pace_warning_enabled).toBe(true);
   });
 });

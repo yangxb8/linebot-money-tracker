@@ -11,9 +11,11 @@ from typing import Any, Dict, Optional
 from services.budget_pace import (
     compute_budget_health,
     fetch_budget_summary,
-    fetch_category_display_names,
+    fetch_category_warning_meta,
     find_applicable_budget_candidate,
+    pace_warning_flags_from_meta,
     resolve_budget_month_for_tenant,
+    should_emit_pace_ahead_warning,
 )
 from services.tenant_context import TenantContext
 
@@ -75,10 +77,15 @@ def build_wish_list_budget_impact(
             'category_node_id': category_node_id,
             'category_l1_id': category_l1_id,
         }
-        names = fetch_category_display_names(
+        category_meta = fetch_category_warning_meta(
             tenant,
             [category_node_id, category_l1_id],
         )
+        names = {
+            node_id: str(info.get('name') or node_id)
+            for node_id, info in category_meta.items()
+        }
+        pace_flags = pace_warning_flags_from_meta(category_meta)
         candidate = find_applicable_budget_candidate(
             expense_row,
             budgets,
@@ -100,6 +107,14 @@ def build_wish_list_budget_impact(
             if days_remaining > 0
             else 0.0
         )
+        is_over_if = spent_if > limit
+        warn_pace = should_emit_pace_ahead_warning(
+            level=candidate.level,
+            category_node_id=candidate.category_node_id,
+            is_over_budget=is_over_if,
+            is_ahead=health_if.is_ahead,
+            pace_warning_enabled_by_node=pace_flags,
+        )
 
         return WishBudgetImpact(
             has_budget=True,
@@ -109,7 +124,7 @@ def build_wish_list_budget_impact(
             spent_now=spent_now,
             remaining_now=remaining_now,
             remaining_if_purchased=remaining_if,
-            is_ahead_if_purchased=health_if.is_ahead,
+            is_ahead_if_purchased=warn_pace,
             days_remaining=days_remaining,
             daily_allowance_if_purchased=daily,
         )

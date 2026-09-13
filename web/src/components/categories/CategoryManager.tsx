@@ -177,6 +177,26 @@ export function CategoryManager() {
     }
   }
 
+  async function handleTogglePaceWarning(node: CategoryNode, enabled: boolean) {
+    const previous = node.pace_warning_enabled;
+    setNodes((current) =>
+      patchNode(current, node.id, { pace_warning_enabled: enabled }),
+    );
+    setSavingId(node.id);
+    setActionError(null);
+    try {
+      await updateCategory(node.id, { pace_warning_enabled: enabled });
+      setSavedId(node.id);
+    } catch {
+      setNodes((current) =>
+        patchNode(current, node.id, { pace_warning_enabled: previous }),
+      );
+      setActionError(t("saveFailed"));
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   async function handleCreateL1(name: string) {
     if (!selectedTenant) return;
     if (isDuplicateCategoryName(nodes, name)) {
@@ -361,6 +381,7 @@ export function CategoryManager() {
       ) : null}
 
       <p className="text-xs text-gray-500">{t("dragHint")}</p>
+      <p className="text-xs text-gray-500">{t("paceWarningHint")}</p>
 
       {l1Nodes.map((l1) => {
         const l2Children = childrenByParent.get(l1.id) ?? [];
@@ -389,6 +410,9 @@ export function CategoryManager() {
               onSave={(name) => handleRename(l1, name)}
               onCancelEdit={cancelEdit}
               onDelete={() => setDeleteTarget(l1)}
+              onTogglePaceWarning={(enabled) =>
+                void handleTogglePaceWarning(l1, enabled)
+              }
               onDragStart={(n, position) => {
                 setEditingId(null);
                 setDraggingNode(n);
@@ -417,6 +441,9 @@ export function CategoryManager() {
                       onSave={(name) => handleRename(l2, name)}
                       onCancelEdit={cancelEdit}
                       onDelete={() => setDeleteTarget(l2)}
+                      onTogglePaceWarning={(enabled) =>
+                        void handleTogglePaceWarning(l2, enabled)
+                      }
                       onDragStart={(n, position) => {
                         setEditingId(null);
                         setDraggingNode(n);

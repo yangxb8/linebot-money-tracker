@@ -5,6 +5,7 @@ export type CategoryNode = {
   level: 1 | 2;
   parent_id: string | null;
   sort_order: number;
+  pace_warning_enabled: boolean;
   expense_count: number;
   deletable: boolean;
 };

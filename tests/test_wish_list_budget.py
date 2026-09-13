@@ -26,7 +26,7 @@ def test_budget_impact_remaining_when_on_pace():
         display_name='Total',
     )
     with patch('services.wish_list_budget.fetch_budget_summary', return_value=summary), patch(
-        'services.wish_list_budget.fetch_category_display_names',
+        'services.wish_list_budget.fetch_category_warning_meta',
         return_value={},
     ), patch(
         'services.wish_list_budget.find_applicable_budget_candidate',
@@ -54,19 +54,19 @@ def test_budget_impact_pace_when_ahead():
         'fiscal_start_day': 1,
         'elapsed_days': 5,
         'days_in_month': 30,
-        'budgets': [{'budget_level': 'total', 'category_node_id': None, 'amount': 30000}],
-        'spent_by_bucket': {'total': 25000},
+        'budgets': [{'budget_level': 'l1', 'category_node_id': 'c1', 'amount': 30000}],
+        'spent_by_bucket': {'l1:c1': 25000},
     }
     candidate = BudgetLevelCandidate(
-        level='total',
-        category_node_id=None,
+        level='l1',
+        category_node_id='c1',
         limit=Decimal('30000'),
         spent=Decimal('25000'),
-        display_name='Total',
+        display_name='Food',
     )
     with patch('services.wish_list_budget.fetch_budget_summary', return_value=summary), patch(
-        'services.wish_list_budget.fetch_category_display_names',
-        return_value={},
+        'services.wish_list_budget.fetch_category_warning_meta',
+        return_value={'c1': {'name': 'Food', 'pace_warning_enabled': True}},
     ), patch(
         'services.wish_list_budget.find_applicable_budget_candidate',
         return_value=candidate,
@@ -82,6 +82,81 @@ def test_budget_impact_pace_when_ahead():
     assert impact.has_budget is True
     assert impact.is_ahead_if_purchased is True
     assert impact.remaining_if_purchased == 0.0
+
+
+def test_budget_impact_pace_skipped_when_opt_in_off():
+    tenant = TenantContext.personal('user-1')
+    summary = {
+        'has_any_limit': True,
+        'budget_month': '2026-07-01',
+        'fiscal_start_day': 1,
+        'elapsed_days': 5,
+        'days_in_month': 30,
+        'budgets': [{'budget_level': 'l1', 'category_node_id': 'c1', 'amount': 30000}],
+        'spent_by_bucket': {'l1:c1': 25000},
+    }
+    candidate = BudgetLevelCandidate(
+        level='l1',
+        category_node_id='c1',
+        limit=Decimal('30000'),
+        spent=Decimal('25000'),
+        display_name='Food',
+    )
+    with patch('services.wish_list_budget.fetch_budget_summary', return_value=summary), patch(
+        'services.wish_list_budget.fetch_category_warning_meta',
+        return_value={'c1': {'name': 'Food', 'pace_warning_enabled': False}},
+    ), patch(
+        'services.wish_list_budget.find_applicable_budget_candidate',
+        return_value=candidate,
+    ):
+        impact = build_wish_list_budget_impact(
+            tenant,
+            4000,
+            assigned_level=1,
+            category_node_id='c1',
+            category_l1_id='c1',
+        )
+
+    assert impact.has_budget is True
+    assert impact.is_ahead_if_purchased is False
+    assert impact.remaining_if_purchased == 1000.0
+
+
+def test_budget_impact_overspend_warns_when_opt_in_off():
+    tenant = TenantContext.personal('user-1')
+    summary = {
+        'has_any_limit': True,
+        'budget_month': '2026-07-01',
+        'fiscal_start_day': 1,
+        'elapsed_days': 5,
+        'days_in_month': 30,
+        'budgets': [{'budget_level': 'l1', 'category_node_id': 'c1', 'amount': 30000}],
+        'spent_by_bucket': {'l1:c1': 25000},
+    }
+    candidate = BudgetLevelCandidate(
+        level='l1',
+        category_node_id='c1',
+        limit=Decimal('30000'),
+        spent=Decimal('25000'),
+        display_name='Food',
+    )
+    with patch('services.wish_list_budget.fetch_budget_summary', return_value=summary), patch(
+        'services.wish_list_budget.fetch_category_warning_meta',
+        return_value={'c1': {'name': 'Food', 'pace_warning_enabled': False}},
+    ), patch(
+        'services.wish_list_budget.find_applicable_budget_candidate',
+        return_value=candidate,
+    ):
+        impact = build_wish_list_budget_impact(
+            tenant,
+            6000,
+            assigned_level=1,
+            category_node_id='c1',
+            category_l1_id='c1',
+        )
+
+    assert impact.has_budget is True
+    assert impact.is_ahead_if_purchased is True
 
 
 def test_budget_impact_fail_open_without_summary():
@@ -113,8 +188,11 @@ def test_budget_impact_cascades_to_l1_when_l2_undefined():
         'spent_by_bucket': {'l1:l1-id': 20000, 'total': 25000},
     }
     with patch('services.wish_list_budget.fetch_budget_summary', return_value=summary), patch(
-        'services.wish_list_budget.fetch_category_display_names',
-        return_value={'l2-id': '电子游戏', 'l1-id': '休闲'},
+        'services.wish_list_budget.fetch_category_warning_meta',
+        return_value={
+            'l2-id': {'name': '电子游戏', 'pace_warning_enabled': False},
+            'l1-id': {'name': '休闲', 'pace_warning_enabled': True},
+        },
     ):
         impact = build_wish_list_budget_impact(
             tenant,
@@ -159,8 +237,11 @@ def test_budget_impact_uses_fiscal_month_not_calendar_month_start():
         'services.wish_list_budget.resolve_budget_month_for_tenant',
         return_value=date(2026, 7, 24),
     ), patch(
-        'services.wish_list_budget.fetch_category_display_names',
-        return_value={'l2-games': '电子游戏', 'l1-leisure': '休闲'},
+        'services.wish_list_budget.fetch_category_warning_meta',
+        return_value={
+            'l2-games': {'name': '电子游戏', 'pace_warning_enabled': False},
+            'l1-leisure': {'name': '休闲', 'pace_warning_enabled': True},
+        },
     ):
         impact = build_wish_list_budget_impact(
             tenant,
