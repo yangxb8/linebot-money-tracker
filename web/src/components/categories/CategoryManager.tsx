@@ -381,7 +381,10 @@ export function CategoryManager() {
       ) : null}
 
       <p className="text-xs text-gray-500">{t("dragHint")}</p>
-      <p className="text-xs text-gray-500">{t("paceWarningHint")}</p>
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950">
+        <p className="font-medium">{t("paceWarningHintTitle")}</p>
+        <p className="mt-1 text-amber-900/90">{t("paceWarningHint")}</p>
+      </div>
 
       {l1Nodes.map((l1) => {
         const l2Children = childrenByParent.get(l1.id) ?? [];

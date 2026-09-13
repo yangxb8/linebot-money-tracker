@@ -82,7 +82,7 @@ export function DraggableCategoryRow({
       </div>
       <label
         htmlFor={checkboxId}
-        className="flex shrink-0 items-center gap-1.5 text-xs text-gray-600"
+        className="flex shrink-0 items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-1 text-xs text-amber-900"
         title={t("paceWarningHint")}
         onPointerDown={(event) => event.stopPropagation()}
       >
@@ -91,10 +91,10 @@ export function DraggableCategoryRow({
           type="checkbox"
           checked={node.pace_warning_enabled}
           onChange={(event) => onTogglePaceWarning(event.target.checked)}
-          className="h-3.5 w-3.5 rounded border-gray-300"
+          className="h-3.5 w-3.5 rounded border-amber-400"
           aria-label={t("paceWarningLabel")}
         />
-        <span className="hidden sm:inline">{t("paceWarningShort")}</span>
+        <span className="whitespace-nowrap font-medium">{t("paceWarningShort")}</span>
       </label>
       <CategoryRowAction
         deletable={node.deletable}
