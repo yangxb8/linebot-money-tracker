@@ -95,6 +95,10 @@ export const messages = {
     categoryDuplicateName: "同じ名前のカテゴリが既にあります。",
     deleteFailed: "削除に失敗しました。もう一度お試しください。",
     dragHint: "長押しでドラッグして移動できます",
+    paceWarningLabel: "支出ペース警告",
+    paceWarningShort: "ペース警告",
+    paceWarningHint:
+      "ペース警告をオンにすると、予算超過前でも支出が早すぎる場合にLINEで注意します（既定はオフ）。予算超過は常に警告します。",
     promoteDropZone: "ここにドロップで大カテゴリに昇格",
     moveFailed: "移動に失敗しました。もう一度お試しください。",
     navPeriodicExpenses: "定期支出",
@@ -312,6 +316,10 @@ export const messages = {
     categoryDuplicateName: "A category with this name already exists.",
     deleteFailed: "Could not delete. Please try again.",
     dragHint: "Press and hold to drag categories",
+    paceWarningLabel: "Pace warning",
+    paceWarningShort: "Pace warn",
+    paceWarningHint:
+      "Enable pace warning to get a LINE alert when spending is too fast before the budget is exceeded (off by default). Overspending is always warned.",
     promoteDropZone: "Drop here to promote to top-level",
     moveFailed: "Could not move category. Please try again.",
     navPeriodicExpenses: "Periodic",
@@ -528,6 +536,10 @@ export const messages = {
     categoryDuplicateName: "已存在同名分类。",
     deleteFailed: "删除失败，请重试。",
     dragHint: "长按可拖动分类",
+    paceWarningLabel: "支出节奏提醒",
+    paceWarningShort: "节奏提醒",
+    paceWarningHint:
+      "开启节奏提醒后，即使尚未超预算，支出过快时也会在 LINE 中提醒（默认关闭）。超预算始终会提醒。",
     promoteDropZone: "拖放到此处升级为一级分类",
     moveFailed: "移动失败，请重试。",
     navPeriodicExpenses: "定期支出",

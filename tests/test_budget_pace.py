@@ -17,6 +17,7 @@ from services.budget_pace import (
     find_lowest_ahead_warning,
     fiscal_period_start_for_date,
     maybe_prepend_budget_pace_warning,
+    should_emit_pace_ahead_warning,
 )
 from services.message_context import MessageContext
 from services.tenant_context import TenantContext
@@ -68,39 +69,135 @@ class TestLowestAheadSelection(unittest.TestCase):
             display_name=name,
         )
 
+    def _enabled(self, *node_ids):
+        return {node_id: True for node_id in node_ids if node_id}
+
     def test_warns_l2_when_all_levels_ahead(self):
         candidates = [
             self._candidate('l2', 'l2-id', 10000, 9000, '外食'),
             self._candidate('l1', 'l1-id', 50000, 45000, '食費'),
             self._candidate('total', None, 100000, 90000, '総予算'),
         ]
-        warning = find_lowest_ahead_warning(candidates, elapsed_days=10, days_in_month=30, language='ja')
+        warning = find_lowest_ahead_warning(
+            candidates,
+            elapsed_days=10,
+            days_in_month=30,
+            language='ja',
+            pace_warning_enabled_by_node=self._enabled('l2-id', 'l1-id'),
+        )
         self.assertIsNotNone(warning)
         self.assertEqual(warning.level, 'l2')
+
+    def test_skips_pace_ahead_when_category_opt_in_off(self):
+        candidates = [
+            self._candidate('l2', 'l2-id', 10000, 9000, '外食'),
+            self._candidate('l1', 'l1-id', 50000, 10000, '食費'),
+        ]
+        warning = find_lowest_ahead_warning(
+            candidates,
+            elapsed_days=10,
+            days_in_month=30,
+            language='ja',
+            pace_warning_enabled_by_node={},
+        )
+        self.assertIsNone(warning)
+
+    def test_cascades_to_enabled_parent_when_l2_opt_in_off(self):
+        candidates = [
+            self._candidate('l2', 'l2-id', 10000, 9000, '外食'),
+            self._candidate('l1', 'l1-id', 50000, 45000, '食費'),
+        ]
+        warning = find_lowest_ahead_warning(
+            candidates,
+            elapsed_days=10,
+            days_in_month=30,
+            language='ja',
+            pace_warning_enabled_by_node={'l1-id': True},
+        )
+        self.assertIsNotNone(warning)
+        self.assertEqual(warning.level, 'l1')
+
+    def test_total_pace_ahead_alone_does_not_warn(self):
+        candidates = [self._candidate('total', None, 100000, 90000, '総予算')]
+        warning = find_lowest_ahead_warning(
+            candidates,
+            elapsed_days=10,
+            days_in_month=30,
+            language='ja',
+        )
+        self.assertIsNone(warning)
+
+    def test_total_overspend_always_warns(self):
+        candidates = [self._candidate('total', None, 100000, 110000, '総予算')]
+        warning = find_lowest_ahead_warning(
+            candidates,
+            elapsed_days=20,
+            days_in_month=30,
+            language='ja',
+        )
+        self.assertIsNotNone(warning)
+        self.assertEqual(warning.level, 'total')
+        self.assertTrue(warning.is_over_budget)
+
+    def test_category_overspend_warns_even_when_opt_in_off(self):
+        candidates = [self._candidate('l2', 'l2-id', 50000, 60000, '外食')]
+        warning = find_lowest_ahead_warning(
+            candidates,
+            elapsed_days=20,
+            days_in_month=30,
+            language='ja',
+            pace_warning_enabled_by_node={'l2-id': False},
+        )
+        self.assertIsNotNone(warning)
+        self.assertTrue(warning.is_over_budget)
 
     def test_warns_l1_when_l2_on_pace(self):
         candidates = [
             self._candidate('l2', 'l2-id', 10000, 2000, '外食'),
             self._candidate('l1', 'l1-id', 50000, 45000, '食費'),
         ]
-        warning = find_lowest_ahead_warning(candidates, elapsed_days=10, days_in_month=30, language='ja')
+        warning = find_lowest_ahead_warning(
+            candidates,
+            elapsed_days=10,
+            days_in_month=30,
+            language='ja',
+            pace_warning_enabled_by_node=self._enabled('l2-id', 'l1-id'),
+        )
         self.assertIsNotNone(warning)
         self.assertEqual(warning.level, 'l1')
 
     def test_no_warning_when_on_pace(self):
         candidates = [self._candidate('l2', 'l2-id', 50000, 10000, '外食')]
-        warning = find_lowest_ahead_warning(candidates, elapsed_days=15, days_in_month=30, language='ja')
+        warning = find_lowest_ahead_warning(
+            candidates,
+            elapsed_days=15,
+            days_in_month=30,
+            language='ja',
+            pace_warning_enabled_by_node=self._enabled('l2-id'),
+        )
         self.assertIsNone(warning)
 
     def test_warns_on_day_1_when_front_loaded_ahead(self):
         candidates = [self._candidate('l1', 'l1-id', 180000, 169516, '固定')]
-        warning = find_lowest_ahead_warning(candidates, elapsed_days=1, days_in_month=31, language='ja')
+        warning = find_lowest_ahead_warning(
+            candidates,
+            elapsed_days=1,
+            days_in_month=31,
+            language='ja',
+            pace_warning_enabled_by_node=self._enabled('l1-id'),
+        )
         self.assertIsNotNone(warning)
         self.assertEqual(warning.level, 'l1')
 
     def test_no_warning_on_day_1_when_within_one_day_allotment(self):
         candidates = [self._candidate('l2', 'l2-id', 50000, 1000, '外食')]
-        warning = find_lowest_ahead_warning(candidates, elapsed_days=1, days_in_month=30, language='ja')
+        warning = find_lowest_ahead_warning(
+            candidates,
+            elapsed_days=1,
+            days_in_month=30,
+            language='ja',
+            pace_warning_enabled_by_node=self._enabled('l2-id'),
+        )
         self.assertIsNone(warning)
 
     def test_over_budget_shows_overrun_amount_and_pct(self):
@@ -117,13 +214,52 @@ class TestLowestAheadSelection(unittest.TestCase):
 
     def test_tight_budget_shows_remaining_not_zero_daily(self):
         candidates = [self._candidate('l2', 'l2-id', 10000, 9985, '外食')]
-        warning = find_lowest_ahead_warning(candidates, elapsed_days=10, days_in_month=30, language='en')
+        warning = find_lowest_ahead_warning(
+            candidates,
+            elapsed_days=10,
+            days_in_month=30,
+            language='en',
+            pace_warning_enabled_by_node=self._enabled('l2-id'),
+        )
         self.assertIsNotNone(warning)
         assert warning is not None
         self.assertFalse(warning.is_over_budget)
         self.assertEqual(warning.daily_allowance, 0)
         self.assertIn('Only ¥15', warning.text)
         self.assertNotIn('¥0/day', warning.text)
+
+
+class TestShouldEmitPaceAheadWarning(unittest.TestCase):
+    def test_overspend_always(self):
+        self.assertTrue(
+            should_emit_pace_ahead_warning(
+                level='l2',
+                category_node_id='x',
+                is_over_budget=True,
+                is_ahead=True,
+                pace_warning_enabled_by_node={'x': False},
+            )
+        )
+
+    def test_pace_requires_opt_in(self):
+        self.assertFalse(
+            should_emit_pace_ahead_warning(
+                level='l2',
+                category_node_id='x',
+                is_over_budget=False,
+                is_ahead=True,
+                pace_warning_enabled_by_node={},
+            )
+        )
+        self.assertTrue(
+            should_emit_pace_ahead_warning(
+                level='l2',
+                category_node_id='x',
+                is_over_budget=False,
+                is_ahead=True,
+                pace_warning_enabled_by_node={'x': True},
+            )
+        )
 
 
 class TestBuildLevelCandidates(unittest.TestCase):
@@ -195,6 +331,7 @@ class TestMaybePrependBudgetPaceWarning(unittest.IsolatedAsyncioTestCase):
             elapsed_days=10,
             days_in_month=30,
             language='ja',
+            pace_warning_enabled_by_node={'l2-id': True},
         )
         with patch('services.budget_pace.evaluate_pace_warnings', return_value=[warning]):
             result = await maybe_prepend_budget_pace_warning(
@@ -224,6 +361,7 @@ class TestMaybePrependBudgetPaceWarning(unittest.IsolatedAsyncioTestCase):
             elapsed_days=10,
             days_in_month=30,
             language='ja',
+            pace_warning_enabled_by_node={'l2-id': True},
         )
         gemini = MagicMock()
         gemini.generate_reply = AsyncMock(side_effect=RuntimeError('llm down'))
@@ -333,8 +471,11 @@ class TestFetchBudgetSummaryLazyCopy(unittest.TestCase):
 
 class TestEvaluatePaceWarnings(unittest.TestCase):
     @patch('services.budget_pace.fetch_budget_summary')
-    @patch('services.budget_pace.fetch_category_display_names', return_value={'l2-id': '外食'})
-    def test_evaluates_with_mock_summary(self, _names, fetch_summary):
+    @patch(
+        'services.budget_pace.fetch_category_warning_meta',
+        return_value={'l2-id': {'name': '外食', 'pace_warning_enabled': True}},
+    )
+    def test_evaluates_with_mock_summary(self, _meta, fetch_summary):
         fetch_summary.return_value = {
             'has_any_limit': True,
             'elapsed_days': 10,
@@ -357,10 +498,39 @@ class TestEvaluatePaceWarnings(unittest.TestCase):
 
     @patch('services.budget_pace.fetch_budget_summary')
     @patch(
-        'services.budget_pace.fetch_category_display_names',
-        return_value={'l2-a': '外食', 'l2-b': '超市', 'l1-id': '食費'},
+        'services.budget_pace.fetch_category_warning_meta',
+        return_value={'l2-id': {'name': '外食', 'pace_warning_enabled': False}},
     )
-    def test_dedupes_same_l1_bucket_across_multiple_l2_paths(self, _names, fetch_summary):
+    def test_skips_pace_ahead_when_disabled(self, _meta, fetch_summary):
+        fetch_summary.return_value = {
+            'has_any_limit': True,
+            'elapsed_days': 10,
+            'days_in_month': 30,
+            'budgets': [{'budget_level': 'l2', 'category_node_id': 'l2-id', 'amount': 10000}],
+            'spent_by_bucket': {'l2:l2-id': 9000},
+        }
+        rows = [
+            {
+                'assigned_level': 2,
+                'category_node_id': 'l2-id',
+                'category_l1_id': 'l1-id',
+                'expense_date': date(2026, 6, 15),
+                'currency': 'JPY',
+            }
+        ]
+        warnings = evaluate_pace_warnings(rows, TenantContext.personal('u1'), language='ja')
+        self.assertEqual(warnings, [])
+
+    @patch('services.budget_pace.fetch_budget_summary')
+    @patch(
+        'services.budget_pace.fetch_category_warning_meta',
+        return_value={
+            'l2-a': {'name': '外食', 'pace_warning_enabled': False},
+            'l2-b': {'name': '超市', 'pace_warning_enabled': False},
+            'l1-id': {'name': '食費', 'pace_warning_enabled': True},
+        },
+    )
+    def test_dedupes_same_l1_bucket_across_multiple_l2_paths(self, _meta, fetch_summary):
         fetch_summary.return_value = {
             'has_any_limit': True,
             'elapsed_days': 10,
@@ -391,10 +561,15 @@ class TestEvaluatePaceWarnings(unittest.TestCase):
 
     @patch('services.budget_pace.fetch_budget_summary')
     @patch(
-        'services.budget_pace.fetch_category_display_names',
-        return_value={'l2-a': '外食', 'l2-b': '交通', 'l1-a': '食費', 'l1-b': '交通費'},
+        'services.budget_pace.fetch_category_warning_meta',
+        return_value={
+            'l2-a': {'name': '外食', 'pace_warning_enabled': False},
+            'l2-b': {'name': '交通', 'pace_warning_enabled': False},
+            'l1-a': {'name': '食費', 'pace_warning_enabled': True},
+            'l1-b': {'name': '交通費', 'pace_warning_enabled': True},
+        },
     )
-    def test_keeps_distinct_l1_buckets(self, _names, fetch_summary):
+    def test_keeps_distinct_l1_buckets(self, _meta, fetch_summary):
         fetch_summary.return_value = {
             'has_any_limit': True,
             'elapsed_days': 10,

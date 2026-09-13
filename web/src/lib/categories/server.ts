@@ -8,6 +8,7 @@ type DbNode = {
   level: number;
   parent_id: string | null;
   sort_order: number;
+  pace_warning_enabled: boolean | null;
 };
 
 export async function requireUser() {
@@ -44,7 +45,7 @@ export async function loadCategoryNodes(
 
   const { data: nodes, error } = await supabase
     .from("category_nodes")
-    .select("id, code, name_ja, level, parent_id, sort_order")
+    .select("id, code, name_ja, level, parent_id, sort_order, pace_warning_enabled")
     .eq("tenant_type", tenantType)
     .eq("tenant_id", tenantId)
     .order("level")
@@ -88,6 +89,7 @@ export async function loadCategoryNodes(
       level: node.level as 1 | 2,
       parent_id: node.parent_id,
       sort_order: node.sort_order,
+      pace_warning_enabled: Boolean(node.pace_warning_enabled),
       expense_count: expenseCount,
       deletable,
     };

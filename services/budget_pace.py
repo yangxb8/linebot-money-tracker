@@ -274,12 +274,36 @@ def find_applicable_budget_candidate(
     return candidates[0]
 
 
+def should_emit_pace_ahead_warning(
+    *,
+    level: BudgetLevel,
+    category_node_id: Optional[str],
+    is_over_budget: bool,
+    is_ahead: bool,
+    pace_warning_enabled_by_node: Optional[Dict[str, bool]] = None,
+) -> bool:
+    """Overspend always warns; pace-ahead only when the category opts in (default off).
+
+    Total budget has no category toggle, so pace-ahead alone never warns at total —
+    only overspend does.
+    """
+    if is_over_budget:
+        return True
+    if not is_ahead:
+        return False
+    if level == 'total' or not category_node_id:
+        return False
+    flags = pace_warning_enabled_by_node or {}
+    return bool(flags.get(category_node_id, False))
+
+
 def find_lowest_ahead_warning(
     candidates: Sequence[BudgetLevelCandidate],
     *,
     elapsed_days: int,
     days_in_month: int,
     language: str,
+    pace_warning_enabled_by_node: Optional[Dict[str, bool]] = None,
 ) -> Optional[PaceWarning]:
     days_remaining = max(days_in_month - elapsed_days, 0)
     if days_remaining <= 0:
@@ -292,7 +316,14 @@ def find_lowest_ahead_warning(
             elapsed_days,
             days_in_month,
         )
-        if not health.is_ahead:
+        is_over_budget = candidate.spent > candidate.limit
+        if not should_emit_pace_ahead_warning(
+            level=candidate.level,
+            category_node_id=candidate.category_node_id,
+            is_over_budget=is_over_budget,
+            is_ahead=health.is_ahead,
+            pace_warning_enabled_by_node=pace_warning_enabled_by_node,
+        ):
             continue
 
         remaining = max(candidate.limit - candidate.spent, Decimal('0'))
@@ -328,25 +359,45 @@ def fetch_category_display_names(
     tenant: TenantContext,
     node_ids: Sequence[str],
 ) -> Dict[str, str]:
+    meta = fetch_category_warning_meta(tenant, node_ids)
+    return {node_id: info['name'] for node_id, info in meta.items()}
+
+
+def fetch_category_warning_meta(
+    tenant: TenantContext,
+    node_ids: Sequence[str],
+) -> Dict[str, Dict[str, Any]]:
+    """Return display name + pace_warning_enabled for each category node."""
     if not node_ids or not is_supabase_configured():
         return {}
     try:
         client = get_supabase_client()
         response = (
             client.table('category_nodes')
-            .select('id, name_ja, code')
+            .select('id, name_ja, code, pace_warning_enabled')
             .eq('tenant_type', tenant.tenant_type)
             .eq('tenant_id', tenant.tenant_id)
             .in_('id', list(set(node_ids)))
             .execute()
         )
-        names: Dict[str, str] = {}
+        meta: Dict[str, Dict[str, Any]] = {}
         for row in response.data or []:
-            names[str(row['id'])] = str(row.get('name_ja') or row.get('code') or row['id'])
-        return names
+            node_id = str(row['id'])
+            meta[node_id] = {
+                'name': str(row.get('name_ja') or row.get('code') or node_id),
+                'pace_warning_enabled': bool(row.get('pace_warning_enabled', False)),
+            }
+        return meta
     except Exception:
-        logger.warning('fetch_category_display_names failed', exc_info=True)
+        logger.warning('fetch_category_warning_meta failed', exc_info=True)
         return {}
+
+
+def pace_warning_flags_from_meta(meta: Dict[str, Dict[str, Any]]) -> Dict[str, bool]:
+    return {
+        node_id: bool(info.get('pace_warning_enabled', False))
+        for node_id, info in meta.items()
+    }
 
 
 def _resolve_spending_bucket(
@@ -525,7 +576,12 @@ def evaluate_pace_warnings(
             continue
 
         node_ids = [str(row['category_node_id']), str(row['category_l1_id'])]
-        category_names = fetch_category_display_names(tenant, node_ids)
+        category_meta = fetch_category_warning_meta(tenant, node_ids)
+        category_names = {
+            node_id: str(info.get('name') or node_id)
+            for node_id, info in category_meta.items()
+        }
+        pace_flags = pace_warning_flags_from_meta(category_meta)
 
         candidates = build_level_candidates(
             row,
@@ -539,6 +595,7 @@ def evaluate_pace_warnings(
             elapsed_days=int(summary.get('elapsed_days', 0)),
             days_in_month=int(summary.get('days_in_month', 0)),
             language=language,
+            pace_warning_enabled_by_node=pace_flags,
         )
         if warning is not None:
             bucket_key = _warning_bucket_key(warning, currency=currency)

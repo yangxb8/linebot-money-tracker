@@ -103,7 +103,7 @@ export async function POST(request: Request) {
         tenant_type: tenantType,
         tenant_id: tenantId,
       })
-      .select("id, code, name_ja, level, parent_id, sort_order")
+      .select("id, code, name_ja, level, parent_id, sort_order, pace_warning_enabled")
       .single();
 
     if (error) {
@@ -113,6 +113,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ...data,
+        pace_warning_enabled: Boolean(data.pace_warning_enabled),
         expense_count: 0,
         deletable: data.code !== "unknown",
       },

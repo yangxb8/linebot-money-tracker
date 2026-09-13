@@ -7,7 +7,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
     const body = await request.json();
-    const payload: Record<string, string | number> = {};
+    const payload: Record<string, string | number | boolean> = {};
 
     if (body.name_ja !== undefined) {
       const nameJa = String(body.name_ja).trim();
@@ -18,6 +18,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
     if (body.sort_order !== undefined) {
       payload.sort_order = Number(body.sort_order);
+    }
+    if (body.pace_warning_enabled !== undefined) {
+      payload.pace_warning_enabled = Boolean(body.pace_warning_enabled);
     }
 
     if (Object.keys(payload).length === 0) {
@@ -54,7 +57,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       .from("category_nodes")
       .update(payload)
       .eq("id", id)
-      .select("id, code, name_ja, level, parent_id, sort_order")
+      .select("id, code, name_ja, level, parent_id, sort_order, pace_warning_enabled")
       .single();
 
     if (error) {
@@ -63,6 +66,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({
       ...data,
+      pace_warning_enabled: Boolean(data.pace_warning_enabled),
       expense_count: 0,
       deletable: data.code !== "unknown",
     });

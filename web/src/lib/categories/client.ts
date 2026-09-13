@@ -48,7 +48,11 @@ export async function createCategory(
 
 export async function updateCategory(
   id: string,
-  body: { name_ja?: string; sort_order?: number },
+  body: {
+    name_ja?: string;
+    sort_order?: number;
+    pace_warning_enabled?: boolean;
+  },
 ): Promise<CategoryNode> {
   const response = await fetch(`/api/categories/${id}`, {
     method: "PATCH",
