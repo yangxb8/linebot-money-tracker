@@ -64,6 +64,13 @@ test.describe("web.browser.categories_pace_warning", () => {
     const foodToggle = page.locator("#pace-warning-cat-food");
     await expect(foodToggle).toBeVisible({ timeout: 30_000 });
     await expect(foodToggle).not.toBeChecked();
+    await expect(
+      page.getByRole("checkbox", { name: /LINE alert when spending too fast|支出が早すぎるときにLINEで警告|支出过快时在 LINE 提醒/ }),
+    ).toHaveCount(2);
+    await expect(page.getByText(/Too-fast alert|早すぎ警告|过快提醒/).first()).toBeVisible();
+    await expect(
+      page.getByText(/Too-fast spending alert|早すぎる支出の警告|支出过快提醒/),
+    ).toBeVisible();
 
     await foodToggle.check();
     await expect(foodToggle).toBeChecked();
