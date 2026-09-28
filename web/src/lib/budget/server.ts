@@ -31,6 +31,7 @@ type DbCategory = {
   level: number;
   parent_id: string | null;
   sort_order: number;
+  pace_warning_enabled?: boolean | null;
 };
 
 export type CategorySpentTotals = {
@@ -111,6 +112,7 @@ export function enrichBudgetSummary(
           spent_aggregate: spentAggregate,
           suggested_from_children: null,
           has_limit: limit != null,
+          pace_warning_enabled: Boolean(l2.pace_warning_enabled),
         };
       });
 
@@ -132,6 +134,7 @@ export function enrichBudgetSummary(
       spent_aggregate: l1Aggregate,
       suggested_from_children: childLimitSum > 0 ? childLimitSum : null,
       has_limit: l1Limit != null,
+      pace_warning_enabled: Boolean(l1.pace_warning_enabled),
       children,
     };
   });
@@ -181,7 +184,9 @@ export async function fetchBudgetSummary(
 
   const { data: nodes, error: nodeError } = await supabase
     .from("category_nodes")
-    .select("id, code, name_ja, level, parent_id, sort_order")
+    .select(
+      "id, code, name_ja, level, parent_id, sort_order, pace_warning_enabled",
+    )
     .eq("tenant_type", tenantType)
     .eq("tenant_id", tenantId)
     .order("level")

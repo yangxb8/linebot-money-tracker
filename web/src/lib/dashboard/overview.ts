@@ -1,4 +1,4 @@
-import { computeBudgetHealth } from "@/lib/budget/health";
+import { computeDisplayBudgetHealth } from "@/lib/budget/health";
 import type { BudgetCategoryNode, HealthTone } from "@/lib/budget/types";
 import { computeNextRunDate } from "@/lib/periodic/recurrence";
 import type {
@@ -38,7 +38,21 @@ export type LargestExpenseItem = {
 
 const ATTENTION_TONES: ReadonlySet<HealthTone> = new Set(["caution", "bad"]);
 
-/** L1 categories with a limit that are not on-track (caution / over pace). */
+function displayHealthForNode(
+  node: BudgetCategoryNode,
+  elapsedDays: number,
+  daysInMonth: number,
+) {
+  return computeDisplayBudgetHealth(
+    node.spent_aggregate,
+    node.limit,
+    elapsedDays,
+    daysInMonth,
+    node.pace_warning_enabled,
+  );
+}
+
+/** L1 categories with a limit that need attention (overspend always; too-fast only if opted in). */
 export function selectAttentionL1Categories(
   categories: BudgetCategoryNode[],
   elapsedDays: number,
@@ -47,28 +61,13 @@ export function selectAttentionL1Categories(
   return categories
     .filter((node) => {
       if (!node.has_limit || node.limit == null || node.limit <= 0) return false;
-      const health = computeBudgetHealth(
-        node.spent_aggregate,
-        node.limit,
-        elapsedDays,
-        daysInMonth,
-      );
+      const health = displayHealthForNode(node, elapsedDays, daysInMonth);
       return ATTENTION_TONES.has(health.tone);
     })
     .slice()
     .sort((a, b) => {
-      const ha = computeBudgetHealth(
-        a.spent_aggregate,
-        a.limit,
-        elapsedDays,
-        daysInMonth,
-      );
-      const hb = computeBudgetHealth(
-        b.spent_aggregate,
-        b.limit,
-        elapsedDays,
-        daysInMonth,
-      );
+      const ha = displayHealthForNode(a, elapsedDays, daysInMonth);
+      const hb = displayHealthForNode(b, elapsedDays, daysInMonth);
       if (ha.tone !== hb.tone) {
         return ha.tone === "bad" ? -1 : 1;
       }

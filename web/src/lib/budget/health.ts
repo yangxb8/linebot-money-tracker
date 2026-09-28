@@ -1,5 +1,43 @@
 import type { HealthResult } from "@/lib/budget/types";
 
+export type DisplayHealthOptions = {
+  spent: number;
+  limit: number | null;
+  /**
+   * Category opt-in for too-fast (pace-ahead) badges.
+   * Total budget has no toggle — pass false so only overspend alerts.
+   * Defaults to false (off).
+   */
+  paceWarningEnabled?: boolean;
+};
+
+/**
+ * Map raw pace health to what the web UI should show.
+ * Overspend (spent > limit) always keeps caution/bad.
+ * Pace-ahead without overspend only shows when paceWarningEnabled is true.
+ */
+export function resolveDisplayBudgetHealth(
+  health: HealthResult,
+  options: DisplayHealthOptions,
+): HealthResult {
+  const { spent, limit, paceWarningEnabled = false } = options;
+  const isOverBudget = limit != null && limit > 0 && spent > limit;
+  if (isOverBudget) {
+    return health;
+  }
+  if (
+    (health.tone === "caution" || health.tone === "bad") &&
+    !paceWarningEnabled
+  ) {
+    return {
+      ...health,
+      tone: "good",
+      labelKey: "budgetPaceOnTrack",
+    };
+  }
+  return health;
+}
+
 export function computeBudgetHealth(
   spent: number,
   limit: number | null,
@@ -68,6 +106,20 @@ export function computeBudgetHealth(
     tone: "bad",
     labelKey: "budgetPaceOver",
   };
+}
+
+/** Convenience: compute raw health then apply pace-warning display gate. */
+export function computeDisplayBudgetHealth(
+  spent: number,
+  limit: number | null,
+  elapsedDays: number,
+  daysInMonth: number,
+  paceWarningEnabled = false,
+): HealthResult {
+  return resolveDisplayBudgetHealth(
+    computeBudgetHealth(spent, limit, elapsedDays, daysInMonth),
+    { spent, limit, paceWarningEnabled },
+  );
 }
 
 export function healthToneClass(tone: HealthResult["tone"]): string {

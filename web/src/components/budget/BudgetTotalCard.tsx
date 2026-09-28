@@ -2,7 +2,7 @@
 
 import { useLanguage } from "@/components/LanguageProvider";
 import {
-  computeBudgetHealth,
+  computeDisplayBudgetHealth,
   healthToneClass,
   progressBarClass,
 } from "@/lib/budget/health";
@@ -26,11 +26,13 @@ export function BudgetTotalCard({
   onEdit,
 }: Props) {
   const { t, locale } = useLanguage();
-  const health = computeBudgetHealth(
+  // Total has no category toggle — only overspend (not pace-ahead) alerts.
+  const health = computeDisplayBudgetHealth(
     total.spent,
     total.limit,
     elapsedDays,
     daysInMonth,
+    false,
   );
   const fmt = (n: number) => formatYen(n, locale as Locale);
   const progressPct = total.has_limit
