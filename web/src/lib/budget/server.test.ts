@@ -51,6 +51,7 @@ describe("enrichBudgetSummary", () => {
         level: 1,
         parent_id: null,
         sort_order: 1,
+        pace_warning_enabled: true,
       },
       {
         id: "l2-groceries",
@@ -59,6 +60,7 @@ describe("enrichBudgetSummary", () => {
         level: 2,
         parent_id: "l1-food",
         sort_order: 1,
+        pace_warning_enabled: false,
       },
     ];
     const categorySpent = buildCategorySpentTotals([
@@ -77,6 +79,8 @@ describe("enrichBudgetSummary", () => {
     expect(groceries?.spent_aggregate).toBe(1500);
     expect(food.spent_aggregate).toBe(1500);
     expect(food.spent).toBe(1500);
+    expect(food.pace_warning_enabled).toBe(true);
+    expect(groceries?.pace_warning_enabled).toBe(false);
     expect(summary.lazy_copied_from_previous).toBe(false);
   });
 

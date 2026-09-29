@@ -2,7 +2,7 @@
 
 import { useLanguage } from "@/components/LanguageProvider";
 import {
-  computeBudgetHealth,
+  computeDisplayBudgetHealth,
   healthToneClass,
   progressBarClass,
 } from "@/lib/budget/health";
@@ -28,7 +28,13 @@ export function BudgetRow({
   const { t, locale } = useLanguage();
   const limit = node.limit;
   const spent = node.spent_aggregate;
-  const health = computeBudgetHealth(spent, limit, elapsedDays, daysInMonth);
+  const health = computeDisplayBudgetHealth(
+    spent,
+    limit,
+    elapsedDays,
+    daysInMonth,
+    node.pace_warning_enabled,
+  );
   const fmt = (n: number) => formatYen(n, locale as Locale);
   const spentPct = limit != null && limit > 0 ? spent / limit : null;
   const progressPct = spentPct != null ? Math.min(100, spentPct * 100) : 0;

@@ -23,6 +23,7 @@ function l1(
     spent_assigned: partial.spent_assigned ?? 0,
     suggested_from_children: null,
     has_limit: partial.has_limit ?? partial.limit != null,
+    pace_warning_enabled: partial.pace_warning_enabled ?? false,
     ...partial,
   };
 }
@@ -87,6 +88,7 @@ describe("selectAttentionL1Categories", () => {
         spent_aggregate: 10000,
         limit: 50000,
         has_limit: true,
+        pace_warning_enabled: true,
       }),
       l1({
         node_id: "caution",
@@ -94,6 +96,7 @@ describe("selectAttentionL1Categories", () => {
         spent_aggregate: 28000,
         limit: 50000,
         has_limit: true,
+        pace_warning_enabled: true,
       }),
       l1({
         node_id: "bad",
@@ -101,10 +104,49 @@ describe("selectAttentionL1Categories", () => {
         spent_aggregate: 35000,
         limit: 50000,
         has_limit: true,
+        pace_warning_enabled: true,
       }),
     ];
     const result = selectAttentionL1Categories(cats, 15, 30);
     expect(result.map((c) => c.node_id)).toEqual(["bad", "caution"]);
+  });
+
+  it("skips too-fast categories when pace_warning_enabled is off", () => {
+    const cats = [
+      l1({
+        node_id: "fast-off",
+        name_ja: "交通",
+        spent_aggregate: 35000,
+        limit: 50000,
+        has_limit: true,
+        pace_warning_enabled: false,
+      }),
+      l1({
+        node_id: "fast-on",
+        name_ja: "食費",
+        spent_aggregate: 35000,
+        limit: 50000,
+        has_limit: true,
+        pace_warning_enabled: true,
+      }),
+    ];
+    const result = selectAttentionL1Categories(cats, 15, 30);
+    expect(result.map((c) => c.node_id)).toEqual(["fast-on"]);
+  });
+
+  it("includes overspend even when pace_warning_enabled is off", () => {
+    const cats = [
+      l1({
+        node_id: "over",
+        name_ja: "固定",
+        spent_aggregate: 60000,
+        limit: 50000,
+        has_limit: true,
+        pace_warning_enabled: false,
+      }),
+    ];
+    const result = selectAttentionL1Categories(cats, 20, 30);
+    expect(result.map((c) => c.node_id)).toEqual(["over"]);
   });
 });
 

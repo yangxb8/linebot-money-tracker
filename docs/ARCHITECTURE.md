@@ -256,7 +256,7 @@ erDiagram
 
 - `expenses` — line items; unique on `(tenant_type, tenant_id, source_message_id, line_item_index)`; soft-delete; optional links to periodic schedules and wish-list items
 - `v_expenses_enriched` — view joining category names (`security_invoker` so RLS still applies)
-- `category_nodes` — taxonomy; template rows (`tenant_*` null) lazy-copied per tenant; optional `pace_warning_enabled` (default false) gates LINE pace-ahead alerts per category (over-budget alerts always fire)
+- `category_nodes` — taxonomy; template rows (`tenant_*` null) lazy-copied per tenant; optional `pace_warning_enabled` (default false) gates LINE **and** web dashboard/budget pace-ahead UI per category (over-budget alerts always fire)
 - `monthly_budgets` — `budget_level` in `total` | `l1` | `l2`
 - `tenant_settings` — fiscal month start, bot persona, reply language, confirmation detail
 
@@ -362,7 +362,7 @@ flowchart TD
 | **Idempotent expense keys** | Retries and duplicate webhooks must not double-count: unique on tenant + source message + line index. |
 | **Lazy-copy category taxonomy** | Tenants start from shared templates; first edit copies nodes and remaps expenses by category code. |
 | **Budgets aggregated on read** | Avoid denormalized counters that drift; `get_budget_summary` (and bot pace logic) compute from expenses. |
-| **Pace-ahead opt-in per category** | Overspend always warned; “spending too fast” alerts only when `category_nodes.pace_warning_enabled` is on (default off). Total budget has no pace-ahead toggle — overspend only. |
+| **Pace-ahead opt-in per category** | Overspend always shown (LINE + web). “Spending too fast” only when `category_nodes.pace_warning_enabled` is on (default off) — LINE bot replies and web dashboard/budget badges. Total budget has no pace-ahead toggle — overspend only. |
 | **Wish list ≠ expense until execute/confirm** | Intent to buy is a separate lifecycle; budget impact is hypothetical until purchase. |
 | **Persona/i18n via settings + contextvars** | Web configures behavior; bot resolves effective settings (shared ledger → personal fallback → defaults) and scopes persona for the request. |
 | **Metered Gemini wrapper** | Quotas and pooling live next to the LLM client so every call path is covered. |

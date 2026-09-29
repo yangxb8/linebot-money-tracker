@@ -2,7 +2,7 @@
 
 import { useLanguage } from "@/components/LanguageProvider";
 import {
-  computeBudgetHealth,
+  computeDisplayBudgetHealth,
   healthToneClass,
   progressBarClass,
 } from "@/lib/budget/health";
@@ -29,11 +29,13 @@ export function DashboardBudgetCard({
   onClick,
 }: Props) {
   const { t, locale } = useLanguage();
-  const health = computeBudgetHealth(
+  // Total has no category toggle — only overspend (not pace-ahead) alerts.
+  const health = computeDisplayBudgetHealth(
     total.spent,
     total.limit,
     elapsedDays,
     daysInMonth,
+    false,
   );
   const fmt = (n: number) => formatYen(n, locale as Locale);
   const progressPct =
@@ -114,11 +116,12 @@ export function DashboardBudgetCard({
       {attentionCategories.length > 0 ? (
         <ul className="mt-3 space-y-2 border-t border-gray-100 pt-3">
           {attentionCategories.map((node) => {
-            const rowHealth = computeBudgetHealth(
+            const rowHealth = computeDisplayBudgetHealth(
               node.spent_aggregate,
               node.limit,
               elapsedDays,
               daysInMonth,
+              node.pace_warning_enabled,
             );
             const rowPct =
               node.limit != null && node.limit > 0

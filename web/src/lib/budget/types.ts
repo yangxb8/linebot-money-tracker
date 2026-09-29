@@ -31,6 +31,8 @@ export type BudgetCategoryNode = {
   spent_aggregate: number;
   suggested_from_children: number | null;
   has_limit: boolean;
+  /** When false, too-fast (pace-ahead) UI is suppressed; overspend always shows. */
+  pace_warning_enabled: boolean;
   orphan?: boolean;
   children?: BudgetCategoryNode[];
 };
