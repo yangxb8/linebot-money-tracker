@@ -32,6 +32,6 @@
 ## Notes
 
 - Validation iteration 1 (2026-09-29): All items pass.
-- Stripe / Checkout / Customer Portal appear only in **Assumptions** and the operator **Recommended payment path** section as the chosen Japan 個人事業主 default — not in Functional Requirements or Success Criteria.
+- Stripe appears only in **Assumptions** and the operator **Recommended payment path** section as the chosen Japan 個人事業主 default — not in Functional Requirements or Success Criteria.
 - Functional requirements stay provider-agnostic (“hosted payment checkout”, “payment lifecycle notifications”).
 - Ready for `/speckit-plan` (or `/speckit-clarify` if the operator wants different pricing model, group seats, or a non-Stripe provider).
