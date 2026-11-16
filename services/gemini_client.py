@@ -271,3 +271,33 @@ class GeminiClient:
             context=context,
             models=GEMINI_GENERAL_MODEL_FALLBACK_CHAIN,
         )
+
+    async def generate_reply_with_audio(
+        self,
+        prompt: str,
+        audio_bytes: bytes,
+        mime_type: str = 'audio/mp4',
+    ) -> str:
+        if not prompt or not prompt.strip():
+            raise ValueError('Prompt cannot be empty.')
+        if not audio_bytes:
+            raise ValueError('Audio bytes cannot be empty.')
+
+        context = f' audio={describe_bytes(audio_bytes)} mime={mime_type}'
+        logger.info(
+            'Gemini audio request: models=%s audio=%s mime=%s prompt_len=%d',
+            GEMINI_GENERAL_MODEL_FALLBACK_CHAIN,
+            describe_bytes(audio_bytes),
+            mime_type,
+            len(prompt),
+        )
+        logger.debug('Gemini audio prompt: %s', truncate(prompt, 1000))
+        return await self._generate_content_with_retry(
+            label='audio-transcribe',
+            contents=[
+                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                prompt.strip(),
+            ],
+            context=context,
+            models=GEMINI_GENERAL_MODEL_FALLBACK_CHAIN,
+        )

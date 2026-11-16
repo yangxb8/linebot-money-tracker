@@ -1,7 +1,8 @@
 """
 Functional bot suite fixtures (PR lane — mocked externals).
 
-Image/receipt journeys are deferred past v1 (FR-017); do not add them here yet.
+Image/receipt journeys remain deferred (021 FR-017). Voice/audio expense flows
+are covered in `test_voice_expense_flow.py` (feature 022).
 """
 
 from __future__ import annotations

@@ -2,7 +2,14 @@ import logging
 from decimal import Decimal
 from typing import List, Dict, Any, Optional
 
-from services.ai_assist import assist_parse_image, assist_parse_text
+from services.ai_assist import assist_parse_image, assist_parse_text, transcribe_audio
+from services.audio_limits import (
+    MAX_AUDIO_DURATION_MS,
+    AudioLimitViolation,
+    check_audio_duration,
+    check_audio_size,
+    max_audio_bytes,
+)
 from services.categorize import classify_expense_with_memory
 from services.category_taxonomy import format_category_path, resolve_code
 from services.confirmation_repository import (
@@ -72,6 +79,19 @@ def error_reply_text(language: str = 'ja') -> str:
 
 def usage_limit_reply(language: str = 'ja') -> str:
     return t(language, 'usage_limit')
+
+
+def audio_too_long_reply(language: str = 'ja') -> str:
+    return t(language, 'audio_too_long', max_seconds=str(MAX_AUDIO_DURATION_MS // 1000))
+
+
+def audio_too_large_reply(language: str = 'ja') -> str:
+    max_mb = max_audio_bytes() // (1024 * 1024)
+    return t(language, 'audio_too_large', max_mb=str(max_mb))
+
+
+def audio_unusable_reply(language: str = 'ja') -> str:
+    return t(language, 'audio_unusable')
 
 
 # Backward-compatible defaults (English) for imports in tests and main.py
@@ -897,4 +917,80 @@ async def _process_image_message_inner(
             error_reply_text(language),
             retryable_failure='processing_error',
         )
+
+
+async def process_audio_message(
+    audio_bytes: bytes,
+    gemini: GeminiClient,
+    *,
+    context: Optional[MessageContext] = None,
+    duration_ms: Optional[int] = None,
+    mime_type: str = 'audio/mp4',
+) -> BotReply:
+    """Transcribe LINE voice/audio then reuse the text expense/wish pipeline."""
+    persona = resolve_persona_for_tenant(context.tenant if context else None)
+    with persona_scope(persona):
+        return await _process_audio_message_inner(
+            audio_bytes,
+            gemini,
+            context=context,
+            duration_ms=duration_ms,
+            mime_type=mime_type,
+        )
+
+
+async def _process_audio_message_inner(
+    audio_bytes: bytes,
+    gemini: GeminiClient,
+    *,
+    context: Optional[MessageContext] = None,
+    duration_ms: Optional[int] = None,
+    mime_type: str = 'audio/mp4',
+) -> BotReply:
+    language = resolve_tenant_reply_language(
+        context.tenant if context else None,
+        context.reply_language if context else 'ja',
+    )
+
+    duration_violation = check_audio_duration(duration_ms)
+    if duration_violation == AudioLimitViolation.DURATION:
+        logger.info(
+            'Audio rejected: duration_ms=%s max=%s',
+            duration_ms,
+            MAX_AUDIO_DURATION_MS,
+        )
+        return _text_reply(audio_too_long_reply(language))
+
+    size_violation = check_audio_size(audio_bytes)
+    if size_violation == AudioLimitViolation.SIZE:
+        logger.info(
+            'Audio rejected: size=%s max=%s',
+            describe_bytes(audio_bytes),
+            max_audio_bytes(),
+        )
+        return _text_reply(audio_too_large_reply(language))
+
+    try:
+        transcript = await transcribe_audio(audio_bytes, gemini, mime_type=mime_type)
+    except (GeminiUsageLimitError, UserUsageLimitExceeded) as exc:
+        logger.warning('Audio transcription hit usage limit: %s', exc)
+        return _text_reply(str(exc) or usage_limit_reply(language))
+    except Exception:
+        logger.exception(
+            'Audio transcription failed: audio=%s mime=%s',
+            describe_bytes(audio_bytes),
+            mime_type,
+        )
+        return _text_reply(
+            error_reply_text(language),
+            retryable_failure='processing_error',
+        )
+
+    transcript = (transcript or '').strip()
+    if not transcript:
+        logger.info('Audio transcript empty/unusable')
+        return _text_reply(audio_unusable_reply(language))
+
+    logger.info('Audio transcript ready len=%d; delegating to text pipeline', len(transcript))
+    return await process_text_message(transcript, gemini, context)
 

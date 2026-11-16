@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local console harness — simulate LINE text/image input and print bot reply."""
+"""Local console harness — simulate LINE text/image/audio input and print bot reply."""
 
 import argparse
 import asyncio
@@ -14,6 +14,7 @@ from services.env_loader import load_env, require_env_vars
 from services.sentry_setup import init_sentry
 from services.inbound_message_repository import (
     save_failure_retry_anchor,
+    save_inbound_audio_message,
     save_inbound_image_message,
     save_inbound_text_message,
 )
@@ -23,12 +24,18 @@ from services.message_retry import is_retry_intent, process_message_retry, retry
 from services.tenant_context import resolve_tenant_for_console
 from services.usage_limiter import format_denial_reply, prepare_inbound_usage
 from services.usage_metering import usage_billing_scope
-from services.message_handler import process_image_message, process_reply_edit, process_text_message
+from services.message_handler import (
+    process_audio_message,
+    process_image_message,
+    process_reply_edit,
+    process_text_message,
+)
 
 logger = logging.getLogger(__name__)
 
 CONSOLE_REQUIRED_VARS = ['GEMINI_API_KEY']
 _CONSOLE_IMAGE_BYTES: dict[str, bytes] = {}
+_CONSOLE_AUDIO_BYTES: dict[str, bytes] = {}
 
 
 def _configure_logging(debug: bool = False) -> None:
@@ -54,7 +61,17 @@ def _build_parser() -> argparse.ArgumentParser:
         '--image',
         help='Path to a receipt/item image (combine with --text for wish-list intent)',
     )
-    # Require at least one of --text / --image when not using reply/retry flows.
+    parser.add_argument(
+        '--audio',
+        help='Path to a voice/audio clip for expense logging (m4a/mp4 preferred)',
+    )
+    parser.add_argument(
+        '--audio-duration-ms',
+        type=int,
+        default=None,
+        help='Optional audio duration in milliseconds (for abuse-limit testing)',
+    )
+    # Require at least one of --text / --image / --audio when not using reply/retry flows.
     # Reply/retry still need --text; validated in _run.
     parser.add_argument(
         '--reply-to',
@@ -95,8 +112,30 @@ def _read_image(path_str: str) -> bytes:
         raise OSError(f'Unable to read image file: {path}') from exc
 
 
+def _read_audio(path_str: str) -> bytes:
+    path = Path(path_str)
+    if not path.is_file():
+        raise FileNotFoundError(f'Audio file not found: {path}')
+    try:
+        return path.read_bytes()
+    except OSError as exc:
+        raise OSError(f'Unable to read audio file: {path}') from exc
+
+
+def _guess_audio_mime(path_str: str) -> str:
+    suffix = Path(path_str).suffix.lower()
+    if suffix in {'.mp3'}:
+        return 'audio/mpeg'
+    if suffix in {'.wav'}:
+        return 'audio/wav'
+    if suffix in {'.ogg'}:
+        return 'audio/ogg'
+    # LINE voice messages are typically m4a/mp4.
+    return 'audio/mp4'
+
+
 async def _fetch_console_image_bytes(message_id: str) -> bytes:
-    cached = _CONSOLE_IMAGE_BYTES.get(message_id)
+    cached = _CONSOLE_IMAGE_BYTES.get(message_id) or _CONSOLE_AUDIO_BYTES.get(message_id)
     if cached is None:
         raise FileNotFoundError(f'No console image cached for message_id={message_id}')
     return cached
@@ -226,15 +265,43 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
             edit_result = await process_reply_edit(args.text, reply_context, gemini)
         return edit_result.text, None, None
 
-    if not args.text and not args.image:
-        raise ValueError('Provide --text and/or --image')
+    if args.audio and (args.text or args.image):
+        raise ValueError('Use --audio alone (not combined with --text/--image in v1)')
+
+    if not args.text and not args.image and not args.audio:
+        raise ValueError('Provide --text and/or --image, or --audio')
 
     context = MessageContext(
         tenant=tenant,
         source_message_id=source_message_id,
     )
 
-    if args.image and args.text:
+    if args.audio:
+        audio_bytes = _read_audio(args.audio)
+        save_inbound_audio_message(
+            message_id=source_message_id,
+            line_user_id=line_user_id,
+            tenant=tenant,
+        )
+        _CONSOLE_AUDIO_BYTES[source_message_id] = audio_bytes
+        usage_prep = prepare_inbound_usage(
+            tenant,
+            line_user_id,
+            source_message_id,
+            audio_bytes=audio_bytes,
+            skip_limits=args.skip_usage_limits,
+        )
+        if not usage_prep.allowed:
+            return format_denial_reply('en', usage_prep.reason), None, None
+        with usage_billing_scope(usage_prep.billing_context):
+            bot_reply = await process_audio_message(
+                audio_bytes,
+                gemini,
+                context=context,
+                duration_ms=args.audio_duration_ms,
+                mime_type=_guess_audio_mime(args.audio),
+            )
+    elif args.image and args.text:
         image_bytes = _read_image(args.image)
         save_inbound_image_message(
             message_id=source_message_id,
@@ -332,8 +399,8 @@ def main() -> int:
 
     parser = _build_parser()
     args = parser.parse_args()
-    if not args.reply_to and not args.retry_to and not args.text and not args.image:
-        parser.error('one of the arguments --text --image is required')
+    if not args.reply_to and not args.retry_to and not args.text and not args.image and not args.audio:
+        parser.error('one of the arguments --text --image --audio is required')
     _configure_logging(debug=args.debug)
     init_sentry(environment='local')
 

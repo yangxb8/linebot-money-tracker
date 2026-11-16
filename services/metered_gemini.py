@@ -17,6 +17,7 @@ _LABEL_TO_OPERATION = {
     'json': 'general',
     'receipt-image-json': 'receipt_analysis',
     'multimodal': 'general',
+    'audio-transcribe': 'general',
 }
 
 
@@ -85,6 +86,15 @@ class MeteredGeminiClient(GeminiClient):
     ) -> str:
         text = await super().generate_reply_with_image(prompt, image_bytes, mime_type)
         return await self._after_success('multimodal', text)
+
+    async def generate_reply_with_audio(
+        self,
+        prompt: str,
+        audio_bytes: bytes,
+        mime_type: str = 'audio/mp4',
+    ) -> str:
+        text = await super().generate_reply_with_audio(prompt, audio_bytes, mime_type)
+        return await self._after_success('audio-transcribe', text)
 
 
 def create_gemini_client(api_key: Optional[str] = None):

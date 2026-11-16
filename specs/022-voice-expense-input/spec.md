@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-16
 
-**Status**: Draft
+**Status**: Implemented (022 v1)
 
 **Input**: User description: "Add a voice input feature for line bot. User can send audio to log a expense. Limit reasonable file size and length to prevent abuse"
 
