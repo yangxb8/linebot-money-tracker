@@ -118,6 +118,32 @@ def save_inbound_image_message(
         logger.exception('save_inbound_image_message failed message_id=%s', message_id)
 
 
+def save_inbound_audio_message(
+    *,
+    message_id: str,
+    line_user_id: str,
+    tenant: TenantContext,
+) -> None:
+    purge_expired_inbound_messages()
+    if not is_supabase_configured():
+        return
+    try:
+        client = get_supabase_client()
+        client.table('inbound_messages').upsert(
+            {
+                'message_id': message_id,
+                'line_user_id': line_user_id,
+                'tenant_type': tenant.tenant_type,
+                'tenant_id': tenant.tenant_id,
+                'message_type': 'audio',
+                'text_content': None,
+            },
+            on_conflict='message_id',
+        ).execute()
+    except Exception:
+        logger.exception('save_inbound_audio_message failed message_id=%s', message_id)
+
+
 def find_recent_inbound_text_messages(
     tenant: TenantContext,
     *,

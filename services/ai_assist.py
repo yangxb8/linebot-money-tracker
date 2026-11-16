@@ -329,3 +329,57 @@ async def assist_parse_image(
             truncate(response, 800),
         )
         return None
+
+
+_AUDIO_TRANSCRIBE_PROMPT = (
+    'Transcribe the spoken words in this audio clip.\n'
+    'Return ONLY a JSON object: {"transcript":"<exact spoken text>"}.\n'
+    'If there is no usable speech, return {"transcript":""}.\n'
+    'Do not invent expenses or add commentary.'
+)
+
+
+async def transcribe_audio(
+    audio_bytes: bytes,
+    gemini: GeminiClient,
+    mime_type: str = 'audio/mp4',
+) -> str:
+    """Return a plain transcript string for LINE voice/audio input."""
+    source = 'transcribe_audio'
+    if not audio_bytes or not gemini:
+        logger.info(
+            '%s: skipped (audio=%s gemini=%s)',
+            source,
+            describe_bytes(audio_bytes),
+            bool(gemini),
+        )
+        return ''
+
+    logger.info(
+        '%s: transcribing audio=%s mime=%s',
+        source,
+        describe_bytes(audio_bytes),
+        mime_type,
+    )
+    with llm_operation_scope('assist'):
+        response = await gemini.generate_reply_with_audio(
+            _AUDIO_TRANSCRIBE_PROMPT,
+            audio_bytes,
+            mime_type=mime_type,
+        )
+    try:
+        parsed = _parse_json(response, source=source)
+    except json.JSONDecodeError:
+        # Fallback: treat raw model text as transcript if it is not JSON.
+        text = (response or '').strip()
+        logger.warning('%s: non-JSON response; using raw text len=%d', source, len(text))
+        return text
+
+    if isinstance(parsed, dict):
+        transcript = parsed.get('transcript')
+        if isinstance(transcript, str):
+            return transcript.strip()
+    if isinstance(parsed, str):
+        return parsed.strip()
+    logger.warning('%s: unexpected transcript payload type=%s', source, type(parsed).__name__)
+    return ''

@@ -17,6 +17,7 @@ The update script installs both dependency sets (`pip install -r requirements.tx
 ### Bot — lint/test/run
 - Tests: `python3 -m pytest -q` (uses mock credentials; no Gemini/LINE/Supabase keys required). This is the primary key-free verification of the bot's core pipeline.
 - Run: `python3 local_run.py --text "Lunch 1200 yen"`. **Requires a real `GEMINI_API_KEY`** — the harness exits with code 1 if it is unset (there is no offline/mock mode for the running app). Persisting expenses additionally needs `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`.
+- Voice expense: `python3 local_run.py --audio path/to/clip.m4a` (optional `--audio-duration-ms` for limit tests). Abuse caps: **60 seconds** / **5 MB**; over-limit clips are rejected without transcription.
 
 ### Web — lint/test/build/run
 - From `web/`: `npm run lint`, `npm test` (vitest), `npm run build`, `npm run dev` (Next.js + Turbopack on port 3000).

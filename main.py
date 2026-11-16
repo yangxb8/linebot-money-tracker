@@ -30,14 +30,17 @@ from services.confirmation_repository import (
 )
 from services.env_loader import load_env, require_env_vars
 from services.sentry_setup import init_sentry
+from services.audio_limits import AudioLimitViolation, check_audio_duration
 from services.inbound_message_repository import (
     get_failure_retry_anchor,
     save_failure_retry_anchor,
+    save_inbound_audio_message,
     save_inbound_image_message,
     save_inbound_text_message,
 )
 from services.metered_gemini import UserUsageLimitExceeded, create_gemini_client
 from services.line_event import (
+    extract_audio_message,
     extract_image_message_id,
     extract_line_user_id,
     extract_quoted_message_id,
@@ -56,8 +59,10 @@ from services.usage_metering import usage_billing_scope
 from services.message_handler import (
     CANNED_UNSUPPORTED_REPLY,
     ERROR_REPLY_TEXT,
+    audio_too_long_reply,
     canned_unsupported_reply,
     error_reply_text,
+    process_audio_message,
     process_image_message,
     process_reply_edit,
     process_reply_wish_list_image,
@@ -149,7 +154,7 @@ if not _startup_missing:
     logger.debug('Webhook clients initialized at import time')
 
 
-async def _fetch_image_bytes(message_id: str) -> bytes:
+async def _fetch_message_content_bytes(message_id: str) -> bytes:
     if async_api_client is None:
         raise RuntimeError('Async LINE API client is not initialized')
 
@@ -162,7 +167,12 @@ async def _fetch_image_bytes(message_id: str) -> bytes:
 
     if isinstance(result, (bytes, bytearray)):
         return bytes(result)
-    raise RuntimeError('Unable to fetch image bytes from LINE message content')
+    raise RuntimeError('Unable to fetch message content bytes from LINE')
+
+
+async def _fetch_image_bytes(message_id: str) -> bytes:
+    """Backward-compatible alias for image content fetch."""
+    return await _fetch_message_content_bytes(message_id)
 
 
 def _extract_sent_message_id(response) -> Optional[str]:
@@ -292,7 +302,9 @@ async def handle_callback(request: Request):
                 return (0, int(getattr(event, 'timestamp', 0) or 0))
             if extract_image_message_id(event):
                 return (1, int(getattr(event, 'timestamp', 0) or 0))
-        return (2, int(getattr(event, 'timestamp', 0) or 0))
+            if extract_audio_message(event):
+                return (2, int(getattr(event, 'timestamp', 0) or 0))
+        return (3, int(getattr(event, 'timestamp', 0) or 0))
 
     events = sorted(events, key=_event_priority)
 
@@ -303,6 +315,7 @@ async def handle_callback(request: Request):
 
         user_text = extract_text_message(event)
         image_message_id = extract_image_message_id(event)
+        audio_message = extract_audio_message(event)
         line_user_id = extract_line_user_id(event)
         source_message_id = extract_source_message_id(event)
         quoted_message_id = extract_quoted_message_id(event)
@@ -584,6 +597,87 @@ async def handle_callback(request: Request):
                     bot_reply = await process_image_message(image_bytes, gemini_client, context=message_context)
             else:
                 bot_reply = await process_image_message(image_bytes, gemini_client, context=message_context)
+
+            await _reply_and_save_confirmation(
+                event.reply_token,
+                bot_reply,
+                tenant=tenant,
+                line_user_id=line_user_id,
+                source_message_id=source_message_id,
+            )
+            continue
+
+        if audio_message:
+            audio_message_id = audio_message['message_id']
+            duration_ms = audio_message.get('duration_ms')
+            if check_audio_duration(duration_ms) == AudioLimitViolation.DURATION:
+                await _reply_text(
+                    event.reply_token,
+                    _localized_for_tenant(
+                        tenant,
+                        lambda: audio_too_long_reply(reply_language),
+                    ),
+                )
+                continue
+
+            if tenant and line_user_id and source_message_id:
+                save_inbound_audio_message(
+                    message_id=source_message_id,
+                    line_user_id=line_user_id,
+                    tenant=tenant,
+                )
+            try:
+                audio_bytes = await _fetch_message_content_bytes(audio_message_id)
+            except Exception:
+                logger.exception('Audio fetch failed')
+                error_reply = BotReply(
+                    text=_localized_for_tenant(
+                        tenant,
+                        lambda: error_reply_text(reply_language),
+                    ),
+                    retryable_failure='audio_fetch_error',
+                )
+                await _reply_and_save_confirmation(
+                    event.reply_token,
+                    error_reply,
+                    tenant=tenant,
+                    line_user_id=line_user_id,
+                    source_message_id=source_message_id,
+                )
+                continue
+
+            if tenant and line_user_id and source_message_id:
+                usage_prep = prepare_inbound_usage(
+                    tenant,
+                    line_user_id,
+                    source_message_id,
+                    reply_language=reply_language,
+                    audio_bytes=audio_bytes,
+                    chat_display_name=chat_display_name,
+                )
+                if not usage_prep.allowed:
+                    await _reply_text(
+                        event.reply_token,
+                        _localized_for_tenant(
+                            tenant,
+                            lambda: format_denial_reply(reply_language, usage_prep.reason),
+                        ),
+                    )
+                    continue
+                with usage_billing_scope(usage_prep.billing_context):
+                    bot_reply = await process_audio_message(
+                        audio_bytes,
+                        gemini_client,
+                        context=message_context,
+                        duration_ms=duration_ms,
+                    )
+            else:
+                bot_reply = await process_audio_message(
+                    audio_bytes,
+                    gemini_client,
+                    context=message_context,
+                    duration_ms=duration_ms,
+                )
 
             await _reply_and_save_confirmation(
                 event.reply_token,

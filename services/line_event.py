@@ -108,3 +108,30 @@ def extract_image_message_id(event) -> Optional[str]:
         return None
 
     return image_id.strip() or None
+
+
+def extract_audio_message(event) -> Optional[dict]:
+    """Return audio message id + optional duration_ms for LINE audio events."""
+    message = getattr(event, "message", None)
+    if message is None:
+        return None
+
+    if getattr(message, "type", "").lower() != "audio":
+        return None
+
+    audio_id = getattr(message, "id", None)
+    if not isinstance(audio_id, str) or not audio_id.strip():
+        return None
+
+    duration_ms = None
+    raw_duration = getattr(message, "duration", None)
+    if raw_duration is not None:
+        try:
+            duration_ms = int(raw_duration)
+        except (TypeError, ValueError):
+            duration_ms = None
+
+    return {
+        "message_id": audio_id.strip(),
+        "duration_ms": duration_ms,
+    }
