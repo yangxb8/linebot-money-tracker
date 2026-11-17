@@ -12,10 +12,10 @@ from services.log_utils import describe_bytes, truncate
 logger = logging.getLogger(__name__)
 
 GEMINI_MODEL = 'gemini-3.5-flash'
-GEMINI_3_FLASH_MODEL = 'gemini-3-flash-preview'
+# gemini-3-flash-preview is NOT in the chain: Google AI Studio returns 404
+# (model not found / not supported for generateContent on API v1).
 GEMINI_GENERAL_MODEL_FALLBACK_CHAIN: Tuple[str, ...] = (
     'gemini-3.5-flash',
-    GEMINI_3_FLASH_MODEL,
     'gemini-2.5-flash',
     'gemini-3.1-flash-lite',
     'gemini-2.5-flash-lite',
@@ -38,6 +38,18 @@ def _api_error_code(exc: Exception) -> Optional[int]:
 
 def _is_quota_error(exc: Exception) -> bool:
     return _api_error_code(exc) == 429
+
+
+def _is_model_not_found_error(exc: Exception) -> bool:
+    """True when the requested model id is unavailable for generateContent."""
+    if _api_error_code(exc) != 404:
+        return False
+    message = str(exc).lower()
+    return (
+        'not found' in message
+        or 'not supported for generatecontent' in message
+        or 'listmodels' in message
+    )
 
 
 def _is_retryable_server_error(exc: Exception) -> bool:
@@ -121,6 +133,16 @@ class GeminiClient:
                             label,
                             resolved_model,
                             context,
+                        )
+                        break
+
+                    if _is_model_not_found_error(exc):
+                        logger.warning(
+                            'Gemini %s model unavailable (404) for model=%s%s: %s; trying next model',
+                            label,
+                            resolved_model,
+                            context,
+                            exc,
                         )
                         break
 
