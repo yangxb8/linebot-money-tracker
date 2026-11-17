@@ -22,6 +22,7 @@ The update script installs both dependency sets (`pip install -r requirements.tx
 ### Web — lint/test/build/run
 - From `web/`: `npm run lint`, `npm test` (vitest), `npm run build`, `npm run dev` (Next.js + Turbopack on port 3000).
 - `web/.env.local` is gitignored and is NOT created by the update script — recreate it from `web/.env.example` before running the dev server.
+- Optional Sentry (`line-bot-web`): set `NEXT_PUBLIC_SENTRY_DSN` (and optionally `SENTRY_ENVIRONMENT`). For production source maps on Vercel/CI, also set `SENTRY_AUTH_TOKEN`. Local verification: `ALLOW_SENTRY_TEST=1` then `GET /api/debug/sentry-test`.
 - The Next.js middleware calls Supabase on **every** request, so `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` must be set or all pages (including `/login`) error. The anon/publishable keys are public and retrievable from the Supabase project.
 - Authenticated dashboard flows additionally require `SUPABASE_SERVICE_ROLE_KEY` (admin client) and a LINE Login channel: `LINE_LOGIN_CHANNEL_ID`, `LINE_LOGIN_CHANNEL_SECRET`, `NEXT_PUBLIC_LINE_LIFF_ID`. Without these, `/login` renders but the LINE sign-in flow cannot complete, and protected pages bounce back to `/login`.
 

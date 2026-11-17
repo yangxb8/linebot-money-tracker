@@ -409,7 +409,8 @@ Env contracts: root `.env.example`, `web/.env.example`, and `specs/003-local-dev
 
 ### 7.4 Observability
 
-- Structured logging in the bot; optional Sentry (`SENTRY_DSN`) for ERROR+ issues.
+- Structured logging in the bot; optional Sentry (`SENTRY_DSN`) for ERROR+ issues (project `line-bot`).
+- Web dashboard: optional `@sentry/nextjs` via `NEXT_PUBLIC_SENTRY_DSN` (project `line-bot-web`) — client/server/edge init, Session Replay, user feedback widget, tracing; source maps upload when `SENTRY_AUTH_TOKEN` is set at build time.
 - Usage events/summaries support product metering and debugging quota denials.
 
 ### 7.5 Internationalization & persona

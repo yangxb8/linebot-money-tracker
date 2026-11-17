@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 const nextConfig: NextConfig = {
   env: {
@@ -9,4 +10,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: "xubin-yang",
+  project: "line-bot-web",
+
+  // Only print logs for uploading source maps in CI
+  silent: !process.env.CI,
+
+  // Auth token for source map upload (set SENTRY_AUTH_TOKEN in CI/Vercel)
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  // Upload a larger set of source maps for prettier stack traces
+  widenClientFileUpload: true,
+});

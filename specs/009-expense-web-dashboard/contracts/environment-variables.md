@@ -30,6 +30,11 @@ LINE does **not** allow new LIFF apps on Messaging API channels ([2019 announcem
 | Variable | Default | Description |
 | -------- | ------- | ----------- |
 | `EXPENSE_PAGE_SIZE` | `20` | Pagination size |
+| `NEXT_PUBLIC_SENTRY_DSN` | — | Sentry project DSN for `line-bot-web`; omit to disable |
+| `SENTRY_ENVIRONMENT` | `VERCEL_ENV` / `NODE_ENV` | Environment tag for Sentry events |
+| `SENTRY_TRACES_SAMPLE_RATE` | `1.0` (dev) / `0.1` (prod) | Performance tracing sample rate |
+| `SENTRY_AUTH_TOKEN` | — | Build-time source map upload (Vercel/CI only; never commit) |
+| `ALLOW_SENTRY_TEST` | — | Set to `1` to enable `/api/debug/sentry-test` verification route |
 
 ## Bot / rich menu script (Messaging API channel)
 
