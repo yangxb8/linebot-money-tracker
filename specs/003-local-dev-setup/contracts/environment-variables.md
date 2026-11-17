@@ -62,6 +62,17 @@ When `SENTRY_DSN` is set, the app initializes the Sentry SDK and creates Sentry 
 | `SENTRY_ENVIRONMENT` | — | Environment tag (falls back to `ENV` if set) |
 | `SENTRY_TRACES_SAMPLE_RATE` | `0.0` | Performance tracing sample rate (`0.0`–`1.0`) |
 
+## Optional — Sentry (Next.js web dashboard)
+
+When `NEXT_PUBLIC_SENTRY_DSN` is set in `web/`, the Next.js app initializes `@sentry/nextjs` (client, server, and edge) for project `line-bot-web`. See `web/.env.example` and `specs/009-expense-web-dashboard/contracts/environment-variables.md`.
+
+| Variable | Default | Purpose |
+| -------- | ------- | ------- |
+| `NEXT_PUBLIC_SENTRY_DSN` | — | Web project DSN; omit to disable |
+| `SENTRY_ENVIRONMENT` | — | Environment tag (falls back to `VERCEL_ENV` / `NODE_ENV`) |
+| `SENTRY_TRACES_SAMPLE_RATE` | `1.0` (dev) / `0.1` (prod) | Performance tracing sample rate |
+| `SENTRY_AUTH_TOKEN` | — | Source map upload at build time (CI/Vercel) |
+
 ## Local setup
 
 1. Copy `.env.example` to `.env`

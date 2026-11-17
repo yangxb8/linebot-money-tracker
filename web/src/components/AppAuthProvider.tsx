@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import * as Sentry from "@sentry/nextjs";
 import liff from "@line/liff";
 import { createClient } from "@/lib/supabase/client";
 import { LanguageProvider, useLanguage } from "@/components/LanguageProvider";
@@ -65,6 +66,7 @@ function AppAuthBootstrap({ children }: { children: ReactNode }) {
           if (locale) setLocale(normalizeLocale(locale));
           setLineUserId(id);
           setSharedTenants(shared);
+          Sentry.setUser({ id });
           setPhase("ready");
         }
         return;
@@ -104,6 +106,7 @@ function AppAuthBootstrap({ children }: { children: ReactNode }) {
             if (locale) setLocale(normalizeLocale(locale));
             setLineUserId(id);
             setSharedTenants(shared);
+            Sentry.setUser({ id });
             setPhase("ready");
           }
         } catch {
@@ -122,6 +125,7 @@ function AppAuthBootstrap({ children }: { children: ReactNode }) {
   }, [setLocale]);
 
   async function signOut() {
+    Sentry.setUser(null);
     const supabase = createClient();
     await supabase.auth.signOut();
     await fetch("/api/auth/signout", { method: "POST" });
