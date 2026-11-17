@@ -332,10 +332,23 @@ async def assist_parse_image(
 
 
 _AUDIO_TRANSCRIBE_PROMPT = (
-    'Transcribe the spoken words in this audio clip.\n'
-    'Return ONLY a JSON object: {"transcript":"<exact spoken text>"}.\n'
+    'Transcribe this short expense voice message for a money-tracking bot.\n'
+    'Return ONLY a JSON object: {"transcript":"<text>"}.\n'
     'If there is no usable speech, return {"transcript":""}.\n'
-    'Do not invent expenses or add commentary.'
+    'Do not invent purchases, amounts, or commentary that was not spoken.\n'
+    '\n'
+    'Amount / number rules (critical):\n'
+    '- Normalize every money amount to Arabic digits plus currency when spoken '
+    '(examples: 1200円, 15000 yen, ¥980).\n'
+    '- Convert Japanese number words and place units: 百→hundreds, 千→thousands, '
+    '万→ten-thousands (e.g. 千二百円 → 1200円, 一万五千円 → 15000円, ３千円 → 3000円).\n'
+    '- Convert digit-by-digit speech to a single number '
+    '(e.g. イチニーゼロゼロ円 / いち・に・ぜろ・ぜろえん → 1200円).\n'
+    '- Keep English number words as digits too (twelve hundred yen → 1200 yen).\n'
+    '- Prefer 円 for Japanese speech and yen when the speaker said yen.\n'
+    '- Do not spell amounts in words in the transcript when a numeric amount was intended.\n'
+    '\n'
+    'Otherwise keep merchant/item wording faithful (including Japanese/Chinese/English mix).'
 )
 
 
