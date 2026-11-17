@@ -972,9 +972,16 @@ async def _process_audio_message_inner(
 
     try:
         transcript = await transcribe_audio(audio_bytes, gemini, mime_type=mime_type)
-    except (GeminiUsageLimitError, UserUsageLimitExceeded) as exc:
-        logger.warning('Audio transcription hit usage limit: %s', exc)
+    except UserUsageLimitExceeded as exc:
+        logger.warning('Audio transcription hit user usage limit: %s', exc)
         return _text_reply(str(exc) or usage_limit_reply(language))
+    except GeminiUsageLimitError as exc:
+        # Transient Gemini 503/quota after model fallback — localized reply, retryable.
+        logger.warning('Audio transcription hit Gemini capacity limit: %s', exc)
+        return _text_reply(
+            usage_limit_reply(language),
+            retryable_failure='processing_error',
+        )
     except Exception:
         logger.exception(
             'Audio transcription failed: audio=%s mime=%s',

@@ -139,6 +139,18 @@ class GeminiClient:
                         await asyncio.sleep(delay)
                         continue
 
+                    # Exhausted retries for this model on transient 5xx (e.g. 503 high demand):
+                    # fall through to the next model instead of failing the whole request.
+                    if _is_retryable_server_error(exc) and allow_quota_model_fallback:
+                        logger.warning(
+                            'Gemini %s exhausted retries for model=%s%s: %s; trying next model',
+                            label,
+                            resolved_model,
+                            context,
+                            exc,
+                        )
+                        break
+
                     logger.exception(
                         'Gemini %s API call failed (model=%s attempt %d/%d)%s',
                         label,
@@ -157,7 +169,7 @@ class GeminiClient:
             if model_index < len(model_chain) - 1:
                 next_model = model_chain[model_index + 1]
                 logger.info(
-                    'Gemini %s switching model after quota: %s -> %s',
+                    'Gemini %s switching model after unavailable/quota: %s -> %s',
                     label,
                     resolved_model,
                     next_model,

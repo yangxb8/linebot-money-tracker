@@ -7,8 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from services.audio_limits import MAX_AUDIO_DURATION_MS, max_audio_bytes
+from services.gemini_client import GeminiUsageLimitError
 from services.message_context import BotReply, MessageContext
-from services.message_handler import process_audio_message
+from services.message_handler import process_audio_message, usage_limit_reply
 from services.tenant_context import TenantContext
 
 
@@ -87,3 +88,20 @@ async def test_process_audio_empty_transcript_unusable():
 
     text_mock.assert_not_awaited()
     assert result.text  # localized unusable guidance
+
+
+@pytest.mark.asyncio
+async def test_process_audio_gemini_capacity_returns_usage_limit_retryable():
+    gemini = MagicMock()
+    with patch(
+        'services.message_handler.transcribe_audio',
+        AsyncMock(side_effect=GeminiUsageLimitError('all models busy')),
+    ), patch(
+        'services.message_handler.process_text_message',
+        AsyncMock(),
+    ) as text_mock:
+        result = await process_audio_message(b'fake-audio', gemini, duration_ms=1_000)
+
+    text_mock.assert_not_awaited()
+    assert result.text == usage_limit_reply('ja')
+    assert result.retryable_failure == 'processing_error'
