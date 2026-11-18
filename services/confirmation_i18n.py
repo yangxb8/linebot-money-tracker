@@ -37,19 +37,7 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         ),
         'unsupported': (
             '申し訳ありません。現在は支出の記録のみ対応しています。'
-            'レシート画像、音声、またはテキスト（例: ランチ 1200円）を送ってください。'
-        ),
-        'audio_too_long': (
-            '音声が長すぎます（上限 {max_seconds} 秒）。'
-            '短い録音にするか、テキストで送ってください。'
-        ),
-        'audio_too_large': (
-            '音声ファイルが大きすぎます（上限 {max_mb} MB）。'
-            '短い録音にするか、テキストで送ってください。'
-        ),
-        'audio_unusable': (
-            '音声を聞き取れませんでした。'
-            'もう一度はっきり録音するか、テキストで送ってください。'
+            'レシート画像またはテキスト（例: ランチ 1200円）を送ってください。'
         ),
         'error': '応答を生成できませんでした。しばらくしてからもう一度お試しください。',
         'retry_not_found': (
@@ -133,19 +121,7 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         ),
         'unsupported': (
             'Sorry—I only accept expense submissions right now. '
-            "Please send a receipt image, voice message, or text like: 'Lunch 1200 yen'."
-        ),
-        'audio_too_long': (
-            'That voice message is too long (limit {max_seconds} seconds). '
-            'Please send a shorter recording or use text instead.'
-        ),
-        'audio_too_large': (
-            'That voice message is too large (limit {max_mb} MB). '
-            'Please send a shorter recording or use text instead.'
-        ),
-        'audio_unusable': (
-            "I couldn't understand that voice message. "
-            'Please try again more clearly, or send text instead.'
+            "Please send a receipt image or text like: 'Lunch 1200 yen'."
         ),
         'error': "Sorry, I couldn't generate a response right now. Please try again in a moment.",
         'retry_not_found': (
@@ -227,18 +203,7 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         ),
         'unsupported': (
             '抱歉，目前仅支持记录支出。'
-            '请发送收据图片、语音或文字（例: 午餐 1200円）。'
-        ),
-        'audio_too_long': (
-            '语音过长（上限 {max_seconds} 秒）。'
-            '请发送更短的录音或改用文字。'
-        ),
-        'audio_too_large': (
-            '语音文件过大（上限 {max_mb} MB）。'
-            '请发送更短的录音或改用文字。'
-        ),
-        'audio_unusable': (
-            '无法听清这段语音。请重新清晰录制，或改用文字发送。'
+            '请发送收据图片或文字（例: 午餐 1200円）。'
         ),
         'error': '暂时无法生成回复，请稍后再试。',
         'retry_not_found': (
