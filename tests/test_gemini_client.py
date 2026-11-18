@@ -145,47 +145,20 @@ class TestGeminiClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(generate_mock.call_count, 2)
         sleep_mock.assert_awaited_once()
 
-    async def test_generate_reply_falls_back_after_max_retries_on_503(self):
-        """Exhausted 503 retries on model N should try model N+1 (same as quota)."""
-        fake_response = MagicMock()
-        fake_response.text = 'Fallback after 503'
+    async def test_generate_reply_stops_after_max_retries_on_503(self):
         client = GeminiClient(api_key='test_key')
         max_attempts = GEMINI_MAX_RETRIES + 1
 
         with patch.object(
             client.client.models,
             'generate_content',
-            side_effect=[_server_error_503()] * max_attempts + [fake_response],
+            side_effect=[_server_error_503()] * max_attempts,
         ) as generate_mock, patch('services.gemini_client.asyncio.sleep', AsyncMock()) as sleep_mock:
-            result = await client.generate_reply('Hello world')
-
-        self.assertEqual(result, 'Fallback after 503')
-        self.assertEqual(generate_mock.call_count, max_attempts + 1)
-        self.assertEqual(sleep_mock.await_count, GEMINI_MAX_RETRIES)
-        self.assertEqual(
-            generate_mock.call_args_list[0].kwargs['model'],
-            GEMINI_GENERAL_MODEL_FALLBACK_CHAIN[0],
-        )
-        self.assertEqual(
-            generate_mock.call_args_list[-1].kwargs['model'],
-            GEMINI_GENERAL_MODEL_FALLBACK_CHAIN[1],
-        )
-
-    async def test_generate_reply_raises_usage_limit_when_all_models_503(self):
-        client = GeminiClient(api_key='test_key')
-        max_attempts = GEMINI_MAX_RETRIES + 1
-        models = len(GEMINI_GENERAL_MODEL_FALLBACK_CHAIN)
-        total_calls = models * max_attempts
-
-        with patch.object(
-            client.client.models,
-            'generate_content',
-            side_effect=[_server_error_503()] * total_calls,
-        ) as generate_mock, patch('services.gemini_client.asyncio.sleep', AsyncMock()):
-            with self.assertRaises(GeminiUsageLimitError):
+            with self.assertRaises(RuntimeError):
                 await client.generate_reply('Hello world')
 
-        self.assertEqual(generate_mock.call_count, total_calls)
+        self.assertEqual(generate_mock.call_count, max_attempts)
+        self.assertEqual(sleep_mock.await_count, GEMINI_MAX_RETRIES)
 
     async def test_generate_reply_does_not_retry_non_retryable_errors(self):
         client = GeminiClient(api_key='test_key')
