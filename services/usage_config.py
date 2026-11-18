@@ -22,7 +22,6 @@ class UsageTierLimits:
     rate_per_day: int
     max_text_words: int
     max_image_bytes: int
-    max_audio_bytes: int
 
 
 LIFETIME_BUCKET = 'lifetime'
@@ -37,5 +36,4 @@ def get_free_tier_limits() -> UsageTierLimits:
         rate_per_day=_int_env('USAGE_RATE_LIMIT_PER_DAY', 100),
         max_text_words=_int_env('USAGE_MAX_TEXT_WORDS', 1000),
         max_image_bytes=_int_env('USAGE_MAX_IMAGE_BYTES', 10 * 1024 * 1024),
-        max_audio_bytes=_int_env('USAGE_MAX_AUDIO_BYTES', 5 * 1024 * 1024),
     )

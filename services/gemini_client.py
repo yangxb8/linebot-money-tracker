@@ -12,10 +12,10 @@ from services.log_utils import describe_bytes, truncate
 logger = logging.getLogger(__name__)
 
 GEMINI_MODEL = 'gemini-3.5-flash'
-# gemini-3-flash-preview is NOT in the chain: Google AI Studio returns 404
-# (model not found / not supported for generateContent on API v1).
+GEMINI_3_FLASH_MODEL = 'gemini-3-flash-preview'
 GEMINI_GENERAL_MODEL_FALLBACK_CHAIN: Tuple[str, ...] = (
     'gemini-3.5-flash',
+    GEMINI_3_FLASH_MODEL,
     'gemini-2.5-flash',
     'gemini-3.1-flash-lite',
     'gemini-2.5-flash-lite',
@@ -38,18 +38,6 @@ def _api_error_code(exc: Exception) -> Optional[int]:
 
 def _is_quota_error(exc: Exception) -> bool:
     return _api_error_code(exc) == 429
-
-
-def _is_model_not_found_error(exc: Exception) -> bool:
-    """True when the requested model id is unavailable for generateContent."""
-    if _api_error_code(exc) != 404:
-        return False
-    message = str(exc).lower()
-    return (
-        'not found' in message
-        or 'not supported for generatecontent' in message
-        or 'listmodels' in message
-    )
 
 
 def _is_retryable_server_error(exc: Exception) -> bool:
@@ -136,16 +124,6 @@ class GeminiClient:
                         )
                         break
 
-                    if _is_model_not_found_error(exc):
-                        logger.warning(
-                            'Gemini %s model unavailable (404) for model=%s%s: %s; trying next model',
-                            label,
-                            resolved_model,
-                            context,
-                            exc,
-                        )
-                        break
-
                     if _is_retryable_server_error(exc) and attempt < max_attempts:
                         delay = _retry_delay_seconds(attempt)
                         logger.warning(
@@ -160,18 +138,6 @@ class GeminiClient:
                         )
                         await asyncio.sleep(delay)
                         continue
-
-                    # Exhausted retries for this model on transient 5xx (e.g. 503 high demand):
-                    # fall through to the next model instead of failing the whole request.
-                    if _is_retryable_server_error(exc) and allow_quota_model_fallback:
-                        logger.warning(
-                            'Gemini %s exhausted retries for model=%s%s: %s; trying next model',
-                            label,
-                            resolved_model,
-                            context,
-                            exc,
-                        )
-                        break
 
                     logger.exception(
                         'Gemini %s API call failed (model=%s attempt %d/%d)%s',
@@ -191,7 +157,7 @@ class GeminiClient:
             if model_index < len(model_chain) - 1:
                 next_model = model_chain[model_index + 1]
                 logger.info(
-                    'Gemini %s switching model after unavailable/quota: %s -> %s',
+                    'Gemini %s switching model after quota: %s -> %s',
                     label,
                     resolved_model,
                     next_model,
@@ -300,36 +266,6 @@ class GeminiClient:
             label='multimodal',
             contents=[
                 types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-                prompt.strip(),
-            ],
-            context=context,
-            models=GEMINI_GENERAL_MODEL_FALLBACK_CHAIN,
-        )
-
-    async def generate_reply_with_audio(
-        self,
-        prompt: str,
-        audio_bytes: bytes,
-        mime_type: str = 'audio/mp4',
-    ) -> str:
-        if not prompt or not prompt.strip():
-            raise ValueError('Prompt cannot be empty.')
-        if not audio_bytes:
-            raise ValueError('Audio bytes cannot be empty.')
-
-        context = f' audio={describe_bytes(audio_bytes)} mime={mime_type}'
-        logger.info(
-            'Gemini audio request: models=%s audio=%s mime=%s prompt_len=%d',
-            GEMINI_GENERAL_MODEL_FALLBACK_CHAIN,
-            describe_bytes(audio_bytes),
-            mime_type,
-            len(prompt),
-        )
-        logger.debug('Gemini audio prompt: %s', truncate(prompt, 1000))
-        return await self._generate_content_with_retry(
-            label='audio-transcribe',
-            contents=[
-                types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
                 prompt.strip(),
             ],
             context=context,

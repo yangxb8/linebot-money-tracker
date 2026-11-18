@@ -13,7 +13,6 @@ class TestUsageConfig(unittest.TestCase):
         self.assertEqual(limits.rate_per_day, 100)
         self.assertEqual(limits.max_text_words, 1000)
         self.assertEqual(limits.max_image_bytes, 10 * 1024 * 1024)
-        self.assertEqual(limits.max_audio_bytes, 5 * 1024 * 1024)
 
     def test_jst_year_month_format(self):
         value = current_jst_year_month()

@@ -22,7 +22,7 @@ Users log spending in LINE (or the console harness). Confirmations become **repl
 
 ### High-level features
 
-- **Expense capture** — free-form text, receipt images, and voice/audio messages → structured line items with amount, date, merchant, category
+- **Expense capture** — free-form text and receipt images → structured line items with amount, date, merchant, category
 - **Reply edits** — quote the bot confirmation to change amount/category/date, soft-delete, restore, or bulk-recategorize
 - **Wish list** — “want to buy” proposals with budget-impact preview; confirm in chat or manage/execute in the web app
 - **Multi-tenant ledgers** — personal (`user`) and shared (`group` / `room`) ledgers with membership
@@ -304,7 +304,7 @@ sequenceDiagram
   B->>DB: store confirmation anchor + item snapshots
 ```
 
-Image path is the same after image fetch + preprocess + Gemini vision (+ optional validation retry). Voice/audio path enforces duration (≤60s) and size (≤5 MB) limits, transcribes via Gemini multimodal (general/assist metering, not receipt analysis), then reuses this text pipeline so confirmation, wish-list intent, and reply-edit stay consistent. Wish-list phrases branch before expense persistence and create a **pending confirmation** instead of expenses.
+Image path is the same after image fetch + preprocess + Gemini vision (+ optional validation retry). Wish-list phrases branch before expense persistence and create a **pending confirmation** instead of expenses.
 
 ### 5.2 Reply edit / wish confirm
 
@@ -402,9 +402,8 @@ Env contracts: root `.env.example`, `web/.env.example`, and `specs/003-local-dev
 ### 7.3 LLM and reliability boundaries
 
 - Model fallback chain and retries live in `gemini_client.py`; metering in `metered_gemini.py`.
-- Pre-LLM guards: payload size (text/image/audio), per-minute/day rates, monthly total and receipt quotas, group donor pooling.
+- Pre-LLM guards: payload size, per-minute/day rates, monthly total and receipt quotas, group donor pooling.
 - Receipt images: preprocess → Gemini vision JSON parse → validate item sum vs LLM `total` (retry once on mismatch).
-- Voice/audio: LINE `audio` message → duration/size reject before speech understanding → transcript → existing text expense/wish path.
 - Fail-open when Supabase is unset: parsing and replies still work; persistence/metering skip — used by key-free unit tests.
 
 ### 7.4 Observability

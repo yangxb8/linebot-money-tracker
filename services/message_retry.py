@@ -9,7 +9,7 @@ from services.confirmation_i18n import t
 from services.gemini_client import GeminiClient
 from services.inbound_message_repository import get_failure_retry_anchor, get_inbound_message
 from services.message_context import BotReply, MessageContext, RetryContext
-from services.message_handler import process_audio_message, process_image_message, process_text_message
+from services.message_handler import process_image_message, process_text_message
 from services.tenant_context import TenantContext
 
 logger = logging.getLogger(__name__)
@@ -40,11 +40,6 @@ def retry_image_expired_reply(language: str = 'ja') -> str:
     return t(language, 'retry_image_expired')
 
 
-def retry_audio_expired_reply(language: str = 'ja') -> str:
-    # Reuse image-expired copy shape; audio content is also ephemeral via LINE.
-    return t(language, 'retry_image_expired')
-
-
 def _tenant_for_anchor(anchor) -> TenantContext:
     return TenantContext(
         tenant_type=anchor.tenant_type,
@@ -59,7 +54,6 @@ async def process_message_retry(
     fetch_image_bytes: Callable[[str], Awaitable[bytes]],
     *,
     logged_by_display_name: Optional[str] = None,
-    fetch_message_content_bytes: Optional[Callable[[str], Awaitable[bytes]]] = None,
 ) -> BotReply:
     language = retry_context.reply_language
     persona = resolve_persona_for_tenant(retry_context.tenant)
@@ -114,23 +108,6 @@ async def process_message_retry(
                 anchor.bot_error_message_id,
             )
             return await process_image_message(image_bytes, gemini, context=message_context)
-
-        if inbound.message_type == 'audio':
-            fetch_audio = fetch_message_content_bytes or fetch_image_bytes
-            try:
-                audio_bytes = await fetch_audio(anchor.original_message_id)
-            except Exception:
-                logger.exception(
-                    'Retry audio fetch failed original_message_id=%s',
-                    anchor.original_message_id,
-                )
-                return BotReply(text=retry_audio_expired_reply(language))
-            logger.info(
-                'Retrying audio message original_message_id=%s via bot_error_message_id=%s',
-                anchor.original_message_id,
-                anchor.bot_error_message_id,
-            )
-            return await process_audio_message(audio_bytes, gemini, context=message_context)
 
         logger.warning('Unsupported inbound message_type=%s for retry', inbound.message_type)
         return BotReply(text=retry_expired_reply(language))

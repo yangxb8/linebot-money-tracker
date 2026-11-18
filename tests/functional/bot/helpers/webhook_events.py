@@ -36,35 +36,6 @@ def text_message_event(
     }
 
 
-def audio_message_event(
-    *,
-    user_id: str = "U4af4980629",
-    message_id: str = "msg-audio-1",
-    reply_token: str = "reply-token-audio-1",
-    duration_ms: Optional[int] = 5_000,
-    timestamp: int = 1462629479859,
-) -> dict[str, Any]:
-    message: dict[str, Any] = {
-        "id": message_id,
-        "type": "audio",
-        "quoteToken": "qt-audio",
-        "contentProvider": {"type": "line"},
-    }
-    if duration_ms is not None:
-        message["duration"] = duration_ms
-
-    return {
-        "type": "message",
-        "mode": "active",
-        "timestamp": timestamp,
-        "source": {"type": "user", "userId": user_id},
-        "webhookEventId": "01GAUDIOXXXXXXXX",
-        "deliveryContext": {"isRedelivery": False},
-        "replyToken": reply_token,
-        "message": message,
-    }
-
-
 def webhook_body(*events: dict[str, Any], destination: str = "Udestination") -> bytes:
     payload = {"destination": destination, "events": list(events)}
     return json.dumps(payload, separators=(",", ":")).encode("utf-8")

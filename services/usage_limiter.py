@@ -27,7 +27,6 @@ logger = logging.getLogger(__name__)
 class LimitDenyReason(str, Enum):
     PAYLOAD_TEXT = 'payload_too_large_text'
     PAYLOAD_IMAGE = 'payload_too_large_image'
-    PAYLOAD_AUDIO = 'payload_too_large_audio'
     RATE_MINUTE = 'user_rate_limit_minute'
     RATE_DAY = 'user_rate_limit_day'
     QUOTA_MONTHLY = 'user_quota_monthly'
@@ -56,13 +55,6 @@ def check_payload_image(image_bytes: bytes) -> Optional[LimitDenyReason]:
     limits = get_free_tier_limits()
     if len(image_bytes) > limits.max_image_bytes:
         return LimitDenyReason.PAYLOAD_IMAGE
-    return None
-
-
-def check_payload_audio(audio_bytes: bytes) -> Optional[LimitDenyReason]:
-    limits = get_free_tier_limits()
-    if len(audio_bytes) > limits.max_audio_bytes:
-        return LimitDenyReason.PAYLOAD_AUDIO
     return None
 
 
@@ -136,9 +128,6 @@ def format_denial_reply(language: str, reason: LimitDenyReason) -> str:
     if reason == LimitDenyReason.PAYLOAD_IMAGE:
         max_mb = limits.max_image_bytes // (1024 * 1024)
         return usage_limit_message(language, reason.value, max_mb=str(max_mb))
-    if reason == LimitDenyReason.PAYLOAD_AUDIO:
-        max_mb = limits.max_audio_bytes // (1024 * 1024)
-        return usage_limit_message(language, reason.value, max_mb=str(max_mb))
     return usage_limit_message(language, reason.value)
 
 
@@ -150,7 +139,6 @@ def prepare_inbound_usage(
     reply_language: str = 'ja',
     text: Optional[str] = None,
     image_bytes: Optional[bytes] = None,
-    audio_bytes: Optional[bytes] = None,
     skip_limits: bool = False,
     chat_display_name: Optional[str] = None,
 ) -> LimitCheckResult:
@@ -182,11 +170,6 @@ def prepare_inbound_usage(
 
     if image_bytes is not None:
         payload_reason = check_payload_image(image_bytes)
-        if payload_reason:
-            return LimitCheckResult(allowed=False, reason=payload_reason)
-
-    if audio_bytes is not None:
-        payload_reason = check_payload_audio(audio_bytes)
         if payload_reason:
             return LimitCheckResult(allowed=False, reason=payload_reason)
 
