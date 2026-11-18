@@ -78,7 +78,7 @@ Module: `services/ai_assist.py` (+ `gemini_client` / `metered_gemini`)
 transcribe_audio(audio_bytes, mime_type, gemini) -> str
 ```
 
-- Prompt: return JSON `{ "transcript": "..." }` and **normalize spoken amounts to Arabic digits + currency** (e.g. `千二百円` / digit-by-digit → `1200円`).  
+- Prompt: return spoken words only (plain text / JSON `{ "transcript": "..." }` — pick one style consistent with project JSON helpers).  
 - Models: general fallback chain.  
 - Metering: general/assist — **not** `receipt_analysis`.  
 - Empty or whitespace-only transcript → unusable path.
