@@ -18,6 +18,11 @@
 - Q: After a new fiscal period starts, should the bot proactively mention that last period’s report is available? → A: On the user’s first message in a new fiscal period, briefly tell them last period’s report is available when they ask (text only, no image) (Option B)
 - Q: What should be the main graph on the single report image? → A: Main chart = budget vs actual (total and/or key categories); app focus is helping users meet the budget (Option A)
 
+### Session 2026-11-27 (continued)
+
+- Q: In a group ledger chat, who should get the new-period “report available on ask” tip? → A: Once per group conversation per period (first message from anyone; later members do not get a repeat tip) (Option B)
+- Q: When total and category budgets both exist, what must the primary budget-vs-actual graph include? → A: Total plus a small set of worst-variance categories (Option C)
+
 ## Dependencies
 
 - Reuses existing tenant/ledger access (personal and group/shared ledgers) from the LINE bot conversation context.
@@ -51,7 +56,7 @@ A user asks the LINE bot for a monthly expense report (for example, “monthly r
 
 1. **Given** a user in a personal chat with expenses in the target period, **When** they send a message that clearly asks for the monthly report, **Then** the bot classifies it as monthly-report intent (not expense / wish list / webapp) and delivers one summary image for that personal ledger’s default or named period.
 2. **Given** a user in a group ledger chat with group expenses, **When** they ask for the monthly report, **Then** the image summarizes that group ledger’s period (not a member’s personal ledger).
-3. **Given** a successful report delivery when budgets apply, **When** the user inspects the image, **Then** the **primary** graph shows budget vs actual (total and/or key categories) and the image also includes readable commentary/insights (not a text-only reply, and not multiple images).
+3. **Given** a successful report delivery when budgets apply, **When** the user inspects the image, **Then** the **primary** graph shows budget vs actual for the **total** and a **small set of worst-variance categories** (when category budgets exist), plus readable commentary/insights (not a text-only reply, and not multiple images).
 4. **Given** a message that is clearly an expense or wish-list request, **When** the bot classifies intent, **Then** it does **not** treat the message as a monthly-report request.
 5. **Given** a user who has not named a period and whose ledger has 会計月の開始日 = 1, **When** they ask for the monthly report, **Then** the report covers the previous completed calendar month (JST).
 6. **Given** a ledger with 会計月の開始日 set to a non-1 day (e.g. 25), **When** the user asks for the monthly report without naming a period, **Then** the report covers the previous completed fiscal period for that start day (not a raw calendar month that ignores 会計月の開始日).
@@ -79,17 +84,17 @@ Report generation for a given ledger and month is **lazy**: it does not run unti
 
 ### User Story 3 - Budget-aware insights on the report image (Priority: P1)
 
-Because the product’s focus is helping users **meet their budget**, the report image’s **main graph is budget vs actual** (total and/or key categories where budgets exist). Commentary reinforces that comparison with useful conclusions such as overall under/on/over budget, which categories drove overspend or saved room, pace vs time elapsed for the period, and practical takeaways. Category spend detail may appear in commentary or as secondary annotations, but must not replace budget vs actual as the primary visual when any applicable budget exists. When no budget is set at any applicable level, the report falls back to a spending summary graph and clearly states that no budget limit applies, without inventing fake budget pressure.
+Because the product’s focus is helping users **meet their budget**, the report image’s **main graph is budget vs actual**. When a total budget exists, the graph **always includes total** budget vs actual. When category budgets also exist, it **also includes a small set of worst-variance categories** (most overspent or most ahead of pace)—not every budgeted L1/L2—so the image stays readable on a phone. Commentary reinforces that comparison with useful conclusions such as overall under/on/over budget, which categories drove overspend or saved room, pace vs time elapsed for the period, and practical takeaways. When only category budgets exist (no total), the primary graph uses those category budgets with the same worst-variance selection rule. When no budget is set at any applicable level, the report falls back to a spending summary graph and clearly states that no budget limit applies, without inventing fake budget pressure.
 
 **Why this priority**: Budget comparison is the app’s core value and what turns a chart into actionable advice.
 
-**Independent Test**: Prepare a period that is over total budget with one dominant category over its L2 budget; request the report and confirm the primary graph is budget vs actual and commentary calls out overspending categories; repeat with a no-budget ledger and confirm fallback spending summary plus “no budget / unlimited” framing.
+**Independent Test**: Prepare a period over total budget with several category budgets where one L2 is the worst variance; request the report and confirm the primary graph includes total plus that worst-variance category (not every category budget); repeat with a no-budget ledger and confirm fallback spending summary plus “no budget / unlimited” framing.
 
 **Acceptance Scenarios**:
 
-1. **Given** a total period budget and spending under that total at a healthy pace, **When** the report image is produced, **Then** the primary graph shows budget vs actual and commentary reflects under/on-pace status (not only total spent).
-2. **Given** spending over a configured total or category budget, **When** the report image is produced, **Then** the primary graph and insights clearly call out the over-budget situation and the main contributing categories.
-3. **Given** category (L1/L2) budgets exist, **When** the report is produced, **Then** the budget-vs-actual view and insights consider those levels (not only the total) when explaining performance against limits.
+1. **Given** a total period budget and spending under that total at a healthy pace, **When** the report image is produced, **Then** the primary graph shows total budget vs actual and commentary reflects under/on-pace status (not only total spent).
+2. **Given** spending over a configured total or category budget, **When** the report image is produced, **Then** the primary graph and insights clearly call out the over-budget situation and highlight worst-variance categories.
+3. **Given** a total budget plus many L1/L2 budgets, **When** the report is produced, **Then** the primary graph includes the total and a **small** worst-variance category set (not every budgeted category), while commentary may still mention other drivers briefly.
 4. **Given** no budgets are configured for the ledger/period, **When** the report is produced, **Then** the image uses a spending-summary fallback graph and states that no budget limit is set, without fake “over budget” warnings.
 5. **Given** an in-progress current period (when the user explicitly asks for the current period), **When** the report includes pace commentary, **Then** it compares spend progress to elapsed time in that period in a way consistent with existing budget-pace concepts.
 
@@ -97,18 +102,19 @@ Because the product’s focus is helping users **meet their budget**, the report
 
 ### User Story 4 - New-period tip that the previous report is available on ask (Priority: P2)
 
-When a new fiscal period begins (per 会計月の開始日), on the **user’s first message** in that ledger conversation for the new period, the bot briefly tells them that the **previous period’s report is available when they ask**—**text only**, no report image in that tip. The tip does not replace handling of the user’s actual message intent (expense, wish list, etc.): it is an additive short notice where product rules allow combining copy, or a clear adjacent acknowledgment that does not drop the primary reply. After that first-message tip for the period has been given, later messages in the same new period do not repeat the tip. The user still must send a monthly-report ask to receive the image (same-turn or ask-again per User Story 2).
+When a new fiscal period begins (per 会計月の開始日), on the **first message in that ledger conversation** for the new period, the bot briefly tells them that the **previous period’s report is available when they ask**—**text only**, no report image in that tip. In a **1:1** chat that is the user’s first message of the period; in a **group** chat it is once per group conversation per period (the first message from **anyone**), and later members do **not** get a repeat tip. The tip does not replace handling of the actual message intent (expense, wish list, etc.): it is an additive short notice where product rules allow combining copy, or a clear adjacent acknowledgment that does not drop the primary reply. After that tip for the conversation/period has been given, later messages in the same new period do not repeat the tip. Someone must still send a monthly-report ask to receive the image (same-turn or ask-again per User Story 2).
 
-**Why this priority**: Surfaces the feature at a natural moment without unsolicited image spam; secondary to correct report delivery.
+**Why this priority**: Surfaces the feature at a natural moment without unsolicited image spam or group tip spam; secondary to correct report delivery.
 
-**Independent Test**: Send the first message after a fiscal-period rollover and confirm a short text tip that last period’s report is available on ask (no image); send a second unrelated message in the same new period and confirm the tip is not repeated; then ask for the report and receive the image via the normal report flow.
+**Independent Test**: After a fiscal-period rollover, send the first message in a 1:1 and in a group and confirm a short text tip (no image); send a second message (or another member’s first message in the group) and confirm the tip is not repeated; then ask for the report and receive the image via the normal report flow.
 
 **Acceptance Scenarios**:
 
-1. **Given** a ledger whose fiscal period has just rolled over and the user has not yet been tipped this period, **When** they send their first message in that conversation for the new period, **Then** the bot includes a brief text notice that the previous period’s report is available when they ask, and does **not** attach the report image with that tip alone.
-2. **Given** the new-period tip was already shown for this ledger conversation and period, **When** the user sends another message later in the same period, **Then** the tip is not shown again.
-3. **Given** the user received the tip, **When** they later send a monthly-report ask, **Then** the normal lazy prepare / same-turn or ask-again image delivery flow runs for the previous completed period (default) or the named period.
-4. **Given** the user’s first message of the new period is itself a monthly-report ask, **When** the bot handles it, **Then** it does not require a useless separate tip-only turn—report flow takes precedence (tip may be omitted or folded into the report acknowledgment without delaying image delivery rules).
+1. **Given** a 1:1 ledger whose fiscal period has just rolled over and the tip has not been shown this period, **When** the user sends their first message for the new period, **Then** the bot includes a brief text notice that the previous period’s report is available when they ask, and does **not** attach the report image with that tip alone.
+2. **Given** a group ledger conversation whose tip has not been shown this period, **When** any member sends the first message of the new period, **Then** the tip is shown once for that conversation; **When** another member messages later in the same period, **Then** the tip is not shown again.
+3. **Given** the tip was already shown for this ledger conversation and period, **When** anyone sends another message later in the same period, **Then** the tip is not shown again.
+4. **Given** someone received the tip (or the tip was shown in the group), **When** a user later sends a monthly-report ask, **Then** the normal lazy prepare / same-turn or ask-again image delivery flow runs for the previous completed period (default) or the named period.
+5. **Given** the first message of the new period is itself a monthly-report ask, **When** the bot handles it, **Then** it does not require a useless separate tip-only turn—report flow takes precedence (tip may be omitted or folded into the report acknowledgment without delaying image delivery rules).
 
 ---
 
@@ -139,7 +145,7 @@ Every report image follows a **consistent layout and brand frame** (same overall
 - What if two members of a **group** ask for the same period’s report? Both receive the same group-ledger report content; preparation is shared per ledger/period so the second asker does not force a confusing duplicate “first prepare” dead-end if already ready.
 - What if the highest-expense category is a tiny share of spend (many equal categories)? Theme still picks a deterministic top category (tie-break stable) without implying that category alone explains the whole month if commentary would be misleading—insights should still mention overall distribution.
 - What if the ledger’s **会計月の開始日** is not 1? Period boundaries, default “previous completed” selection, new-period tip timing, and budget comparison for the report follow that fiscal start day (same semantics as budget/pace); start day 1 keeps calendar months in JST.
-- What if the first message of a new period is in a **group**? The tip still applies for that group ledger conversation (once per period), text-only, without sending the image until someone asks for the report.
+- What if the first message of a new period is in a **group**? The tip is shown **once per group conversation per period** on the first message from anyone (text-only); later members do not get a repeat tip; the image is not sent until someone asks for the report.
 
 ## Requirements *(mandatory)*
 
@@ -148,8 +154,8 @@ Every report image follows a **consistent layout and brand frame** (same overall
 - **FR-001**: System MUST recognize a dedicated monthly-report user request category in the LINE bot, distinct from expense, wish-list, webapp-link, and generic other intents.
 - **FR-002**: Users MUST be able to request a monthly expense summary for the conversation’s active ledger (personal or group) by natural-language asks in supported reply languages (at least Japanese and English phrasing).
 - **FR-003**: When the period is unspecified, the system MUST default to the **previous completed** fiscal period. Period boundaries MUST follow the ledger’s existing **会計月の開始日** (fiscal month start day) from tenant settings—day 1 means calendar months in Japan Standard Time; other values shift the fiscal month the same way budgets and pace already do. Users MUST be able to request another allowed period by naming it (e.g., “October”, “先月”, “this month” / current period).
-- **FR-004**: System MUST generate **one** summary image per successful delivery that includes a primary graph and written commentary/insights. When any applicable budget exists for the period, the **primary** graph MUST be **budget vs actual** (total and/or key categories); category breakdown alone MUST NOT be the main visual in that case.
-- **FR-005**: Report insights MUST compare expenses to configured budgets (total and applicable category levels) for the same period boundaries and produce useful conclusions focused on meeting the budget (under/on/over budget, drivers of variance, pace when the period is in progress).
+- **FR-004**: System MUST generate **one** summary image per successful delivery that includes a primary graph and written commentary/insights. When any applicable budget exists for the period, the **primary** graph MUST be **budget vs actual**. When a total budget exists, that graph MUST include total budget vs actual; when category budgets also exist, it MUST also include a **small set of worst-variance categories** (not every budgeted L1/L2). Category spend-share alone MUST NOT be the main visual when budgets apply.
+- **FR-005**: Report insights MUST compare expenses to configured budgets (total and applicable category levels) for the same period boundaries and produce useful conclusions focused on meeting the budget (under/on/over budget, drivers of variance, pace when the period is in progress), aligned with the worst-variance categories highlighted on the graph.
 - **FR-006**: When no applicable budget exists, the system MUST fall back to a spending-summary graph, MUST still summarize spending, and MUST clearly indicate that no budget limit is set (no fabricated over-budget warnings).
 - **FR-007**: Report preparation for a ledger/period MUST be **lazy**—work starts on the first request for that period, not on a fixed schedule and not for every unused ledger/period.
 - **FR-008**: On the first request for a not-yet-ready period, the system MUST start preparation immediately. If the report becomes ready soon enough for a normal conversational reply, the system MUST deliver the summary image in that same turn; otherwise it MUST acknowledge preparation and tell the user to ask again (monthly-report request) to receive it—never silently fail or require a different channel.
@@ -160,7 +166,7 @@ Every report image follows a **consistent layout and brand frame** (same overall
 - **FR-013**: Report styling MUST reflect over-expense severity when the month is over budget or severely ahead of pace, and MUST apply a theme/accent derived from the month’s highest-expense category without sacrificing readability.
 - **FR-014**: Asking for a monthly report MUST NOT create expenses or wish-list items.
 - **FR-015**: System MUST handle empty periods, preparation failures, and invalid/future periods with clear user-facing messages and no broken image delivery.
-- **FR-016**: On the user’s first message in a ledger conversation after a new fiscal period starts (per 会計月の開始日), the system MUST briefly tell them (text only) that the previous period’s report is available when they ask; MUST NOT send the report image with that tip alone; and MUST NOT repeat the tip for later messages in the same period. If that first message is itself a monthly-report ask, report delivery rules take precedence over a separate tip-only turn.
+- **FR-016**: After a new fiscal period starts (per 会計月の開始日), on the first message in that ledger conversation for the new period, the system MUST briefly tell them (text only) that the previous period’s report is available when they ask; MUST NOT send the report image with that tip alone; and MUST NOT repeat the tip for later messages in the same conversation/period. In group chats this is **once per conversation per period** (first message from anyone), not once per member. If that first message is itself a monthly-report ask, report delivery rules take precedence over a separate tip-only turn.
 
 ### Key Entities
 
@@ -176,12 +182,12 @@ Every report image follows a **consistent layout and brand frame** (same overall
 
 - **SC-001**: In usability checks, at least 90% of users who send a clear monthly-report request receive either the summary image (when preparation finishes soon enough) or a clear “preparing—ask again to receive” acknowledgment within one conversational turn (no silent drop).
 - **SC-002**: After a period’s report is marked ready, a follow-up ask delivers the single summary image in under 10 seconds of user-perceived wait in normal conditions.
-- **SC-003**: 100% of delivered report images in acceptance testing use budget vs actual as the primary graph and include commentary about budget performance when any budget exists for that period.
+- **SC-003**: 100% of delivered report images in acceptance testing use budget vs actual as the primary graph (total plus a small worst-variance category set when both exist) and include commentary about budget performance when any budget exists for that period.
 - **SC-004**: In paired reviews (over-budget vs under-budget periods; two different persona settings; two different top-spend categories), reviewers correctly identify the intended severity and persona/language differences in at least 4 of 5 samples while still recognizing the reports as the same product layout.
 - **SC-005**: Zero expense or wish-list records are created as a side effect of monthly-report asks in automated acceptance scenarios.
 - **SC-006**: For a ledger/period never requested, the system performs no report preparation work until the first ask (lazy behavior verified in acceptance tests).
 - **SC-007**: For a ledger with 会計月の開始日 ≠ 1, an unspecified “monthly report” ask covers the previous completed fiscal period for that start day; for start day 1, it covers the previous completed calendar month (JST).
-- **SC-008**: After a fiscal-period rollover, the first user message in that ledger conversation yields a text-only tip about asking for the previous period’s report (no image); a second message in the same period does not repeat the tip.
+- **SC-008**: After a fiscal-period rollover, the first message in that ledger conversation yields a text-only tip about asking for the previous period’s report (no image); later messages in the same conversation/period—including other group members’ first messages—do not repeat the tip.
 
 ## Assumptions
 
@@ -191,7 +197,7 @@ Every report image follows a **consistent layout and brand frame** (same overall
 - Image delivery is request-driven: same-turn image when preparation (or refresh) finishes soon enough; otherwise ask-again. The product does not auto-push the finished **image** as an unsolicited message in v1 (new-period tip is text-only).
 - Group chats produce one shared report for the group ledger; there is no per-member split view in v1.
 - “One image” means a single visual reply asset; a short accompanying text caption (e.g., “Here’s your November report”) is allowed if needed for accessibility or LINE UX, but charts and insights live on the image.
-- Primary graph is budget vs actual when budgets exist (exact chart type left to planning); spending-summary fallback only when no applicable budget exists.
+- Primary graph is budget vs actual when budgets exist: always include total when set, plus a small worst-variance category set when category budgets exist (exact chart type and “how many” categories left to planning, typically a handful for phone readability); spending-summary fallback only when no applicable budget exists.
 - Highest-expense theme uses the largest spend among categories present that period; ties break deterministically.
 - Reply language and persona resolution follow the same tenant/bot-behavior rules as other bot replies (including group fallback to personal settings when the shared ledger has no customization).
 

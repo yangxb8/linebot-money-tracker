@@ -32,5 +32,6 @@
 ## Notes
 
 - Validation iteration 1 (2026-11-24): All items pass.
-- Clarification session 2026-11-27: 5/5 answers integrated (same-turn when ready; previous completed period + 会計月の開始日; consume existing setting; new-period text tip; budget-vs-actual primary graph). Re-validated: 16/16 items still passing.
+- Clarification session 2026-11-27: 5/5 answers integrated (same-turn when ready; previous completed period + 会計月の開始日; consume existing setting; new-period text tip; budget-vs-actual primary graph).
+- Clarification session 2026-11-27 (continued): 2 more answers (group tip once per conversation; primary graph = total + worst-variance categories). Re-validated: 16/16 items still passing.
 - Ready for `/speckit-plan`.
