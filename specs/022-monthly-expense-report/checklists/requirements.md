@@ -32,5 +32,5 @@
 ## Notes
 
 - Validation iteration 1 (2026-11-24): All items pass.
-- Informed defaults documented in Assumptions: current calendar month default (JST); lazy start on first monthly-report ask (not first arbitrary message); ask-to-receive (no unsolicited image push); optional short text caption allowed beside the single insight image.
-- No [NEEDS CLARIFICATION] markers; ready for `/speckit-clarify` (optional) or `/speckit-plan`.
+- Clarification session 2026-11-27: 5/5 answers integrated (same-turn when ready; previous completed period + 会計月の開始日; consume existing setting; new-period text tip; budget-vs-actual primary graph). Re-validated: 16/16 items still passing.
+- Ready for `/speckit-plan`.
