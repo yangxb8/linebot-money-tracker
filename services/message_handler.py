@@ -22,6 +22,11 @@ from services.gemini_client import GeminiClient, GeminiUsageLimitError
 from services.metered_gemini import UserUsageLimitExceeded
 from services.inbound_message_repository import has_recent_wish_list_trigger_text
 from services.intent import classify_text_message_intent
+from services.monthly_report import (
+    handle_monthly_report_ask,
+    looks_like_monthly_report_intent,
+    maybe_new_period_tip,
+)
 from services.webapp_intent import is_webapp_request_obvious, webapp_link_reply
 from services.log_utils import describe_bytes
 from services.message_context import (
@@ -463,6 +468,28 @@ async def process_reply_wish_list_image(
             )
 
 
+def _maybe_attach_period_tip(
+    reply: BotReply,
+    text: str,
+    context: Optional[MessageContext],
+) -> BotReply:
+    """Append new-period tip once per conversation; skip when this turn is a report ask."""
+    if context is None or context.tenant is None:
+        return reply
+    if looks_like_monthly_report_intent(text) or (reply.image is not None):
+        return reply
+    tip = maybe_new_period_tip(context.tenant, context.reply_language)
+    if not tip:
+        return reply
+    combined = f'{reply.text}\n\n{tip}' if reply.text else tip
+    return BotReply(
+        text=combined,
+        confirmation=reply.confirmation,
+        retryable_failure=reply.retryable_failure,
+        image=reply.image,
+    )
+
+
 async def process_text_message(
     text: str,
     gemini: GeminiClient,
@@ -470,7 +497,8 @@ async def process_text_message(
 ) -> BotReply:
     persona = resolve_persona_for_tenant(context.tenant if context else None)
     with persona_scope(persona):
-        return await _process_text_message_inner(text, gemini, context)
+        reply = await _process_text_message_inner(text, gemini, context)
+        return _maybe_attach_period_tip(reply, text, context)
 
 
 async def _enrich_items_without_persist(
@@ -601,6 +629,11 @@ async def _process_text_message_inner(
     language = context.reply_language if context else 'ja'
     logger.info('Processing text message len=%d', len(text or ''))
     try:
+        # Monthly report before expense/wish so summary asks never persist spending.
+        if looks_like_monthly_report_intent(text):
+            logger.info('Text pipeline: monthly_report phrase gate')
+            return await handle_monthly_report_ask(text, gemini, context)
+
         # Wish intent must be checked before expense persist (deterministic parse may match).
         if looks_like_wish_list_intent(text):
             logger.info('Text pipeline: wish_list phrase gate')
@@ -648,6 +681,10 @@ async def _process_text_message_inner(
         if message_intent == 'webapp':
             logger.info('Text pipeline: webapp intent detected')
             return _text_reply(webapp_link_reply(language))
+
+        if message_intent == 'monthly_report':
+            logger.info('Text pipeline: monthly_report intent (LLM)')
+            return await handle_monthly_report_ask(text, gemini, context)
 
         if message_intent == 'wish_list':
             logger.info('Text pipeline: wish_list intent (LLM)')

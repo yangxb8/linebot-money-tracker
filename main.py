@@ -13,6 +13,7 @@ from linebot.v3.messaging import (
     AsyncApiClient,
     AsyncMessagingApi,
     Configuration,
+    ImageMessage,
     ReplyMessageRequest,
     TextMessage,
 )
@@ -188,6 +189,22 @@ def _localized_for_tenant(tenant: Optional[TenantContext], builder):
         return builder()
 
 
+def _line_messages_for_bot_reply(bot_reply: BotReply) -> list:
+    messages: list = []
+    if bot_reply.text:
+        messages.append(TextMessage(text=bot_reply.text))
+    if bot_reply.image and bot_reply.image.original_url:
+        messages.append(
+            ImageMessage(
+                original_content_url=bot_reply.image.original_url,
+                preview_image_url=bot_reply.image.preview_url or bot_reply.image.original_url,
+            )
+        )
+    if not messages:
+        messages.append(TextMessage(text=bot_reply.text or ERROR_REPLY_TEXT))
+    return messages
+
+
 async def _reply_and_save_confirmation(
     reply_token: str,
     bot_reply: BotReply,
@@ -201,7 +218,7 @@ async def _reply_and_save_confirmation(
     response = await line_bot_api.reply_message(
         ReplyMessageRequest(
             reply_token=reply_token,
-            messages=[TextMessage(text=bot_reply.text)],
+            messages=_line_messages_for_bot_reply(bot_reply),
         )
     )
     bot_message_id = _extract_sent_message_id(response)

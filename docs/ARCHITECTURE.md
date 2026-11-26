@@ -14,7 +14,7 @@ Guide for new engineers: what this system is, how the LINE bot and web dashboard
 
 | Surface | Stack | Role |
 | ------- | ----- | ---- |
-| **LINE bot** | Python 3.11+, FastAPI, LINE Messaging API, Gemini | Fast capture: text, receipt photos, reply-edits, wish-list proposals |
+| **LINE bot** | Python 3.11+, FastAPI, LINE Messaging API, Gemini | Fast capture: text, receipt photos, reply-edits, wish-list proposals, monthly report images |
 | **Web dashboard** | Next.js 15 (App Router), React 19, Vercel | Browse/edit expenses, budgets, categories, settings, wish list, periodic expenses |
 | **Shared backend** | Supabase (Postgres + Auth + RLS + Edge Functions) | Source of truth for ledgers, auth identity bridge, cron |
 
@@ -25,6 +25,7 @@ Users log spending in LINE (or the console harness). Confirmations become **repl
 - **Expense capture** — free-form text and receipt images → structured line items with amount, date, merchant, category
 - **Reply edits** — quote the bot confirmation to change amount/category/date, soft-delete, restore, or bulk-recategorize
 - **Wish list** — “want to buy” proposals with budget-impact preview; confirm in chat or manage/execute in the web app
+- **Monthly expense report** — dedicated `monthly_report` intent returns one PNG (budget vs actual + commentary) for a fiscal period; lazy prepare with same-turn delivery or ask-again; once-per-conversation new-period tip (text only)
 - **Multi-tenant ledgers** — personal (`user`) and shared (`group` / `room`) ledgers with membership
 - **Categories & memory** — two-level tenant taxonomy (lazy-copied from templates); merchant/item memory improves future categorization
 - **Budgets & pace** — monthly total / L1 / L2 budgets; bot always warns on overspend; optional per-category pace-ahead (too-fast) warnings (default off); wish-list remaining budget always shown
@@ -63,7 +64,7 @@ flowchart TB
 
   subgraph Bot["LINE Bot — Cloud Run"]
     API["FastAPI main.py\nPOST /callback"]
-    SVC["services/\nmessage_handler, intent,\ncategorize, reply_edit, …"]
+    SVC["services/\nmessage_handler, intent,\ncategorize, reply_edit,\nmonthly_report, …"]
     GEM_WRAP["MeteredGeminiClient"]
     LOCAL["local_run.py\nconsole harness"]
   end
@@ -81,6 +82,7 @@ flowchart TB
   subgraph Supa["Supabase — household"]
     PG[(Postgres + RLS)]
     AUTH[Supabase Auth]
+    STORE["Storage\nmonthly-reports (private)"]
     EDGE["Edge Function\nprocess-periodic-expenses"]
     CRON[pg_cron]
   end
@@ -91,7 +93,8 @@ flowchart TB
   SVC --> GEM_WRAP
   GEM_WRAP --> GEMINI
   SVC -->|service role| PG
-  API -->|reply / push| MSG
+  SVC -->|PNG upload / signed URL| STORE
+  API -->|reply text + ImageMessage| MSG
   LOCAL --> SVC
 
   B --> LOGIN
@@ -115,10 +118,12 @@ flowchart LR
     MH[message_handler]
     AI[ai_assist / intent / categorize]
     RE[reply_edit / wish_list]
-    REPO[expense / confirmation /\nusage repositories]
+    MR[monthly_report\nperiod / snapshot / render]
+    REPO[expense / confirmation /\nusage / report repositories]
     WH --> MH
     MH --> AI
     MH --> RE
+    MH --> MR
     MH --> REPO
   end
 
@@ -270,6 +275,9 @@ erDiagram
 - Confirmation / inbound / processed-reply tables — reply-edit and retry anchors
 - `llm_usage_events`, `user_usage_summary`, `llm_message_windows` — metering
 - `category_merchant_memory`, `category_item_memory` — categorization learning
+- `monthly_report_artifacts` — lazy-prepared PNG metadata + fingerprints + snapshot JSON (status `preparing` | `ready` | `failed`)
+- `monthly_report_tips` — once-per-conversation tip marker keyed by `(tenant, tip_period_start)`
+- Storage bucket `monthly-reports` (private) — report PNGs; LINE receives short-lived signed HTTPS URLs
 
 Schema history lives in `supabase/migrations/`. Prefer reading recent migrations and the feature plans under `specs/` over assuming the original 004 schema is complete.
 
@@ -304,9 +312,41 @@ sequenceDiagram
   B->>DB: store confirmation anchor + item snapshots
 ```
 
-Image path is the same after image fetch + preprocess + Gemini vision (+ optional validation retry). Wish-list phrases branch before expense persistence and create a **pending confirmation** instead of expenses.
+Image path is the same after image fetch + preprocess + Gemini vision (+ optional validation retry). Wish-list phrases branch before expense persistence and create a **pending confirmation** instead of expenses. Monthly-report phrases/intent branch before expense/wish persistence and never insert ledger rows.
 
-### 5.2 Reply edit / wish confirm
+### 5.2 Monthly expense report (LINE image)
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant B as Bot
+  participant DB as Supabase
+  participant S as Storage monthly-reports
+
+  U->>B: "monthly report" / "レポート"
+  B->>B: resolve fiscal period (default previous completed)
+  B->>DB: load artifact by tenant + period_start
+  alt ready and fingerprints match
+    B->>S: signed URL (or harness local PNG)
+    B->>U: caption TextMessage + ImageMessage
+  else preparing in flight
+    B->>U: in-progress / ask-again text
+  else missing or stale fingerprint
+    B->>DB: upsert preparing
+    B->>B: snapshot + insight + Pillow PNG (~8s same-turn budget)
+    B->>S: upload PNG
+    B->>DB: mark ready (snapshot_json, insight_text, fingerprints)
+    alt ready within budget
+      B->>U: caption + ImageMessage
+    else still running
+      B->>U: preparing—ask again (background continues)
+    end
+  end
+```
+
+New fiscal period tip: on the first non-report message of a conversation for the current period, append text-only `monthly_report_tip` once (group/room: once for the shared ledger). Tip does not start prepare.
+
+### 5.3 Reply edit / wish confirm
 
 ```mermaid
 sequenceDiagram
@@ -326,7 +366,7 @@ sequenceDiagram
   B->>U: updated confirmation or ack
 ```
 
-### 5.3 Web expense / settings path
+### 5.4 Web expense / settings path
 
 ```mermaid
 flowchart TD
@@ -340,13 +380,13 @@ flowchart TD
   H --> I[Bot reads settings on next message]
 ```
 
-### 5.4 Periodic expenses
+### 5.5 Periodic expenses
 
 `pg_cron` → Supabase Edge Function `process-periodic-expenses` (service role) → due `periodic_expense_schedules` → insert `expenses` → advance `next_run_date`. The web app can also expose a protected cron route for operational flexibility.
 
-### 5.5 Console harness (no LINE)
+### 5.6 Console harness (no LINE)
 
-`local_run.py` builds a synthetic LINE user/message id, optionally `--group-id` / `--room-id`, and calls the same `services/` handlers. Persistence and metering require Supabase env vars; Gemini is always required for the running harness.
+`local_run.py` builds a synthetic LINE user/message id, optionally `--group-id` / `--room-id`, and calls the same `services/` handlers. Persistence and metering require Supabase env vars; Gemini is always required for the running harness. When a monthly report image is produced, the harness prints `[monthly_report] image_path=...` (local PNG) instead of sending LINE `ImageMessage`.
 
 ---
 
@@ -364,6 +404,7 @@ flowchart TD
 | **Budgets aggregated on read** | Avoid denormalized counters that drift; `get_budget_summary` (and bot pace logic) compute from expenses. |
 | **Pace-ahead opt-in per category** | Overspend always shown (LINE + web). “Spending too fast” only when `category_nodes.pace_warning_enabled` is on (default off) — LINE bot replies and web dashboard/budget badges. Total budget has no pace-ahead toggle — overspend only. |
 | **Wish list ≠ expense until execute/confirm** | Intent to buy is a separate lifecycle; budget impact is hypothetical until purchase. |
+| **Monthly report = lazy artifact + LINE image** | Reports are prepared on ask (not cron), fingerprinted for refresh, stored in private Storage, and delivered as caption + `ImageMessage` (signed URL). Same-turn wait ~8s then ask-again; tip is text-only and does not prepare. |
 | **Persona/i18n via settings + contextvars** | Web configures behavior; bot resolves effective settings (shared ledger → personal fallback → defaults) and scopes persona for the request. |
 | **Metered Gemini wrapper** | Quotas and pooling live next to the LLM client so every call path is covered. |
 | **Backend-only tables locked from JWT roles** | Confirmation/usage/memory tables are bot infrastructure, not dashboard features. |
@@ -420,7 +461,7 @@ All user-facing bot copy should go through `confirmation_i18n.t()` inside `perso
 
 | Suite | Command | Purpose |
 | ----- | ------- | ------- |
-| Bot unit + functional | `python3 -m pytest -q` | Pipeline, reply-edit, wish list (mocked) |
+| Bot unit + functional | `python3 -m pytest -q` | Pipeline, reply-edit, wish list, monthly report (mocked) |
 | Web unit/functional | `cd web && npm test` | API/UI logic |
 | Web e2e | `cd web && npx playwright test` | Auth gate + signed-in smoke |
 

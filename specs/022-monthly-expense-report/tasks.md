@@ -29,9 +29,9 @@ description: "Task list for Monthly Expense Report feature implementation"
 
 **Purpose**: Module scaffolding and i18n placeholders for monthly report
 
-- [ ] T001 Create empty bot module stubs `services/monthly_report.py`, `services/monthly_report_period.py`, `services/monthly_report_snapshot.py`, `services/monthly_report_insights.py`, `services/monthly_report_render.py`, `services/monthly_report_repository.py` with module docstrings referencing `specs/022-monthly-expense-report/contracts/`
-- [ ] T002 [P] Add monthly-report i18n key placeholders in `services/confirmation_i18n.py` (`monthly_report_tip`, `monthly_report_preparing`, `monthly_report_in_progress`, `monthly_report_failed`, `monthly_report_caption`, `monthly_report_future`, empty/no-budget helpers — ja/en/zh)
-- [ ] T003 [P] Add matching persona-flavored keys in `services/persona_i18n.py` for the same monthly-report message keys
+- [X] T001 Create empty bot module stubs `services/monthly_report.py`, `services/monthly_report_period.py`, `services/monthly_report_snapshot.py`, `services/monthly_report_insights.py`, `services/monthly_report_render.py`, `services/monthly_report_repository.py` with module docstrings referencing `specs/022-monthly-expense-report/contracts/`
+- [X] T002 [P] Add monthly-report i18n key placeholders in `services/confirmation_i18n.py` (`monthly_report_tip`, `monthly_report_preparing`, `monthly_report_in_progress`, `monthly_report_failed`, `monthly_report_caption`, `monthly_report_future`, empty/no-budget helpers — ja/en/zh)
+- [X] T003 [P] Add matching persona-flavored keys in `services/persona_i18n.py` for the same monthly-report message keys
 
 ---
 
@@ -41,14 +41,14 @@ description: "Task list for Monthly Expense Report feature implementation"
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Create Supabase migration `supabase/migrations/YYYYMMDDHHMMSS_monthly_report_artifacts.sql` per `specs/022-monthly-expense-report/contracts/supabase-schema-delta.md` and `data-model.md` (`monthly_report_artifacts`, `monthly_report_tips`, indexes, RLS lockdown, private bucket `monthly-reports`)
-- [ ] T005 Apply migration to Supabase project `https://nyuenufldaqsjybjhawl.supabase.co` and verify tables + private bucket `monthly-reports` (note result in `specs/022-monthly-expense-report/quickstart.md` if needed)
-- [ ] T006 [P] Implement fiscal period helpers in `services/monthly_report_period.py` (reuse `fiscal_period_start_for_date` / `_fetch_fiscal_start_day` from `services/budget_pace.py`; previous completed / current / named period resolution; reject future)
-- [ ] T007 [P] Implement repository helpers in `services/monthly_report_repository.py` (artifact upsert/load by tenant+period_start; tip insert/exists; Storage upload; signed URL generation; fingerprint fields)
-- [ ] T008 Extend `BotReply` in `services/message_context.py` with optional image payload (`original_url`, `preview_url`, optional local path/bytes for harness) per `contracts/monthly-report-bot.md`
-- [ ] T009 Update `main.py` `_reply_and_save_confirmation` (and related reply helpers) to send `TextMessage` and/or LINE `ImageMessage` when `BotReply.image` is set
-- [ ] T010 [P] Update `local_run.py` to write/print report PNG path (and caption) when `BotReply.image` is present
-- [ ] T011 [P] Add unit tests for period resolution in `tests/test_monthly_report_period.py` (start day 1 vs non-1; previous vs current; future rejected)
+- [X] T004 Create Supabase migration `supabase/migrations/YYYYMMDDHHMMSS_monthly_report_artifacts.sql` per `specs/022-monthly-expense-report/contracts/supabase-schema-delta.md` and `data-model.md` (`monthly_report_artifacts`, `monthly_report_tips`, indexes, RLS lockdown, private bucket `monthly-reports`)
+- [X] T005 Apply migration to Supabase project `https://nyuenufldaqsjybjhawl.supabase.co` and verify tables + private bucket `monthly-reports` (note result in `specs/022-monthly-expense-report/quickstart.md` if needed)
+- [X] T006 [P] Implement fiscal period helpers in `services/monthly_report_period.py` (reuse `fiscal_period_start_for_date` / `_fetch_fiscal_start_day` from `services/budget_pace.py`; previous completed / current / named period resolution; reject future)
+- [X] T007 [P] Implement repository helpers in `services/monthly_report_repository.py` (artifact upsert/load by tenant+period_start; tip insert/exists; Storage upload; signed URL generation; fingerprint fields)
+- [X] T008 Extend `BotReply` in `services/message_context.py` with optional image payload (`original_url`, `preview_url`, optional local path/bytes for harness) per `contracts/monthly-report-bot.md`
+- [X] T009 Update `main.py` `_reply_and_save_confirmation` (and related reply helpers) to send `TextMessage` and/or LINE `ImageMessage` when `BotReply.image` is set
+- [X] T010 [P] Update `local_run.py` to write/print report PNG path (and caption) when `BotReply.image` is present
+- [X] T011 [P] Add unit tests for period resolution in `tests/test_monthly_report_period.py` (start day 1 vs non-1; previous vs current; future rejected)
 
 **Checkpoint**: Foundation ready — migration applied, period/repo helpers + BotReply image path in place
 
@@ -64,17 +64,17 @@ description: "Task list for Monthly Expense Report feature implementation"
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T012 [P] [US1] Add intent classification tests for `monthly_report` (phrase gate + LLM parse stub) in `tests/test_monthly_report_intent.py`
-- [ ] T013 [P] [US1] Add functional bot journey skeleton in `tests/functional/bot/test_monthly_report_journey.py` asserting report ask does not insert expenses/wish items and returns image or caption path when artifact ready (mocked repo/Gemini/LINE)
+- [X] T012 [P] [US1] Add intent classification tests for `monthly_report` (phrase gate + LLM parse stub) in `tests/test_monthly_report_intent.py`
+- [X] T013 [P] [US1] Add functional bot journey skeleton in `tests/functional/bot/test_monthly_report_journey.py` asserting report ask does not insert expenses/wish items and returns image or caption path when artifact ready (mocked repo/Gemini/LINE)
 
 ### Implementation for User Story 1
 
-- [ ] T014 [US1] Extend `TextMessageIntent` and `COMBINED_TEXT_INTENT_PROMPT` in `services/intent.py` with `monthly_report` (+ prefer-over rules) per `contracts/monthly-report-bot.md`
-- [ ] T015 [P] [US1] Add deterministic phrase gate for report asks (JP/EN) in `services/intent.py` or a small `services/monthly_report_intent.py`
-- [ ] T016 [US1] Implement minimal sync prepare→render path in `services/monthly_report_render.py` + `services/monthly_report.py` that produces a PNG (placeholder chart acceptable for MVP wiring) and stores via repository
-- [ ] T017 [US1] Wire `monthly_report` branch in `services/message_handler.py` to resolve period (default previous completed), load/create ready artifact, and return `BotReply` with image + caption i18n
-- [ ] T018 [US1] Handle invalid/future period and missing-ledger errors with i18n text-only replies in `services/monthly_report.py` / `message_handler.py`
-- [ ] T019 [US1] Expand `tests/functional/bot/test_monthly_report_journey.py` for personal vs group ledger period default and “no expense side effects”
+- [X] T014 [US1] Extend `TextMessageIntent` and `COMBINED_TEXT_INTENT_PROMPT` in `services/intent.py` with `monthly_report` (+ prefer-over rules) per `contracts/monthly-report-bot.md`
+- [X] T015 [P] [US1] Add deterministic phrase gate for report asks (JP/EN) in `services/intent.py` or a small `services/monthly_report_intent.py`
+- [X] T016 [US1] Implement minimal sync prepare→render path in `services/monthly_report_render.py` + `services/monthly_report.py` that produces a PNG (placeholder chart acceptable for MVP wiring) and stores via repository
+- [X] T017 [US1] Wire `monthly_report` branch in `services/message_handler.py` to resolve period (default previous completed), load/create ready artifact, and return `BotReply` with image + caption i18n
+- [X] T018 [US1] Handle invalid/future period and missing-ledger errors with i18n text-only replies in `services/monthly_report.py` / `message_handler.py`
+- [X] T019 [US1] Expand `tests/functional/bot/test_monthly_report_journey.py` for personal vs group ledger period default and “no expense side effects”
 
 **Checkpoint**: User Story 1 complete — dedicated ask returns one image for previous completed period
 
@@ -88,15 +88,15 @@ description: "Task list for Monthly Expense Report feature implementation"
 
 ### Tests for User Story 2
 
-- [ ] T020 [P] [US2] Add unit tests in `tests/test_monthly_report_request.py` for same-turn ready vs ask-again timeout, in-progress reply, failed retry, fingerprint stale→refresh
-- [ ] T021 [P] [US2] Extend `tests/functional/bot/test_monthly_report_journey.py` with preparing → ask-again → deliver journey (mocked clocks/artifact states)
+- [X] T020 [P] [US2] Add unit tests in `tests/test_monthly_report_request.py` for same-turn ready vs ask-again timeout, in-progress reply, failed retry, fingerprint stale→refresh
+- [X] T021 [P] [US2] Extend `tests/functional/bot/test_monthly_report_journey.py` with preparing → ask-again → deliver journey (mocked clocks/artifact states)
 
 ### Implementation for User Story 2
 
-- [ ] T022 [US2] Implement artifact state machine + fingerprint compute/compare in `services/monthly_report_repository.py` / `services/monthly_report.py` (`preparing`/`ready`/`failed`, data+style fingerprints)
-- [ ] T023 [US2] Implement same-turn wait budget (~8s) and background continuation (`asyncio.create_task` or equivalent) in `services/monthly_report.py` without reusing expired LINE reply tokens
-- [ ] T024 [US2] Return `monthly_report_preparing` / `monthly_report_in_progress` / `monthly_report_failed` i18n replies from `services/monthly_report.py` for non-ready paths
-- [ ] T025 [US2] On ask when ready+fingerprint match, resend existing artifact without full re-prepare; on mismatch, re-enter preparing/refresh path
+- [X] T022 [US2] Implement artifact state machine + fingerprint compute/compare in `services/monthly_report_repository.py` / `services/monthly_report.py` (`preparing`/`ready`/`failed`, data+style fingerprints)
+- [X] T023 [US2] Implement same-turn wait budget (~8s) and background continuation (`asyncio.create_task` or equivalent) in `services/monthly_report.py` without reusing expired LINE reply tokens
+- [X] T024 [US2] Return `monthly_report_preparing` / `monthly_report_in_progress` / `monthly_report_failed` i18n replies from `services/monthly_report.py` for non-ready paths
+- [X] T025 [US2] On ask when ready+fingerprint match, resend existing artifact without full re-prepare; on mismatch, re-enter preparing/refresh path
 
 **Checkpoint**: User Story 2 complete — lazy prepare, same-turn/ask-again, refresh semantics work
 
@@ -110,16 +110,16 @@ description: "Task list for Monthly Expense Report feature implementation"
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] Add unit tests in `tests/test_monthly_report_snapshot.py` for total inclusion, worst-variance ranking (≤3), no-budget fallback, pace fields aligned with `budget_pace` health
-- [ ] T027 [P] [US3] Add render/snapshot assertion helpers or tests in `tests/test_monthly_report_render.py` that ready artifacts’ `snapshot_json` drives budget-vs-actual primary series (not category-share-only when budgeted)
-- [ ] T028 [P] [US3] Extend `tests/functional/bot/test_monthly_report_journey.py` for budgeted vs no-budget commentary/graph expectations (mocked snapshot/render)
+- [X] T026 [P] [US3] Add unit tests in `tests/test_monthly_report_snapshot.py` for total inclusion, worst-variance ranking (≤3), no-budget fallback, pace fields aligned with `budget_pace` health
+- [X] T027 [P] [US3] Add render/snapshot assertion helpers or tests in `tests/test_monthly_report_render.py` that ready artifacts’ `snapshot_json` drives budget-vs-actual primary series (not category-share-only when budgeted)
+- [X] T028 [P] [US3] Extend `tests/functional/bot/test_monthly_report_journey.py` for budgeted vs no-budget commentary/graph expectations (mocked snapshot/render)
 
 ### Implementation for User Story 3
 
-- [ ] T029 [US3] Implement `services/monthly_report_snapshot.py` using `get_budget_summary` / `budget_pace` helpers to build Budget Comparison Snapshot per `data-model.md` and `contracts/monthly-report-artifact.md`
-- [ ] T030 [P] [US3] Implement insight copy in `services/monthly_report_insights.py` (Gemini metered + template fallback via i18n/persona) focused on meeting budget
-- [ ] T031 [US3] Upgrade `services/monthly_report_render.py` so primary visual is budget vs actual (total + selected categories) with commentary block; spending-summary fallback when no budgets
-- [ ] T032 [US3] Persist `snapshot_json` + `insight_text` on ready artifacts in `services/monthly_report_repository.py` and use them for delivery captions
+- [X] T029 [US3] Implement `services/monthly_report_snapshot.py` using `get_budget_summary` / `budget_pace` helpers to build Budget Comparison Snapshot per `data-model.md` and `contracts/monthly-report-artifact.md`
+- [X] T030 [P] [US3] Implement insight copy in `services/monthly_report_insights.py` (Gemini metered + template fallback via i18n/persona) focused on meeting budget
+- [X] T031 [US3] Upgrade `services/monthly_report_render.py` so primary visual is budget vs actual (total + selected categories) with commentary block; spending-summary fallback when no budgets
+- [X] T032 [US3] Persist `snapshot_json` + `insight_text` on ready artifacts in `services/monthly_report_repository.py` and use them for delivery captions
 
 **Checkpoint**: User Story 3 complete — budget-first chart + insights; safe no-budget fallback
 
@@ -133,14 +133,14 @@ description: "Task list for Monthly Expense Report feature implementation"
 
 ### Tests for User Story 4
 
-- [ ] T033 [P] [US4] Add unit tests in `tests/test_monthly_report_tip.py` for once-per-conversation tip persistence and skip-when-already-shown
-- [ ] T034 [P] [US4] Extend `tests/functional/bot/test_monthly_report_journey.py` for tip on first message, no repeat in group, and report-ask precedence
+- [X] T033 [P] [US4] Add unit tests in `tests/test_monthly_report_tip.py` for once-per-conversation tip persistence and skip-when-already-shown
+- [X] T034 [P] [US4] Extend `tests/functional/bot/test_monthly_report_journey.py` for tip on first message, no repeat in group, and report-ask precedence
 
 ### Implementation for User Story 4
 
-- [ ] T035 [US4] Implement `maybe_new_period_tip` in `services/monthly_report.py` using `monthly_report_tips` via `services/monthly_report_repository.py`
-- [ ] T036 [US4] Integrate tip prepend/append into `services/message_handler.py` primary reply path without starting artifact prepare
-- [ ] T037 [US4] Ensure `monthly_report` first-message path omits or folds tip per FR-016 in `services/monthly_report.py` / `message_handler.py`
+- [X] T035 [US4] Implement `maybe_new_period_tip` in `services/monthly_report.py` using `monthly_report_tips` via `services/monthly_report_repository.py`
+- [X] T036 [US4] Integrate tip prepend/append into `services/message_handler.py` primary reply path without starting artifact prepare
+- [X] T037 [US4] Ensure `monthly_report` first-message path omits or folds tip per FR-016 in `services/monthly_report.py` / `message_handler.py`
 
 **Checkpoint**: User Story 4 complete — text-only once-per-conversation tip
 
@@ -154,14 +154,14 @@ description: "Task list for Monthly Expense Report feature implementation"
 
 ### Tests for User Story 5
 
-- [ ] T038 [P] [US5] Add unit tests in `tests/test_monthly_report_render.py` for style fingerprint inputs (persona/language/emoji), overspend severity styling flags, and top-spend theme selection tie-break
-- [ ] T039 [P] [US5] Extend functional coverage in `tests/functional/bot/test_monthly_report_journey.py` asserting style_fingerprint refresh when persona/language settings change
+- [X] T038 [P] [US5] Add unit tests in `tests/test_monthly_report_render.py` for style fingerprint inputs (persona/language/emoji), overspend severity styling flags, and top-spend theme selection tie-break
+- [X] T039 [P] [US5] Extend functional coverage in `tests/functional/bot/test_monthly_report_journey.py` asserting style_fingerprint refresh when persona/language settings change
 
 ### Implementation for User Story 5
 
-- [ ] T040 [US5] Pass resolved persona, reply language, and emoji level into insights/render from `services/monthly_report.py` (reuse `resolve_persona_for_tenant` / reply-language helpers)
-- [ ] T041 [P] [US5] Apply overspend severity visual/copy cues and top-spend category accent in `services/monthly_report_render.py` while keeping shared layout frame
-- [ ] T042 [US5] Include style inputs in `style_fingerprint` so setting changes force refresh in `services/monthly_report.py`
+- [X] T040 [US5] Pass resolved persona, reply language, and emoji level into insights/render from `services/monthly_report.py` (reuse `resolve_persona_for_tenant` / reply-language helpers)
+- [X] T041 [P] [US5] Apply overspend severity visual/copy cues and top-spend category accent in `services/monthly_report_render.py` while keeping shared layout frame
+- [X] T042 [US5] Include style inputs in `style_fingerprint` so setting changes force refresh in `services/monthly_report.py`
 
 **Checkpoint**: User Story 5 complete — consistent layout with persona/overspend/theme adaptation
 
@@ -171,11 +171,11 @@ description: "Task list for Monthly Expense Report feature implementation"
 
 **Purpose**: Docs, architecture sync, suite green, quickstart validation
 
-- [ ] T043 [P] Update `docs/ARCHITECTURE.md` for monthly-report intent, artifact/tip tables, Storage bucket, and LINE image reply path (required before merge per architecture-docs gate)
-- [ ] T044 [P] Align `specs/022-monthly-expense-report/quickstart.md` with final harness commands and any migration filename
-- [ ] T045 Run `python3 -m pytest -q` (including `tests/functional/bot/`) and fix regressions from intent/BotReply/main changes
-- [ ] T046 Manually walk `specs/022-monthly-expense-report/quickstart.md` acceptance checklist and capture evidence under `/opt/cursor/artifacts/` when implementing in Cloud Agent
-- [ ] T047 [P] Add brief logging for prepare start/ready/fail, tip shown, and delivery in `services/monthly_report.py` / repository
+- [X] T043 [P] Update `docs/ARCHITECTURE.md` for monthly-report intent, artifact/tip tables, Storage bucket, and LINE image reply path (required before merge per architecture-docs gate)
+- [X] T044 [P] Align `specs/022-monthly-expense-report/quickstart.md` with final harness commands and any migration filename
+- [X] T045 Run `python3 -m pytest -q` (including `tests/functional/bot/`) and fix regressions from intent/BotReply/main changes
+- [X] T046 Manually walk `specs/022-monthly-expense-report/quickstart.md` acceptance checklist and capture evidence under `/opt/cursor/artifacts/` when implementing in Cloud Agent
+- [X] T047 [P] Add brief logging for prepare start/ready/fail, tip shown, and delivery in `services/monthly_report.py` / repository
 
 ---
 

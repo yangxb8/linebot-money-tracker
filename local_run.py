@@ -102,7 +102,7 @@ async def _fetch_console_image_bytes(message_id: str) -> bytes:
     return cached
 
 
-async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
+async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None, str | None]:
     gemini = create_gemini_client(api_key=os.getenv('GEMINI_API_KEY'))
     line_user_id = os.getenv('LOCAL_LINE_USER_ID', 'local-dev-user')
 
@@ -138,7 +138,7 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
             skip_limits=args.skip_usage_limits,
         )
         if not usage_prep.allowed:
-            return format_denial_reply('en', usage_prep.reason), None, None
+            return format_denial_reply('en', usage_prep.reason), None, None, None
         with usage_billing_scope(usage_prep.billing_context):
             bot_reply = await process_message_retry(
                 retry_context,
@@ -146,7 +146,7 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
                 _fetch_console_image_bytes,
             )
         if bot_reply.text == retry_not_found_reply('en'):
-            return bot_reply.text, None, None
+            return bot_reply.text, None, None, None
         bot_message_id = None
         error_message_id = None
         if bot_reply.confirmation:
@@ -172,7 +172,7 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
                     tenant=tenant,
                     failure_kind=bot_reply.retryable_failure,
                 )
-        return bot_reply.text, bot_message_id, error_message_id
+        return bot_reply.text, bot_message_id, error_message_id, None
 
     if args.reply_to:
         if args.image and args.text:
@@ -202,7 +202,7 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
                 skip_limits=args.skip_usage_limits,
             )
             if not usage_prep.allowed:
-                return format_denial_reply('en', usage_prep.reason), None, None
+                return format_denial_reply('en', usage_prep.reason), None, None, None
             with usage_billing_scope(usage_prep.billing_context):
                 from services.message_handler import process_reply_wish_list_image
 
@@ -211,7 +211,7 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
                     reply_context,
                     gemini,
                 )
-            return edit_result.text, None, None
+            return edit_result.text, None, None, None
 
         usage_prep = prepare_inbound_usage(
             tenant,
@@ -221,10 +221,10 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
             skip_limits=args.skip_usage_limits,
         )
         if not usage_prep.allowed:
-            return format_denial_reply('en', usage_prep.reason), None, None
+            return format_denial_reply('en', usage_prep.reason), None, None, None
         with usage_billing_scope(usage_prep.billing_context):
             edit_result = await process_reply_edit(args.text, reply_context, gemini)
-        return edit_result.text, None, None
+        return edit_result.text, None, None, None
 
     if not args.text and not args.image:
         raise ValueError('Provide --text and/or --image')
@@ -251,7 +251,7 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
             skip_limits=args.skip_usage_limits,
         )
         if not usage_prep.allowed:
-            return format_denial_reply('en', usage_prep.reason), None, None
+            return format_denial_reply('en', usage_prep.reason), None, None, None
         with usage_billing_scope(usage_prep.billing_context):
             bot_reply = await process_image_message(
                 image_bytes,
@@ -274,7 +274,7 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
             skip_limits=args.skip_usage_limits,
         )
         if not usage_prep.allowed:
-            return format_denial_reply('en', usage_prep.reason), None, None
+            return format_denial_reply('en', usage_prep.reason), None, None, None
         with usage_billing_scope(usage_prep.billing_context):
             bot_reply = await process_text_message(args.text, gemini, context)
     else:
@@ -293,7 +293,7 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
             skip_limits=args.skip_usage_limits,
         )
         if not usage_prep.allowed:
-            return format_denial_reply('en', usage_prep.reason), None, None
+            return format_denial_reply('en', usage_prep.reason), None, None, None
         with usage_billing_scope(usage_prep.billing_context):
             bot_reply = await process_image_message(image_bytes, gemini, context=context)
 
@@ -319,7 +319,14 @@ async def _run(args: argparse.Namespace) -> tuple[str, str | None, str | None]:
             failure_kind=bot_reply.retryable_failure,
         )
 
-    return bot_reply.text, bot_message_id, error_message_id
+    image_path = None
+    if bot_reply.image and bot_reply.image.local_path:
+        image_path = bot_reply.image.local_path
+    elif bot_reply.image and bot_reply.image.png_bytes:
+        out = Path('/tmp') / f'monthly-report-console-{uuid.uuid4().hex}.png'
+        out.write_bytes(bot_reply.image.png_bytes)
+        image_path = str(out)
+    return bot_reply.text, bot_message_id, error_message_id, image_path
 
 
 def main() -> int:
@@ -338,7 +345,7 @@ def main() -> int:
     init_sentry(environment='local')
 
     try:
-        reply, bot_message_id, error_message_id = asyncio.run(_run(args))
+        reply, bot_message_id, error_message_id, image_path = asyncio.run(_run(args))
     except FileNotFoundError as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -353,6 +360,8 @@ def main() -> int:
         return 1
 
     print(reply)
+    if image_path:
+        print(f'[monthly_report] image_path={image_path}')
     if bot_message_id:
         print(f'[confirmation] bot_message_id={bot_message_id} (use with --reply-to)')
     if error_message_id:

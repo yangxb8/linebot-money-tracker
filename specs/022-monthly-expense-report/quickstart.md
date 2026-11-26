@@ -12,17 +12,20 @@
 ## Apply migration
 
 ```bash
-# From repo root — after adding supabase/migrations/*_monthly_report_artifacts.sql
+# From repo root — migration file:
+# supabase/migrations/20261127120000_monthly_report_artifacts.sql
 supabase db push
-# Or apply the migration SQL in the Supabase SQL editor (tables + bucket)
+# Or apply via Supabase MCP / SQL editor (tables + private bucket monthly-reports)
 ```
+
+Applied on project `nyuenufldaqsjybjhawl` (tables `monthly_report_artifacts`, `monthly_report_tips`, bucket `monthly-reports`).
 
 Verify:
 
 ```sql
-\d monthly_report_artifacts
-\d monthly_report_tips
--- Storage: bucket monthly-reports exists and is private
+SELECT to_regclass('public.monthly_report_artifacts');
+SELECT to_regclass('public.monthly_report_tips');
+SELECT id, public FROM storage.buckets WHERE id = 'monthly-reports';
 ```
 
 ## Seed a period worth reporting

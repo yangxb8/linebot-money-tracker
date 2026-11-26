@@ -72,10 +72,21 @@ class ConfirmationSavePayload:
 
 
 @dataclass(frozen=True)
+class ReportImagePayload:
+    """LINE image reply payload (HTTPS URLs and/or local harness bytes)."""
+
+    original_url: str
+    preview_url: str
+    local_path: Optional[str] = None
+    png_bytes: Optional[bytes] = None
+
+
+@dataclass(frozen=True)
 class BotReply:
     text: str
     confirmation: Optional[ConfirmationSavePayload] = None
     retryable_failure: Optional[str] = None
+    image: Optional[ReportImagePayload] = None
 
 
 @dataclass(frozen=True)
