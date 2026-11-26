@@ -5,12 +5,17 @@ alwaysApply: true
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan at
-`specs/021-automated-functional-tests/plan.md` and the developer quickstart at
-`specs/021-automated-functional-tests/quickstart.md`.
+`specs/022-monthly-expense-report/plan.md` and the developer quickstart at
+`specs/022-monthly-expense-report/quickstart.md`.
 
 Primary local dev workflow: `python local_run.py --text "..."` or
 `python local_run.py --image path/to/receipt.jpg` (requires GEMINI_API_KEY only;
 add SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY to persist expenses and LLM usage metering).
+
+Monthly report testing: `python local_run.py --text "monthly report"` (default =
+previous completed fiscal period; may print an image path or “preparing—ask again”).
+New-period tip: first message after fiscal rollover should mention the report is
+available when asked (text only, once per conversation).
 
 Wish list bot testing: `python local_run.py --text "I want to buy headphones 15000 yen"`,
 then `python local_run.py --reply-to <bot_message_id> --text "yes"`.
@@ -28,6 +33,7 @@ Group usage / pooling: `python local_run.py --group-id <group_id> --text "..."`
 Automated functional tests (feature 021, PR lane, mocked): 
 `python3 -m pytest -q tests/functional/bot`; `cd web && npm test`; `cd web && npx playwright test`.
 Every user-facing feature must expand this suite — see AGENTS.md “Test suite expansion”.
+Monthly report must add bot unit + `tests/functional/bot/` coverage (no new web e2e in v1).
 
 Supabase project: `https://nyuenufldaqsjybjhawl.supabase.co`
 <!-- SPECKIT END -->
