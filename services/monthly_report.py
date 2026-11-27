@@ -13,7 +13,6 @@ from services.bot_persona import resolve_persona_for_tenant
 from services.confirmation_i18n import t
 from services.gemini_client import GeminiClient
 from services.message_context import BotReply, MessageContext, ReportImagePayload
-from services.monthly_report_insights import generate_insight_text
 from services.monthly_report_period import (
     PeriodResolveError,
     ReportPeriod,
@@ -22,7 +21,6 @@ from services.monthly_report_period import (
     resolve_report_period,
     today_jst,
 )
-from services.monthly_report_render import render_report_png
 from services.monthly_report_repository import (
     ArtifactRecord,
     compute_data_fingerprint,
@@ -35,7 +33,6 @@ from services.monthly_report_repository import (
     tip_already_shown,
     upsert_preparing,
 )
-from services.monthly_report_snapshot import build_budget_snapshot
 from services.tenant_context import TenantContext
 
 logger = logging.getLogger(__name__)
@@ -48,7 +45,7 @@ _REPORT_PHRASE_RE = re.compile(
     r'show\s+(?:my\s+)?(?:monthly\s+)?report|'
     r'(?:家計|月次|月間)?レポート|まとめを?(?:見せて|ください)?|'
     r'先月のまとめ|今月のレポート|支出レポート|予算レポート|'
-    r'月报|月報|报表|報告'
+    r'月报|月報|报表|報告|报告'
     r')',
     re.IGNORECASE,
 )
@@ -173,6 +170,11 @@ async def _prepare_artifact(
     gemini: GeminiClient,
 ) -> ArtifactRecord:
     try:
+        # Heavy deps (snapshot / Gemini insight / Pillow) load only on prepare.
+        from services.monthly_report_insights import generate_insight_text
+        from services.monthly_report_render import render_report_png
+        from services.monthly_report_snapshot import build_budget_snapshot
+
         snapshot = build_budget_snapshot(tenant, period)
         insight = await generate_insight_text(language, snapshot, period.label, gemini)
         title = t(language, 'monthly_report_title')

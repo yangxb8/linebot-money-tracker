@@ -5,8 +5,6 @@ from __future__ import annotations
 import io
 from typing import Any, Dict, Optional, Tuple
 
-from PIL import Image, ImageDraw, ImageFont
-
 # Shared layout family
 WIDTH = 900
 HEIGHT = 1200
@@ -24,7 +22,9 @@ _THEME_COLORS = {
 }
 
 
-def _font(size: int) -> ImageFont.ImageFont:
+def _font(size: int):
+    from PIL import ImageFont
+
     try:
         return ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', size)
     except OSError:
@@ -60,6 +60,9 @@ def render_report_png(
     title: str = 'Monthly Report',
 ) -> bytes:
     """Compose one PNG: primary budget-vs-actual chart + commentary."""
+    # Import Pillow only when rendering so Cloud Run cold start does not load it.
+    from PIL import Image, ImageDraw
+
     severity = str(snapshot.get('overspend_severity') or 'none')
     top = snapshot.get('top_spend_category') or {}
     accent = _theme_rgb(top.get('name'), severity)
@@ -136,7 +139,7 @@ def _chart_series(snapshot: Dict[str, Any]) -> list[dict]:
     return series
 
 
-def _draw_bars(draw: ImageDraw.ImageDraw, series: list[dict], accent, body_font, small_font) -> None:
+def _draw_bars(draw, series: list[dict], accent, body_font, small_font) -> None:
     if not series:
         draw.text((MARGIN + 20, CHART_TOP + 160), 'No data', fill=(120, 120, 120), font=body_font)
         return
@@ -173,7 +176,7 @@ def _draw_bars(draw: ImageDraw.ImageDraw, series: list[dict], accent, body_font,
     draw.text((MARGIN + 20, CHART_TOP + 4), 'Budget (outline) vs Actual (fill)', fill=(90, 90, 90), font=small_font)
 
 
-def _wrap_text(text: str, font: ImageFont.ImageFont, max_width: int) -> list[str]:
+def _wrap_text(text: str, font, max_width: int) -> list[str]:
     words = text.replace('\n', ' \n ').split()
     lines: list[str] = []
     current = ''

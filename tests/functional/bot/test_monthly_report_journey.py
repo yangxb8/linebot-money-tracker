@@ -76,7 +76,7 @@ async def test_monthly_report_ask_no_expense_or_wish_side_effects():
     ), patch(
         'services.monthly_report.compute_style_fingerprint', return_value='sf'
     ), patch(
-        'services.monthly_report.build_budget_snapshot',
+        'services.monthly_report_snapshot.build_budget_snapshot',
         return_value={
             'has_any_budget': True,
             'total': {'limit': 100000, 'spent': 90000, 'remaining': 10000, 'pace_ratio': 0.9},
@@ -85,10 +85,10 @@ async def test_monthly_report_ask_no_expense_or_wish_side_effects():
             'overspend_severity': 'none',
         },
     ), patch(
-        'services.monthly_report.generate_insight_text',
+        'services.monthly_report_insights.generate_insight_text',
         AsyncMock(return_value='On track.'),
     ), patch(
-        'services.monthly_report.render_report_png',
+        'services.monthly_report_render.render_report_png',
         return_value=b'\x89PNG\r\n\x1a\nreport',
     ), patch(
         'services.monthly_report.resolve_persona_for_tenant',
@@ -119,13 +119,13 @@ async def test_monthly_report_group_ledger_period_default():
     ), patch(
         'services.monthly_report.compute_style_fingerprint', return_value='sf'
     ), patch(
-        'services.monthly_report.build_budget_snapshot',
+        'services.monthly_report_snapshot.build_budget_snapshot',
         return_value={'has_any_budget': False, 'spending_total': 0, 'categories': []},
     ), patch(
-        'services.monthly_report.generate_insight_text',
+        'services.monthly_report_insights.generate_insight_text',
         AsyncMock(return_value='No budget.'),
     ), patch(
-        'services.monthly_report.render_report_png',
+        'services.monthly_report_render.render_report_png',
         return_value=b'\x89PNG\r\n\x1a\ng',
     ), patch(
         'services.monthly_report.resolve_persona_for_tenant',
@@ -228,13 +228,13 @@ async def test_tip_on_first_message_not_on_second_and_report_precedence():
     ), patch(
         'services.monthly_report.compute_style_fingerprint', return_value='sf'
     ), patch(
-        'services.monthly_report.build_budget_snapshot',
+        'services.monthly_report_snapshot.build_budget_snapshot',
         return_value={'has_any_budget': False, 'spending_total': 0, 'categories': []},
     ), patch(
-        'services.monthly_report.generate_insight_text',
+        'services.monthly_report_insights.generate_insight_text',
         AsyncMock(return_value='x'),
     ), patch(
-        'services.monthly_report.render_report_png',
+        'services.monthly_report_render.render_report_png',
         return_value=b'\x89PNG\r\n\x1a\n',
     ), patch(
         'services.monthly_report.resolve_persona_for_tenant',
@@ -272,14 +272,14 @@ async def test_budgeted_vs_no_budget_snapshot_paths():
         ), patch(
             'services.monthly_report.compute_style_fingerprint', return_value='sf'
         ), patch(
-            'services.monthly_report.build_budget_snapshot', return_value=snapshot
+            'services.monthly_report_snapshot.build_budget_snapshot', return_value=snapshot
         ), patch(
-            'services.monthly_report.generate_insight_text',
+            'services.monthly_report_insights.generate_insight_text',
             AsyncMock(side_effect=lambda lang, snap, label, g: (
                 'Over total budget' if snap.get('has_any_budget') else 'No budget set'
             )),
         ), patch(
-            'services.monthly_report.render_report_png',
+            'services.monthly_report_render.render_report_png',
             return_value=b'\x89PNG\r\n\x1a\nx',
         ), patch(
             'services.monthly_report.resolve_persona_for_tenant',
@@ -322,13 +322,13 @@ async def test_style_fingerprint_refresh_when_persona_changes():
     ), patch(
         'services.monthly_report.compute_style_fingerprint', return_value='new-style'
     ), patch(
-        'services.monthly_report.build_budget_snapshot',
+        'services.monthly_report_snapshot.build_budget_snapshot',
         return_value={'has_any_budget': False, 'spending_total': 2, 'categories': []},
     ), patch(
-        'services.monthly_report.generate_insight_text',
+        'services.monthly_report_insights.generate_insight_text',
         AsyncMock(return_value='new insight'),
     ), patch(
-        'services.monthly_report.render_report_png',
+        'services.monthly_report_render.render_report_png',
         return_value=b'\x89PNG\r\n\x1a\nnew',
     ), patch(
         'services.monthly_report.resolve_persona_for_tenant',
