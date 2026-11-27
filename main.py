@@ -2,7 +2,6 @@
 
 import logging
 import os
-import sys
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -133,11 +132,15 @@ async def lifespan(app: FastAPI):
 
     missing = _init_webhook_state()
     if missing:
-        print('Missing required environment variables:', ', '.join(missing))
-        sys.exit(1)
+        # Raise (do not sys.exit): Cloud Run surfaces this as a clear startup
+        # failure instead of a generic "did not listen on PORT" timeout.
+        message = 'Missing required environment variables: ' + ', '.join(missing)
+        logger.error(message)
+        raise RuntimeError(message)
 
     async_api_client = AsyncApiClient(configuration)
     line_bot_api = AsyncMessagingApi(async_api_client)
+    logger.info('Webhook lifespan startup complete (listening)')
     yield
     if async_api_client is not None:
         await async_api_client.close()

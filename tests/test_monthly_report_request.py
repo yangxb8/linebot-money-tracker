@@ -58,13 +58,13 @@ async def test_same_turn_ready_delivers_image():
     ), patch(
         'services.monthly_report.compute_style_fingerprint', return_value='style-fp'
     ), patch(
-        'services.monthly_report.build_budget_snapshot',
+        'services.monthly_report_snapshot.build_budget_snapshot',
         return_value={'has_any_budget': False, 'spending_total': 1000, 'categories': []},
     ), patch(
-        'services.monthly_report.generate_insight_text',
+        'services.monthly_report_insights.generate_insight_text',
         AsyncMock(return_value='Insight'),
     ), patch(
-        'services.monthly_report.render_report_png',
+        'services.monthly_report_render.render_report_png',
         return_value=b'\x89PNG\r\n\x1a\nfake',
     ), patch(
         'services.monthly_report.resolve_persona_for_tenant',
@@ -186,13 +186,13 @@ async def test_fingerprint_stale_triggers_refresh():
     ), patch(
         'services.monthly_report.compute_style_fingerprint', return_value='style-fp'
     ), patch(
-        'services.monthly_report.build_budget_snapshot',
+        'services.monthly_report_snapshot.build_budget_snapshot',
         return_value={'has_any_budget': False, 'spending_total': 2000, 'categories': []},
     ), patch(
-        'services.monthly_report.generate_insight_text',
+        'services.monthly_report_insights.generate_insight_text',
         AsyncMock(return_value='Fresh'),
     ), patch(
-        'services.monthly_report.render_report_png',
+        'services.monthly_report_render.render_report_png',
         return_value=b'\x89PNG\r\n\x1a\nfresh',
     ), patch(
         'services.monthly_report.resolve_persona_for_tenant',

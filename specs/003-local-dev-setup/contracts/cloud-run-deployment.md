@@ -47,6 +47,18 @@ docker build -t linebot-money-tracker .
 
 ### 2. Deploy to Cloud Run
 
+**Preferred (preserve existing env/secrets):**
+
+```bash
+gcloud run deploy linebot-money-tracker \
+  --image gcr.io/$GOOGLE_CLOUD_PROJECT/linebot-money-tracker \
+  --platform managed \
+  --region asia-northeast1 \
+  --allow-unauthenticated
+```
+
+First-time setup (or intentional full replace) — include **every** required key. `--set-env-vars` replaces the whole env map; omitting `SUPABASE_*` / Sentry / etc. clears them and can make the next revision crash on startup:
+
 ```bash
 gcloud run deploy linebot-money-tracker \
   --image gcr.io/$GOOGLE_CLOUD_PROJECT/linebot-money-tracker \
@@ -56,10 +68,14 @@ gcloud run deploy linebot-money-tracker \
   --set-env-vars LINE_CHANNEL_SECRET=$LINE_CHANNEL_SECRET,\
 LINE_CHANNEL_ACCESS_TOKEN=$LINE_CHANNEL_ACCESS_TOKEN,\
 GEMINI_API_KEY=$GEMINI_API_KEY,\
+SUPABASE_URL=$SUPABASE_URL,\
+SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY,\
 GOOGLE_VISION_API_KEY=$GOOGLE_VISION_API_KEY,\
 SENTRY_DSN=$SENTRY_DSN,\
 SENTRY_ENVIRONMENT=production
 ```
+
+If deploy fails with “failed to start and listen on PORT”, open the failed revision logs first — look for `Missing required environment variables` (LINE/Gemini missing, or only one of the two Supabase vars set).
 
 ### 3. Configure LINE webhook
 

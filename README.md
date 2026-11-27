@@ -78,12 +78,14 @@ Production target. Same env var names as local webhook server.
 
 ```bash
 gcloud builds submit --tag gcr.io/$GOOGLE_CLOUD_PROJECT/linebot-money-tracker
+# Prefer updating the image only so existing env/secrets (LINE, Gemini, Supabase, …) are preserved:
 gcloud run deploy linebot-money-tracker \
   --image gcr.io/$GOOGLE_CLOUD_PROJECT/linebot-money-tracker \
   --region asia-northeast1 \
-  --allow-unauthenticated \
-  --set-env-vars LINE_CHANNEL_SECRET=...,LINE_CHANNEL_ACCESS_TOKEN=...,GEMINI_API_KEY=...
+  --allow-unauthenticated
 ```
+
+Do **not** pass `--set-env-vars` unless you intentionally replace **all** env vars. That flag wipes unset keys and is a common cause of “container failed to start and listen on PORT” (startup exits when `LINE_*` / `GEMINI_API_KEY` are missing, or when only one of `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` remains). Check the failed revision logs for `Missing required environment variables`.
 
 Full steps: [Cloud Run deployment contract](specs/003-local-dev-setup/contracts/cloud-run-deployment.md)
 
