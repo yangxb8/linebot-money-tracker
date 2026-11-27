@@ -8,7 +8,6 @@ os.environ.setdefault('GEMINI_API_KEY', 'test_key')
 from google.genai.errors import ClientError, ServerError
 
 from services.gemini_client import (
-    GEMINI_3_FLASH_MODEL,
     GEMINI_GENERAL_MODEL_FALLBACK_CHAIN,
     GEMINI_MAX_RETRIES,
     GEMINI_MODEL,
@@ -29,6 +28,19 @@ def _quota_error_429() -> ClientError:
     return ClientError(
         429,
         {'error': {'code': 429, 'message': 'quota exceeded', 'status': 'RESOURCE_EXHAUSTED'}},
+    )
+
+
+def _model_not_found_404() -> ClientError:
+    return ClientError(
+        404,
+        {
+            'error': {
+                'code': 404,
+                'message': 'models/gemini-3-flash-preview is not found',
+                'status': 'NOT_FOUND',
+            }
+        },
     )
 
 
@@ -144,21 +156,59 @@ class TestGeminiClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result, 'Recovered response')
         self.assertEqual(generate_mock.call_count, 2)
         sleep_mock.assert_awaited_once()
+        self.assertEqual(
+            generate_mock.call_args_list[0].kwargs['model'],
+            GEMINI_GENERAL_MODEL_FALLBACK_CHAIN[0],
+        )
+        self.assertEqual(
+            generate_mock.call_args_list[1].kwargs['model'],
+            GEMINI_GENERAL_MODEL_FALLBACK_CHAIN[0],
+        )
 
-    async def test_generate_reply_stops_after_max_retries_on_503(self):
+    async def test_generate_reply_falls_back_to_next_model_after_503_retries(self):
+        fake_response = MagicMock()
+        fake_response.text = 'Fallback after high demand'
         client = GeminiClient(api_key='test_key')
         max_attempts = GEMINI_MAX_RETRIES + 1
 
         with patch.object(
             client.client.models,
             'generate_content',
-            side_effect=[_server_error_503()] * max_attempts,
+            side_effect=[_server_error_503()] * max_attempts + [fake_response],
         ) as generate_mock, patch('services.gemini_client.asyncio.sleep', AsyncMock()) as sleep_mock:
-            with self.assertRaises(RuntimeError):
+            result = await client.generate_reply('Hello world')
+
+        self.assertEqual(result, 'Fallback after high demand')
+        self.assertEqual(generate_mock.call_count, max_attempts + 1)
+        self.assertEqual(sleep_mock.await_count, GEMINI_MAX_RETRIES)
+        self.assertEqual(
+            generate_mock.call_args_list[0].kwargs['model'],
+            GEMINI_GENERAL_MODEL_FALLBACK_CHAIN[0],
+        )
+        self.assertEqual(
+            generate_mock.call_args_list[-1].kwargs['model'],
+            GEMINI_GENERAL_MODEL_FALLBACK_CHAIN[1],
+        )
+
+    async def test_generate_reply_raises_after_all_models_503(self):
+        client = GeminiClient(api_key='test_key')
+        max_attempts = GEMINI_MAX_RETRIES + 1
+        total_calls = max_attempts * len(GEMINI_GENERAL_MODEL_FALLBACK_CHAIN)
+
+        with patch.object(
+            client.client.models,
+            'generate_content',
+            side_effect=[_server_error_503()] * total_calls,
+        ) as generate_mock, patch('services.gemini_client.asyncio.sleep', AsyncMock()) as sleep_mock:
+            with self.assertRaises(RuntimeError) as ctx:
                 await client.generate_reply('Hello world')
 
-        self.assertEqual(generate_mock.call_count, max_attempts)
-        self.assertEqual(sleep_mock.await_count, GEMINI_MAX_RETRIES)
+        self.assertIn('Unable to generate response', str(ctx.exception))
+        self.assertEqual(generate_mock.call_count, total_calls)
+        self.assertEqual(
+            sleep_mock.await_count,
+            GEMINI_MAX_RETRIES * len(GEMINI_GENERAL_MODEL_FALLBACK_CHAIN),
+        )
 
     async def test_generate_reply_does_not_retry_non_retryable_errors(self):
         client = GeminiClient(api_key='test_key')
@@ -174,10 +224,14 @@ class TestGeminiClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(generate_mock.call_count, 1)
         sleep_mock.assert_not_awaited()
 
-    async def test_general_fallback_chain_includes_3_flash_before_25_flash(self):
-        flash_index = GEMINI_GENERAL_MODEL_FALLBACK_CHAIN.index(GEMINI_3_FLASH_MODEL)
-        flash_25_index = GEMINI_GENERAL_MODEL_FALLBACK_CHAIN.index('gemini-2.5-flash')
-        self.assertLess(flash_index, flash_25_index)
+    async def test_fallback_chain_starts_at_35_then_25_flash(self):
+        self.assertEqual(GEMINI_GENERAL_MODEL_FALLBACK_CHAIN[0], 'gemini-3.5-flash')
+        self.assertEqual(GEMINI_GENERAL_MODEL_FALLBACK_CHAIN[1], 'gemini-2.5-flash')
+        self.assertNotIn('gemini-3-flash-preview', GEMINI_GENERAL_MODEL_FALLBACK_CHAIN)
+        self.assertEqual(
+            GEMINI_RECEIPT_IMAGE_MODEL_FALLBACK_CHAIN,
+            GEMINI_GENERAL_MODEL_FALLBACK_CHAIN,
+        )
 
     async def test_generate_reply_falls_back_on_quota(self):
         fake_response = MagicMock()
@@ -197,7 +251,31 @@ class TestGeminiClient(unittest.IsolatedAsyncioTestCase):
         second_model = generate_mock.call_args_list[1].kwargs['model']
         self.assertEqual(first_model, GEMINI_GENERAL_MODEL_FALLBACK_CHAIN[0])
         self.assertEqual(second_model, GEMINI_GENERAL_MODEL_FALLBACK_CHAIN[1])
-        self.assertEqual(second_model, GEMINI_3_FLASH_MODEL)
+        self.assertEqual(second_model, 'gemini-2.5-flash')
+
+    async def test_generate_reply_falls_back_immediately_on_model_not_found(self):
+        fake_response = MagicMock()
+        fake_response.text = 'Next model worked'
+        client = GeminiClient(api_key='test_key')
+
+        with patch.object(
+            client.client.models,
+            'generate_content',
+            side_effect=[_model_not_found_404(), fake_response],
+        ) as generate_mock, patch('services.gemini_client.asyncio.sleep', AsyncMock()) as sleep_mock:
+            result = await client.generate_reply('Hello world')
+
+        self.assertEqual(result, 'Next model worked')
+        self.assertEqual(generate_mock.call_count, 2)
+        sleep_mock.assert_not_awaited()
+        self.assertEqual(
+            generate_mock.call_args_list[0].kwargs['model'],
+            GEMINI_GENERAL_MODEL_FALLBACK_CHAIN[0],
+        )
+        self.assertEqual(
+            generate_mock.call_args_list[1].kwargs['model'],
+            GEMINI_GENERAL_MODEL_FALLBACK_CHAIN[1],
+        )
 
     async def test_generate_reply_raises_usage_limit_when_all_models_quota(self):
         client = GeminiClient(api_key='test_key')
@@ -237,7 +315,7 @@ class TestGeminiClient(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             generate_mock.call_args_list[1].kwargs['model'],
-            GEMINI_3_FLASH_MODEL,
+            'gemini-2.5-flash',
         )
         config = generate_mock.call_args_list[1].kwargs['config']
         self.assertEqual(config.response_mime_type, 'application/json')

@@ -442,7 +442,7 @@ Env contracts: root `.env.example`, `web/.env.example`, and `specs/003-local-dev
 
 ### 7.3 LLM and reliability boundaries
 
-- Model fallback chain and retries live in `gemini_client.py`; metering in `metered_gemini.py`.
+- Model fallback chain and retries live in `gemini_client.py`; metering in `metered_gemini.py`. The chain prefers currently available Flash models (`gemini-3.5-flash` → `gemini-2.5-flash` → lite variants). On **429 quota**, **503 high-demand / retryable 5xx**, or **404 model-not-found**, the client advances to the next model after short same-model retries (503) or immediately (429/404). Dead/preview model IDs are kept out of the chain so a mid-chain 404 cannot abort before later fallbacks.
 - Pre-LLM guards: payload size, per-minute/day rates, monthly total and receipt quotas, group donor pooling.
 - Receipt images: preprocess → Gemini vision JSON parse → validate item sum vs LLM `total` (retry once on mismatch).
 - Fail-open when Supabase is unset: parsing and replies still work; persistence/metering skip — used by key-free unit tests.
