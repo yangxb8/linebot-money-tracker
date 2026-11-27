@@ -12,17 +12,19 @@ from services.log_utils import describe_bytes, truncate
 logger = logging.getLogger(__name__)
 
 GEMINI_MODEL = 'gemini-3.5-flash'
-GEMINI_3_FLASH_MODEL = 'gemini-3-flash-preview'
+# Prefer GA / currently available models. Preview IDs (e.g. gemini-3-flash-preview)
+# are omitted — a mid-chain 404 aborts the request before later fallbacks run.
 GEMINI_GENERAL_MODEL_FALLBACK_CHAIN: Tuple[str, ...] = (
     'gemini-3.5-flash',
-    GEMINI_3_FLASH_MODEL,
     'gemini-2.5-flash',
     'gemini-3.1-flash-lite',
     'gemini-2.5-flash-lite',
 )
-# Receipt vision uses the same quota-fallback chain (starts at 3.5 flash).
+# Receipt vision uses the same capacity/quota fallback chain (starts at 3.5 flash).
 GEMINI_RECEIPT_IMAGE_MODEL_FALLBACK_CHAIN = GEMINI_GENERAL_MODEL_FALLBACK_CHAIN
-GEMINI_MAX_RETRIES = 3
+# Same-model retries before advancing (total attempts = this + 1). Keep low so
+# 503 high-demand fails over to the next model quickly instead of hammering one.
+GEMINI_MAX_RETRIES = 1
 SERVER_RETRYABLE_STATUS_CODES = frozenset({500, 502, 503, 504})
 
 
@@ -38,6 +40,11 @@ def _api_error_code(exc: Exception) -> Optional[int]:
 
 def _is_quota_error(exc: Exception) -> bool:
     return _api_error_code(exc) == 429
+
+
+def _is_model_unavailable_error(exc: Exception) -> bool:
+    """404 / not-found — model id missing or unsupported for generateContent."""
+    return _api_error_code(exc) == 404
 
 
 def _is_retryable_server_error(exc: Exception) -> bool:
@@ -63,13 +70,15 @@ class GeminiClient:
         context: str = '',
         config: Optional[types.GenerateContentConfig] = None,
         models: Optional[Sequence[str]] = None,
-        allow_quota_model_fallback: bool = True,
+        allow_model_fallback: bool = True,
     ) -> str:
         model_chain = tuple(models) if models else (GEMINI_MODEL,)
         last_exc: Optional[Exception] = None
 
         for model_index, resolved_model in enumerate(model_chain):
             max_attempts = GEMINI_MAX_RETRIES + 1
+            advance_to_next_model = False
+
             for attempt in range(1, max_attempts + 1):
                 try:
                     kwargs: Dict[str, Any] = {
@@ -122,6 +131,18 @@ class GeminiClient:
                             resolved_model,
                             context,
                         )
+                        advance_to_next_model = True
+                        break
+
+                    if _is_model_unavailable_error(exc):
+                        logger.warning(
+                            'Gemini %s model unavailable (model=%s)%s: %s',
+                            label,
+                            resolved_model,
+                            context,
+                            exc,
+                        )
+                        advance_to_next_model = True
                         break
 
                     if _is_retryable_server_error(exc) and attempt < max_attempts:
@@ -139,6 +160,17 @@ class GeminiClient:
                         await asyncio.sleep(delay)
                         continue
 
+                    if _is_retryable_server_error(exc):
+                        logger.warning(
+                            'Gemini %s exhausted retries for model=%s%s: %s',
+                            label,
+                            resolved_model,
+                            context,
+                            exc,
+                        )
+                        advance_to_next_model = True
+                        break
+
                     logger.exception(
                         'Gemini %s API call failed (model=%s attempt %d/%d)%s',
                         label,
@@ -149,24 +181,39 @@ class GeminiClient:
                     )
                     raise RuntimeError("Unable to generate response from Gemini API") from exc
 
-            if not allow_quota_model_fallback:
-                raise GeminiUsageLimitError(
-                    f'Gemini usage limit reached for {label} (model={resolved_model})'
-                ) from last_exc
+            if not advance_to_next_model:
+                # Defensive: should not reach here without success or raise.
+                break
+
+            if not allow_model_fallback:
+                if _is_quota_error(last_exc) if last_exc else False:
+                    raise GeminiUsageLimitError(
+                        f'Gemini usage limit reached for {label} (model={resolved_model})'
+                    ) from last_exc
+                raise RuntimeError("Unable to generate response from Gemini API") from last_exc
 
             if model_index < len(model_chain) - 1:
                 next_model = model_chain[model_index + 1]
+                reason = 'capacity/unavailable'
+                if last_exc is not None and _is_quota_error(last_exc):
+                    reason = 'quota'
+                elif last_exc is not None and _is_model_unavailable_error(last_exc):
+                    reason = 'not-found'
                 logger.info(
-                    'Gemini %s switching model after quota: %s -> %s',
+                    'Gemini %s switching model after %s: %s -> %s',
                     label,
+                    reason,
                     resolved_model,
                     next_model,
                 )
                 continue
 
-        raise GeminiUsageLimitError(
-            f'Gemini usage limit reached for {label} after trying {len(model_chain)} model(s)'
-        ) from last_exc
+        if last_exc is not None and _is_quota_error(last_exc):
+            raise GeminiUsageLimitError(
+                f'Gemini usage limit reached for {label} after trying {len(model_chain)} model(s)'
+            ) from last_exc
+
+        raise RuntimeError("Unable to generate response from Gemini API") from last_exc
 
     async def generate_reply(self, prompt: str) -> str:
         if not prompt or not prompt.strip():
@@ -239,7 +286,7 @@ class GeminiClient:
             context=context,
             config=config,
             models=GEMINI_RECEIPT_IMAGE_MODEL_FALLBACK_CHAIN,
-            allow_quota_model_fallback=True,
+            allow_model_fallback=True,
         )
 
     async def generate_reply_with_image(
