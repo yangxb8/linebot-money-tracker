@@ -103,6 +103,25 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         'wish_proposal_confirm': 'ウィッシュリストに追加しますか？ yes / no（はい / いいえ）で返信してください',
         'wish_added': 'ウィッシュリストに追加しました：{name}',
         'wish_cancelled': 'ウィッシュリストへの追加をキャンセルしました。',
+        'monthly_report_tip': (
+            '新しい会計月が始まりました。'
+            '先月のレポートが欲しいときは「月次レポート」や「monthly report」と聞いてね。'
+        ),
+        'monthly_report_preparing': (
+            '月次レポートを準備中です。できたらもう一度聞いてください。'
+        ),
+        'monthly_report_in_progress': 'まだ準備中です。少ししてからもう一度聞いてください。',
+        'monthly_report_failed': 'レポートを準備できませんでした。しばらくしてからもう一度お願いします。',
+        'monthly_report_caption': '{period} のレポートです。',
+        'monthly_report_future': '現在または過去の期間のレポートのみ対応しています。',
+        'monthly_report_title': '月次レポート',
+        'monthly_report_insight_no_budget': '{period}：支出 ¥{spent}。この期間に予算上限は設定されていません。',
+        'monthly_report_insight_header': '{period} の予算チェック：',
+        'monthly_report_insight_total': '合計 ¥{spent} / ¥{limit}（残り ¥{remaining}）。',
+        'monthly_report_insight_over_total': '合計予算を超えています。ペースを落としましょう。',
+        'monthly_report_insight_pace_ahead': '支出ペースが先行しています。',
+        'monthly_report_insight_on_track': '全体として予算ペースは順調です。',
+        'monthly_report_insight_drivers': '注目カテゴリ：{names}。',
     },
     'en': {
         'header': 'Detected expense(s):',
@@ -185,6 +204,31 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         'wish_proposal_confirm': 'Add to wishlist? Reply yes / no',
         'wish_added': 'Added to wishlist: {name}',
         'wish_cancelled': 'Wishlist add cancelled.',
+        'monthly_report_tip': (
+            'A new budget period started. '
+            'Ask me for last period’s monthly report anytime (e.g. “monthly report”).'
+        ),
+        'monthly_report_preparing': (
+            'I’m preparing your monthly report. Ask me again in a moment to receive it.'
+        ),
+        'monthly_report_in_progress': (
+            'Your monthly report is still preparing. Please ask again shortly.'
+        ),
+        'monthly_report_failed': (
+            'Sorry — I couldn’t prepare the monthly report. Please try asking again later.'
+        ),
+        'monthly_report_caption': 'Here’s your report for {period}.',
+        'monthly_report_future': 'I can only report on the current or past periods.',
+        'monthly_report_title': 'Monthly Report',
+        'monthly_report_insight_no_budget': (
+            '{period}: spent ¥{spent}. No budget limit is set for this period.'
+        ),
+        'monthly_report_insight_header': 'Budget check for {period}:',
+        'monthly_report_insight_total': 'Total ¥{spent} / ¥{limit} (¥{remaining} left).',
+        'monthly_report_insight_over_total': 'You are over the total budget — time to slow down.',
+        'monthly_report_insight_pace_ahead': 'Spending is ahead of pace for this period.',
+        'monthly_report_insight_on_track': 'Overall you are on track versus budget.',
+        'monthly_report_insight_drivers': 'Watch these categories: {names}.',
     },
     'zh': {
         'header': '检测到的支出:',
@@ -265,6 +309,23 @@ _STRINGS: Dict[str, Dict[str, str]] = {
         'wish_proposal_confirm': '要加入愿望单吗？请回复 yes / no（或 是 / 不用）',
         'wish_added': '已加入愿望单：{name}',
         'wish_cancelled': '已取消加入愿望单。',
+        'monthly_report_tip': (
+            '新的预算周期开始了。'
+            '想看上一周期月报时，跟我说「月报」或「monthly report」即可。'
+        ),
+        'monthly_report_preparing': '正在准备月报，请稍后再问我一次以接收图片。',
+        'monthly_report_in_progress': '月报仍在准备中，请稍后再问一次。',
+        'monthly_report_failed': '抱歉，月报准备失败，请稍后再试。',
+        'monthly_report_caption': '这是你的 {period} 报告。',
+        'monthly_report_future': '只能查询当前或过去的周期报告。',
+        'monthly_report_title': '月度报告',
+        'monthly_report_insight_no_budget': '{period}：支出 ¥{spent}。本周期未设置预算上限。',
+        'monthly_report_insight_header': '{period} 预算对照：',
+        'monthly_report_insight_total': '合计 ¥{spent} / ¥{limit}（剩余 ¥{remaining}）。',
+        'monthly_report_insight_over_total': '总预算已超支，请注意控制。',
+        'monthly_report_insight_pace_ahead': '当前支出节奏偏快。',
+        'monthly_report_insight_on_track': '整体支出节奏正常。',
+        'monthly_report_insight_drivers': '请关注这些类别：{names}。',
     },
 }
 

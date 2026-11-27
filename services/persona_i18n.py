@@ -93,6 +93,18 @@ JUDY_HOPPS_STRINGS: Dict[str, Dict[str, str]] = {
         'wish_proposal_confirm': 'ウィッシュリストに追加する？ yes / no（はい / いいえ）で返信してね ✨',
         'wish_added': '🐰 ウィッシュリストに追加したよ：{name} ✨',
         'wish_cancelled': '🐰 ウィッシュリストへの追加はキャンセルしたよ。',
+        'monthly_report_tip': (
+            '🐰 新しい会計月が始まったよ！'
+            '前の期間の月次レポートが欲しいときは「レポート」や「monthly report」と聞いてね ✨'
+        ),
+        'monthly_report_preparing': (
+            '🐰 レポートを準備中だよ！少ししてからもう一度聞いてね ✨'
+        ),
+        'monthly_report_in_progress': '🐰 まだ準備中だよ。少ししてからもう一度聞いてね！',
+        'monthly_report_failed': '🐰 レポートを準備できなかった…。しばらくしてからもう一度お願い！',
+        'monthly_report_caption': '🐰 {period} のレポートだよ ✨',
+        'monthly_report_future': '🐰 現在または過去の期間のレポートだけ対応してるよ。',
+        'monthly_report_title': '月次レポート',
     },
     'en': {
         'header': '🐰✨ Expenses I spotted:',
@@ -178,6 +190,18 @@ JUDY_HOPPS_STRINGS: Dict[str, Dict[str, str]] = {
         'wish_proposal_confirm': 'Add to wishlist? Reply yes / no ✨',
         'wish_added': '🐰 Added to wishlist: {name} ✨',
         'wish_cancelled': '🐰 Wishlist add cancelled.',
+        'monthly_report_tip': (
+            "🐰 A new fiscal period started! "
+            'Ask me for a "monthly report" anytime to see the previous period summary ✨'
+        ),
+        'monthly_report_preparing': (
+            "🐰 I'm preparing your report—ask me again in a moment for the image ✨"
+        ),
+        'monthly_report_in_progress': "🐰 Still preparing—please ask again shortly!",
+        'monthly_report_failed': "🐰 I couldn't prepare the report. Please try again later.",
+        'monthly_report_caption': "🐰 Here's your report for {period} ✨",
+        'monthly_report_future': '🐰 I can only report on the current or past periods.',
+        'monthly_report_title': 'Monthly Report',
     },
     'zh': {
         'header': '🐰✨ 检测到的支出:',
@@ -254,6 +278,16 @@ JUDY_HOPPS_STRINGS: Dict[str, Dict[str, str]] = {
         'wish_proposal_confirm': '要加入愿望单吗？请回复 yes / no（或 是 / 不用）✨',
         'wish_added': '🐰 已加入愿望单：{name} ✨',
         'wish_cancelled': '🐰 已取消加入愿望单。',
+        'monthly_report_tip': (
+            '🐰 新的会计月开始了！'
+            '想看上一周期的月报，随时对我说「报表」或「monthly report」✨'
+        ),
+        'monthly_report_preparing': '🐰 正在准备月报，请稍后再问我一次以接收图片 ✨',
+        'monthly_report_in_progress': '🐰 月报仍在准备中，请稍后再问一次！',
+        'monthly_report_failed': '🐰 抱歉，月报准备失败，请稍后再试。',
+        'monthly_report_caption': '🐰 这是你的 {period} 报告 ✨',
+        'monthly_report_future': '🐰 只能查询当前或过去的周期报告。',
+        'monthly_report_title': '月度报告',
     },
 }
 
